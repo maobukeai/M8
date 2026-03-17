@@ -1,0 +1,745 @@
+# M8 全能工具箱 — 帮助文档（超详细）
+
+本文档面向插件使用者，按模块分板块整理 **M8** 的全部可用功能（以插件实际注册的面板/菜单/操作符/偏好设置/快捷键为准）。  
+适用 Blender：5.0（本插件安装目录对应的版本）；文档内容同样适用于相近版本（除个别 Blender 内置属性差异外）。
+
+---
+
+## 0. 快速开始
+
+### 0.1 安装与启用
+
+1. 将 `M8` 文件夹放入 Blender 插件目录（或通过“编辑 > 偏好设置 > 插件 > 安装”安装压缩包）。
+2. 在“编辑 > 偏好设置 > 插件”中搜索 `M8` 并勾选启用。
+3. 启用后你将获得：
+   - 3D 视图右侧 N 面板：分类 `m8`  
+     - “尺寸专家工具 Pro”
+     - “工具箱”
+   - 多个快捷键增强（可在偏好设置中逐项开关）。
+   - 顶部菜单栏（Topbar）追加“重启 Blender”按钮（可开关）。
+
+### 0.2 默认快捷键总览（最常用入口）
+
+| 模块 | 默认快捷键 | 触发内容 |
+|---|---|---|
+| 变换辅助 | Shift+S | 变换/游标/原点增强饼菜单 |
+| 模式切换 | Tab | 智能切换；可选“轻按切换 / 长按菜单” |
+| 快速删除（物体模式） | X / Del | 无确认删除选中物体 |
+| 删除饼菜单（网格编辑） | X / Del | 方向可自定义的删除/融并菜单 |
+| 边属性 | Shift+E | Crease / Bevel Weight / Seam / Sharp 等 |
+| 对齐 | Alt+A | 根据模式自动弹出对应对齐饼菜单 |
+| 着色 | Z | 线框/实体/材质/渲染与常用叠加 |
+| 保存 | Ctrl+S | 保存饼菜单 + 导入导出/资源管理大面板 |
+| 高级重命名 | F2 | 批量命名对话框（变量/正则/预览） |
+| 镜像 | Shift+Alt+X | 交互式镜像（Gizmo/预览/快捷键） |
+
+你可以在“插件偏好设置 > 常规设置”中关闭任意快捷键增强（例如只保留 Shift+S 或只保留镜像）。
+
+---
+
+## 1. 界面入口总览
+
+### 1.1 3D 视图 N 面板（View3D > Sidebar）
+
+- 分类：`m8`
+  - **尺寸专家工具 Pro**（尺寸调节盒/快照/还原工作流）
+  - **工具箱**（常用杂项：原点、落地、冻结变换、叶片工具、随机岛选择）
+
+### 1.2 饼菜单（Pie Menus）
+
+- Shift+S：变换辅助饼菜单
+- Tab：模式切换（可长按弹菜单）
+- X/Del（Edit Mesh）：删除饼菜单
+- Shift+E（Edit Mesh）：边属性饼菜单
+- Alt+A：对齐饼菜单  
+  - 会根据当前环境自动弹出：物体对齐 / 网格对齐 / UV 对齐
+- Z：着色饼菜单
+- Ctrl+S：保存饼菜单（含导入导出/资源管理）
+
+### 1.3 顶部菜单栏按钮
+
+- 顶栏（Topbar）追加“重启 Blender”按钮（可在偏好设置关闭）
+
+---
+
+## 2. 插件偏好设置（总开关、键位管理、导出与镜像参数）
+
+位置：**编辑 > 偏好设置 > 插件 > M8**  
+页面包含两个 Tab：**常规设置 / 关于**。常规设置内又按侧边导航分模块展示。
+
+### 2.1 核心功能开关（是否占用快捷键）
+
+这些开关决定插件是否注册并激活对应快捷键项：
+
+- 变换辅助饼菜单（Shift+S）
+- 模式切换（Tab）
+- 快速删除（Object：X/Del，无确认）
+- 删除饼菜单（Edit Mesh：X/Del）
+- 对齐饼菜单（Alt+A）
+- 着色饼菜单（Z）
+- 保存饼菜单（Ctrl+S）
+- 高级重命名（F2）
+- 镜像（Shift+Alt+X）
+- 顶栏“重启 Blender”按钮
+
+### 2.2 快捷键冲突处理（非常关键）
+
+很多用户会遇到“快捷键被别的插件占用/顺序不对/没弹菜单”的问题。M8 提供两类机制：
+
+1. **置顶（Priority）**：把 M8 的键位项移动到 Keymap 列表顶部，提高优先级。
+2. **独占（Exclusive）**：自动禁用其它插件（可选包含用户键位配置）中与 M8 相同按键签名的冲突项，并记录以便恢复。
+
+对应按钮（在各模块“高级”中）：
+- Shift+S：独占/恢复冲突/强制置顶/恢复默认
+- Tab：强制置顶
+- Alt+A、Ctrl+S、Shift+E、Shift+Alt+X：独占/恢复冲突/强制置顶
+- 一键独占所有快捷键 / 一键恢复所有冲突
+
+补充说明：
+- “独占”优先作用于 **Addon Keyconfig**，并可选作用于 **User Keyconfig**（偏好设置项：`同时处理用户键位冲突`）。
+- “恢复冲突”只会恢复那些之前被 M8 记录并禁用过的项，不会盲目打开所有键位。
+
+推荐处理流程（遇到快捷键不生效时照着做）：
+1. 先确认你在偏好设置里已开启该模块（例如 Shift+S / Ctrl+S / Alt+A 等）。
+2. 在该模块“高级”先点一次“置顶”（优先级问题最常见）。
+3. 仍不生效，再点“独占(禁用冲突)”（会禁用其它插件同键位项）。
+4. 想恢复其它插件快捷键：回到这里点“恢复冲突”（或用“一键恢复所有冲突”）。
+
+使用建议：
+- 如果某个按键你已经有别的插件在用，最稳妥的方法是：在 M8 偏好设置里关闭该快捷键增强，只保留你需要的模块。
+
+### 2.3 模式切换（Tab）行为设置（强烈建议先看）
+
+- **Smart Focus**：当对象无法切换编辑模式时，自动聚焦（例如选中 Empty、某些不可编辑对象）。
+- **双击切换编辑对象**：网格编辑模式下，双击其它网格对象，可自动切到该对象编辑模式。
+- **Tab 行为**
+  - 立即执行(兼容)：按下 Tab 立即触发（更接近 Blender 默认）
+  - 轻按切换 / 长按菜单：轻按执行默认切换；按住超过阈值后弹出“模式切换饼菜单”
+- **长按阈值(ms)**：默认 220ms，可调（80–1000ms）
+
+### 2.4 删除饼菜单方向映射（可自定义）
+
+删除饼菜单（Edit Mesh：X/Del）支持把 8 个方向映射到不同动作，例如：
+- 删除顶点/边/面
+- 融并顶点/边/面
+- 有限融并
+- 删除循环边 / 塌陷边
+- 仅边和面 / 仅面
+- 智能融并（根据当前选择模式自动决定）
+
+### 2.5 保存导出（Unity FBX）与自动处理
+
+保存模块包含：
+- 保存时自动打包资源
+- 保存时自动清除孤立数据（保留资产/假用户/链接库数据）
+- FBX 导出使用 Unity 预设（缩放、Apply Unit、Apply Scalings、三角化、切线、动画等）
+
+### 2.6 镜像（Mirror）外观与交互偏好
+
+包含：
+- Gizmo/Hub：缩放、颜色、线宽、点大小、FPS
+- 预览：显示网格预览、点大小、边线宽、最大边数优化、强制简化、透明度、颜色
+- 交互：Gizmo 跟随鼠标、松开即确认、感应灵敏度等
+
+### 2.7 Screencast（按键显示）设置
+
+支持两种显示风格：
+- 键帽（Keycaps）
+- 文本框（Box）
+
+可配置：字体大小、颜色、位置、对齐、行数、消失延迟、堆叠方向、鼠标显示、提示翻译、符号修饰键、合并数字输入、动画、圆角/描边等。
+
+### 2.8 自动化功能（后台自动执行）
+
+M8 除了“按键触发”功能外，还有两类自动化功能属于后台运行（你可能看不到按钮，但会感受到行为变化）。它们都可以在偏好设置中开关。
+
+#### 2.8.1 新建物体原点到底部（Auto Origin to Bottom）
+
+功能定位：当你新建物体（Add Mesh/Curve/Font…）后，自动把该物体的 **原点移动到模型底部**；可选同时“自动落地”。
+
+工作机制（理解后能避免误会）：
+- 插件监听依赖图更新，在检测到“新创建且刚链接到场景”的对象后执行一次处理
+- 仅处理这些类型：MESH / CURVE / SURFACE / FONT / META
+- 会跳过插件内部使用的调节盒/备用盒等对象（避免干扰尺寸专家工具）
+
+可选项：
+- 新建物体原点到底部：把原点移动到 bound_box 的最低点
+- 新建物体自动落地：在移动原点后，进一步把对象整体移动到 Z=0
+
+常见用途：
+- 做摆放/落地建模时，新建物体立即“贴地”，减少反复 Shift+S / GZ 的操作
+
+#### 2.8.2 保存时自动打包与自动清理（Auto Pack / Auto Purge）
+
+功能定位：在你保存 .blend 时自动执行：
+- 打包外部资源（图片等）到文件
+- 清理孤立数据（保留资产/假用户/链接库数据）
+
+触发时机：
+- 保存前：执行打包/清理，并把结果记录为“保存报告”
+- 保存后：可在保存饼菜单里查看报告（如果你开启了该功能）
+
+常见用途：
+- 团队协作交付：确保纹理等资源不会丢失
+- 长期项目维护：减少无用 datablock 堆积导致文件越来越大
+
+---
+
+## 3. 模块一：尺寸专家工具 Pro（调节盒 + 快照/还原）
+
+入口：3D 视图 N 面板 > `m8` > **尺寸专家工具 Pro**
+
+用途：给一组网格创建一个“尺寸调节盒”，你只改盒子的尺寸，就能成组精确缩放；并且支持“保存快照/一键还原”。
+
+### 3.1 这个模块能做什么（功能列表）
+
+- 创建调节盒：把一组网格统一收纳到一个可调尺寸的盒子里
+- 尺寸驱动缩放：直接输入盒子尺寸（Dimensions）完成精确缩放
+- 保存快照：把当前状态记为“以后还原回来的基准”
+- 完成：解除父子关系并清理盒子（可选把缩放烘焙为 1,1,1）
+- 备用盒：把盒子归档隐藏起来，未来随时再启用继续调
+- 还原：把同组对象回到快照状态（可选重建盒子继续二次调节）
+
+### 3.2 怎么用（推荐工作流）
+
+1. 物体模式下选中要一起改尺寸的一组网格（可多选）。
+2. 在面板里设置 Padding（可为 0；用于给盒子留一点余量）。
+3. 点击“创建调节盒”。
+4. 选中盒子，直接修改 Dimensions（或缩放盒子）观察整体尺寸变化。
+5. 需要把当前状态作为新基准时点“保存快照(当前)”。
+6. 结束时根据需求选一种“完成”方式：
+   - 不烘焙：保留对象当前 Scale（后续可能还要继续用 Scale）
+   - 烘焙：把缩放应用到数据（导出游戏引擎更常用）
+   - 保留盒：把盒子归档为备用盒（以后可直接继续用）
+
+### 3.3 还原与备用盒怎么用
+
+- 还原：选中同组任意一个对象，在面板点击“还原”
+  - 只还原：回到快照状态并保持场景干净
+  - 重建盒：回到快照状态后重新生成盒子，方便继续调尺寸
+- 备用盒：选中 `_Backup` 盒子
+  - 启用备用盒：把它恢复成可用调节盒继续操作
+  - 删除备用盒：只删除盒子，不影响模型对象
+
+### 3.4 使用建议（少踩坑）
+
+- 若你打算导出到引擎（Unity/UE），通常选“完成(烘焙)”让对象 Scale 回到 1,1,1。
+- 模型有形态键（Shape Keys）时，不建议频繁“烘焙→还原”来回切，优先用“保存快照”分阶段管理。
+
+---
+
+## 4. 模块二：工具箱（N 面板）
+
+入口：3D 视图 N 面板 > `m8` > **工具箱**
+
+这个面板提供“日常杂项高频工具”，不需要记快捷键时就从这里点。
+
+### 4.1 这个模块有哪些功能
+
+- 快速原点：一键把原点放到底部/中心/世界原点/边界方向
+- 一键落地：把物体最低点对齐到 Z=0
+- 冻结变换（Maya 风格）：把当前位置/旋转/缩放烘焙进数据并清零通道
+- 叶片工具（Edit Mesh）：叶片岛转面片、从底部 UV 缩放、延长叶尖
+- 随机选择岛（Edit Mesh）：按连通岛随机选择/取消选择
+
+### 4.2 怎么用（典型场景）
+
+- 想让物体“站在地面上”：选中物体 → 点“一键落地”
+- 想把原点放到模型底部方便摆放：选中物体 → 点“原点到底部”
+- 想导出前清理 L/R/S：选中物体 → 点“冻结变换（全部/仅缩放等）”
+- 做植被叶片：Edit Mesh 选中叶片岛 → 用“叶片工具”一键转卡片/统一缩放/拉长叶尖
+- 想随机挑一些碎块：Edit Mesh → 用“随机选择岛”，按比例选择
+
+---
+
+## 5. 模块三：变换辅助（Shift+S 饼菜单）
+
+快捷键：Shift+S
+
+用途：把“游标吸附、选中吸附、原点操作、冻结变换”等放到一个 Shift+S 饼菜单里，做建模/摆放时不用去翻菜单。
+
+### 5.1 这个模块有哪些功能
+
+- 游标 ↔ 选区：游标到所选、所选到游标（带偏移/不偏移）
+- 原点工具：原点到几何中心/到游标/到活动/到底部
+- 常用清理：冻结变换（全通道）
+
+### 5.2 怎么用（最常见 4 种用法）
+
+1. 想把游标放到选中位置：Shift+S → 选“游标到所选”
+2. 想把对象移动到游标：Shift+S → 选“所选到游标”
+3. 想把原点对齐到某个参考：Shift+S → 选“原点到游标/活动/底部”
+4. 想一键清零通道：Shift+S → 选“冻结变换”
+
+---
+
+## 6. 模块四：模式切换（Tab + 模式切换饼菜单）
+
+快捷键：Tab
+
+用途：让 Tab 不只是“Object/Edit 切换”，而是一个“根据当前对象类型自适配”的快捷操作入口。
+
+### 6.1 这个模块有哪些功能
+
+- Tab 行为增强：
+  - 轻按：按默认逻辑切 Object/Edit 或进入对应模式
+  - 长按：弹出“模式切换饼菜单”（阈值可调）
+- 网格编辑辅助：
+  - 快速切点/边/面选择模式
+  - 一键进入 Sculpt / Vertex Paint / Weight Paint / Texture Paint
+  - 提供常用编辑辅助按钮（优化/滑动/法线/X-Ray/绘制所选等）
+- 特殊对象快捷控制：
+  - 灯光：能量、常用参数、对准选中
+  - 摄像机：焦距、对焦到选中、常用相机设置
+  - 曲线/文字/晶格/骨架/蜡笔等：常用模式切换与关键设置入口
+- 双击切换编辑对象（可选）：Edit Mesh 双击别的网格对象，快速切到它继续编辑
+
+### 6.2 怎么用（按你正在做什么来选）
+
+- 只想 Object/Edit 切换：轻按 Tab
+- 想切点/边/面模式：长按 Tab 弹饼菜单 → 选 Vert/Edge/Face
+- 想从建模直接进雕刻/绘制：长按 Tab → 选 Sculpt / Paint
+- 做灯光/相机调参：选中灯光/相机 → 长按 Tab → 直接改能量/焦距/对焦
+
+### 6.3 使用建议
+
+- 如果你觉得“长按不舒服”，把偏好设置的阈值调低（更快弹出菜单）或改回“立即执行(兼容)”。
+
+---
+
+## 7. 模块五：删除（X/Del）
+
+用途：让删除操作更“快”和“可定制”。
+
+### 7.1 这个模块有哪些功能
+
+- 物体模式：快速删除（不弹确认）
+- 网格编辑：删除饼菜单
+  - 8 个方向可自定义映射为：删除点/边/面、融并、有限融并、塌陷、删除循环边等
+
+### 7.2 怎么用
+
+- 物体模式：选中对象 → 按 X/Del → 直接删除
+- 网格编辑：按 X/Del 弹饼菜单 → 按方向选动作
+  - 想改成你习惯的方向：去偏好设置里改“方向映射”
+
+---
+
+## 8. 模块六：边属性（Shift+E）
+
+快捷键：Shift+E（Edit Mesh）
+
+用途：硬表面建模常用边属性一键入口（不再到 N 面板/菜单里找）。
+
+### 8.1 这个模块有哪些功能
+
+- 折痕（Crease）：用于细分边控制
+- 倒角权重（Bevel Weight）：用于倒角修改器权重控制
+- Sharp / 按角度锐边：配合自动平滑/法线工作流
+- Seam：UV 切缝标记
+- Freestyle：线条渲染标记
+- Overlay：一键显示/隐藏这些属性（方便检查）
+- 清理：一键清除所有边属性（重置到干净状态）
+
+### 8.2 怎么用（常见工作流）
+
+1. 进入 Edit Mesh，选中边（或点）。
+2. 按 Shift+E 打开饼菜单。
+3. 选择你要设置的属性（折痕/倒角权重/Seam/Sharp）。
+4. 需要检查时，打开 Overlay 显示开关。
+5. 想整体重置时，用“清除所有边属性”。
+
+---
+
+## 9. 模块七：对齐（Alt+A）
+
+快捷键：Alt+A  
+
+用途：把对齐操作整合成一个快捷入口，并且会根据你当前所在的编辑环境自动弹出对应菜单。
+
+### 9.1 这个模块有哪些功能
+
+- 物体对齐：对齐位置/旋转/缩放到世界/游标/活动对象/包围盒边界/地面等
+- 网格对齐：把选中顶点在某个轴向对齐到同一条线/同一平面
+- UV 对齐：把选中 UV 在 U 或 V 方向对齐到左/中/右（或上/中/下）
+
+### 9.2 怎么用（按当前环境）
+
+- 物体模式：Alt+A → 选“对齐到游标/活动/世界/落地/分布…”
+- 网格编辑：Alt+A → 选“对齐（MIN/CENTER/MAX）/对齐到游标/对齐到活动…”
+- UV 编辑器：Alt+A → 选“U 对齐/ V 对齐”
+
+### 9.3 小技巧
+
+- 物体对齐时按住 Ctrl/Shift 可以只对齐位置/只对齐旋转（更符合“只改一项”的习惯）。
+
+---
+
+## 10. 模块八：着色（Z）
+
+快捷键：Z
+
+用途：把视口着色/叠加显示/X-Ray 等常用切换放到 Z 饼菜单里。
+
+### 10.1 这个模块有哪些功能
+
+- 线框 / 实体 / 材质预览 / 渲染：快速切换视口模式
+- Overlay 常用开关：面朝向、线框叠加、统计信息等（视版本可用项略有不同）
+- X-Ray：穿透显示/穿透选择
+- 材质覆盖（如果 View Layer 支持）：快速启用/清除 Override 材质
+
+### 10.2 怎么用
+
+- 按 Z → 选你要的视口模式
+- 需要检查法线/穿透选择时：在菜单里打开面朝向或 X-Ray
+
+---
+
+## 11. 模块九：保存（Ctrl+S）
+
+快捷键：Ctrl+S
+
+### 11.1 基础项
+
+- 打开 / 保存 / 另存为 / 新建
+- 增量保存（自动生成下一个版本号文件名）
+
+### 11.2 顶部超级面板
+
+用途：把“保存 + 导入导出 + 资源整理 + Screencast”集中在 Ctrl+S 一处。
+
+#### 11.2.1 顶部超级面板能做什么
+
+- 文件与目录：最近文件、打开当前目录/临时目录/自动保存目录、重新加载
+- 导入导出：OBJ / glTF / FBX / USD 一键入口
+- Unity FBX：一键导出（配合预设解决单位/缩放）
+- 资源整理：打包资源、清理孤立、清理材质、创建资产集合
+- 屏幕投射：一键开关 Screencast
+
+#### 11.2.2 怎么用（推荐流程）
+
+- 版本迭代：Ctrl+S → “增量保存” → 得到 `xxx_02.blend / xxx_03.blend ...`
+- 导出到 Unity：Ctrl+S → 打开 Unity FBX 预设 → 点 FBX 导出
+- 交付前整理：Ctrl+S → 打包资源 → 清理孤立（保留资产）→ 保存
+  - 建议把“保存时自动打包/自动清理”在偏好设置中开启，之后就不用每次手动点
+
+---
+
+## 12. 模块十：高级重命名（F2）
+
+用途：批量命名工具（适合整理导入资产、统一导出命名规范）。
+
+### 12.1 这个模块有哪些功能
+
+- 批量设置新名称（支持模板与自动编号）
+- 批量查找替换（可正则）
+- 批量加前后缀、移除杂字符
+- 批量改命名风格（大小写/camel/snake/kebab 等）
+- 预览结果，避免“改完才发现不对”
+
+### 12.2 怎么用（最常用 3 个套路）
+
+1. 整理导入资产：选中一批对象 → F2 → 用“查找替换/移除字符”清掉后缀与多余符号
+2. 统一导出命名：选中对象 → F2 → “设置名称 + 自动编号”生成规范命名
+3. 团队规范：F2 → “命名风格转换”，统一 snake_case 或 PascalCase
+
+---
+
+## 13. 模块十一：镜像（Shift+Alt+X）
+
+用途：交互式镜像工具（看着轴点选方向、看着平面预览，确认后执行），适合对称建模与快速修镜像方向。
+
+### 13.1 这个模块有哪些功能
+
+- 交互式选择镜像方向（X/Y/Z 正负）
+- 支持不同参考（原点/游标/世界/活动对象）
+- 网格编辑下可选“切割镜像”（常用于中线对称）
+- 可选显示预览，确认前更直观
+
+### 13.2 怎么用（最常见流程）
+
+1. 进入 Object 或 Edit Mesh（按你的需求）。
+2. Shift+Alt+X 启动工具。
+3. 鼠标靠近轴点选择镜像方向（看预览平面是否正确）。
+4. 需要换参考就按 C/W/A（在游标/世界/活动/原点间切换）。
+5. 左键确认执行；右键或 Esc 取消。
+
+### 13.3 小技巧
+
+- 做中线对称：在 Edit Mesh 下开启 Bisect（工具内按 S 切换），再确认。
+- 预览卡顿：去偏好设置关闭“显示网格预览”或开启简化预览。
+
+---
+
+## 14. 模块十二：Screencast（按键显示）
+
+用途：录屏/教学/直播时在视口中显示“你按了什么键”，并可用键帽风格提升可读性。
+
+### 14.1 启动与关闭
+
+- 推荐入口：Ctrl+S 保存饼菜单顶部的“屏幕投射”按钮
+- 也可用 F3 搜索 `屏幕投射`
+
+该按钮是“开关式”：
+- 当前未运行 → 启动
+- 当前运行中 → 关闭
+
+### 14.2 显示内容（会捕捉哪些事件）
+
+可显示（取决于偏好设置开关）：
+- 键盘按键（包含常用特殊键映射：Tab/Enter/Del/Backspace/方向键等）
+- 修饰键组合（Ctrl/Shift/Alt/Cmd）
+- 鼠标点击与滚轮（LMB/MMB/RMB/Scroll）
+- 鼠标移动提示（可选）
+
+合并与计数：
+- 连续重复相同按键会合并并显示次数（减少刷屏）
+- 修饰键会与主键合并展示，避免出现孤立的 Ctrl/Shift
+
+### 14.3 显示风格与位置
+
+两种风格：
+- 键帽（Keycaps）：更适合录屏，观感更“软件教程”
+- 文本框（Box）：更简洁，适合直播/长时间显示
+
+你可以在偏好设置中调整：
+- 屏幕位置：X/Y 偏移 + 左/中/右对齐
+- 显示行数、消失延迟、堆叠方向（向上/向下）
+- 字体大小、文字颜色、背景颜色
+- 键帽圆角/间距/阴影/描边、是否大写
+
+### 14.4 操作提示翻译
+
+可选语言策略：
+- 中文优先
+- 英文
+- 双语
+
+适用：做中文教程但又希望国际观众能理解操作含义时用“双语”。
+
+---
+
+## 15. 模块十三：重启 Blender（Topbar）
+
+用途：一键启动新的 Blender 进程（并可选打开最近文件/恢复自动保存/工厂设置启动），常用于插件调试或需要“快速重启”验证设置时。
+
+修饰键功能：
+- Alt：重载 M8 插件（开发/调试）
+- Ctrl：新开 Blender 并尝试恢复自动保存，然后退出当前 Blender
+- Shift：新开 Blender 并打开最近文件
+- Ctrl+Alt+Shift：以工厂设置启动新 Blender（--factory-startup）
+
+注意：Windows 支持最好；其它系统可能提示不支持。
+
+---
+
+## 16. 附录：完整索引（用于核对“全部功能”覆盖）
+
+你可以用 F3 直接搜索这些 `idname`（菜单类除外）。本索引偏“高级/排错/脚本调用”，普通使用不需要记它。
+
+### 16.1 面板（Panels）
+
+- `VIEW3D_PT_size_expert`
+- `VIEW3D_PT_size_tool_toolbox`
+
+### 16.2 饼菜单（Menus）
+
+- `VIEW3D_MT_size_tool_transform_pie`
+- `VIEW3D_MT_size_tool_object_origin`
+- `VIEW3D_MT_m8_switch_mode_pie`
+- `VIEW3D_MT_m8_curve_convert_pie`
+- `VIEW3D_MT_m8_curve_edit_pie`
+- `VIEW3D_MT_m8_text_edit_pie`
+- `VIEW3D_MT_M8DeletePie`
+- `VIEW3D_MT_m8_edge_property_pie`
+- `VIEW3D_MT_m8_shading_pie`
+- `VIEW3D_MT_m8_save_pie`
+- `VIEW3D_MT_m8_mesh_optimization_pie`
+- `M8_MT_ALIGN_OBJECT`
+- `M8_MT_ALIGN_MESH`
+- `M8_MT_ALIGN_UV`
+
+### 16.3 偏好设置与键位管理（Internal）
+
+- `size_tool.reset_transform_pie_keymap`
+- `size_tool.force_transform_pie_priority`
+- `size_tool.force_switch_mode_priority`
+- `size_tool.exclusive_transform_pie_hotkey`
+- `size_tool.restore_shift_s_conflicts`
+- `size_tool.force_align_pie_priority`
+- `size_tool.exclusive_align_pie_hotkey`
+- `size_tool.restore_alt_a_conflicts`
+- `size_tool.force_save_pie_priority`
+- `size_tool.exclusive_save_pie_hotkey`
+- `size_tool.restore_ctrl_s_conflicts`
+- `size_tool.force_edge_property_pie_priority`
+- `size_tool.exclusive_edge_property_pie_hotkey`
+- `size_tool.restore_shift_e_conflicts`
+- `size_tool.force_mirror_priority`
+- `size_tool.exclusive_mirror_hotkey`
+- `size_tool.restore_shift_alt_x_conflicts`
+- `size_tool.exclusive_all_hotkeys`
+- `size_tool.restore_all_conflicts`
+- `m8.reset_switch_mode_prefs`
+- `m8.reset_prefs_ui`
+
+### 16.4 尺寸专家工具（调节盒/快照）
+
+- `object.create_size_cage`
+- `object.update_size_snapshot`
+- `object.finish_detach`
+- `object.finish_archive_cage`
+- `object.finish_and_clean`
+- `object.activate_backup_cage`
+- `object.toggle_backup_visibility`
+- `object.select_size_snapshot_group`
+- `object.delete_backup_cages`
+- `object.restore_from_snapshot`
+- `object.auto_adjust_z`
+- `object.clear_size_snapshot`
+
+### 16.5 变换/原点/落地/冻结
+
+- `object.quick_origin`
+- `object.origin_to_active`
+- `m8.cursor_to_select`
+- `m8.origin_to_cursor`
+- `m8.origin_to_active`
+- `m8.origin_to_bottom`
+- `object.snap_to_floor`
+- `object.freeze_transforms_maya`
+
+### 16.6 模式切换与图像编辑器
+
+- `object.switch_mode`
+- `m8.switch_bone_mode`
+- `m8.double_click_edit_switch`
+- `object.switch_image_mode`
+- `m8.mode_set_remember`
+
+### 16.7 网格编辑辅助
+
+- `m8.switch_mesh_mode`
+- `m8.switch_uv_mode`
+- `m8.surface_sliding`
+- `m8.mesh_optimization_menu`
+- `m8.mesh_merge_by_distance`
+- `m8.mesh_delete_loose`
+- `m8.mesh_recalc_normals`
+- `m8.mesh_limited_dissolve`
+- `m8.smart_dissolve`
+- `m8.draw_selected`
+- `m8.cancel_draw_selected`
+- `m8.relax`
+- `m8.straighten`
+
+### 16.8 叶片/随机岛工具
+
+- `mesh.leaves_to_planes`
+- `mesh.scale_from_bottom_uv`
+- `mesh.extend_leaf_tip`
+- `mesh.select_random_islands`
+
+### 16.9 边属性
+
+- `m8.vert_crease`
+- `m8.vert_bevel_weight`
+- `m8.edge_crease`
+- `m8.edge_bevel_weight`
+- `m8.clear_all_edge_property`
+
+### 16.10 对齐
+
+- `m8.align_pie_context_call`
+- `m8.align_object`
+- `m8.object_align_by_view`
+- `m8.align_mesh`
+- `m8.align_uv`
+
+### 16.11 相机/灯光/文字/曲线/晶格/自动平滑
+
+- `m8.camera_quick_settings`
+- `m8.camera_focus_selected`
+- `m8.select_scene_camera`
+- `m8.light_quick_settings`
+- `m8.light_track_to_selected`
+- `m8.light_clear_track_to`
+- `m8.text_quick_settings`
+- `m8.curve_quick_settings`
+- `m8.curve_cyclic_toggle`
+- `m8.convert_to_mesh`
+- `m8.curve_param_popup`
+- `m8.curve_handle_type_remember`
+- `m8.curve_switch_direction_remember`
+- `m8.curve_subdivide_remember`
+- `m8.curve_smooth_remember`
+- `m8.lattice_make_regular`
+- `m8.auto_smooth`
+
+### 16.12 删除与重命名
+
+- `m8.quick_delete`
+- `m8.advanced_rename`
+
+### 16.13 保存/资源/导出
+
+- `m8.open_current_folder`
+- `m8.open_temp_dir`
+- `m8.open_auto_save`
+- `m8.switch_file`
+- `m8.incremental_save`
+- `m8.pack_resources`
+- `m8.purge_unused_materials`
+- `m8.show_save_report`
+- `m8.open_preferences`
+- `m8.toggle_unity_fbx_preset`
+- `m8.reset_unity_fbx_preset`
+- `m8.export_fbx`
+- `m8.call_operator_with_addon`
+- `m8.create_asset_group`
+- `m8.orphans_purge_keep_assets`
+
+### 16.14 Screencast
+
+- `m8.toggle_screencast_keys`
+- `m8.internal_screencast`
+
+### 16.15 重启与镜像
+
+- `wm.restart_blender`
+- `m8.mirror`
+
+---
+
+## 17. FAQ（常见问题）
+
+### 17.1 快捷键没反应 / 还是弹出别的菜单？
+
+优先检查：
+- 偏好设置中该模块是否开启
+- Keymap 是否被其它插件占用
+
+推荐解决：
+1. 在该模块“高级”点击“置顶”
+2. 仍冲突就点“独占(禁用冲突)”
+3. 或用“一键独占所有快捷键”
+
+### 17.2 独占后别的插件快捷键失效怎么办？
+
+在对应模块点击“恢复冲突”，或“一键恢复所有冲突”。
+
+### 17.3 尺寸专家工具还原不完全的常见原因
+
+最常见组合：
+- 你做过“完成(烘焙)”（Apply Scale）
+- 网格包含 Shape Keys
+
+为保护形态键，插件会跳过数据逆变换补偿，导致精度受影响。
+
+### 17.4 镜像预览很卡
+
+建议：
+- 偏好设置关闭“显示网格预览”
+- 或调低预览点大小/线宽
+- 或使用“最大边数优化/强制简化”
+
