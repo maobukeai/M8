@@ -134,7 +134,15 @@ from .ops.mesh.cleaner import (
     MESH_OT_select_similar_loops,
     MESH_OT_flatten_loops,
 )
-from .ui.panel.cleaner import VIEW3D_PT_M8_MeshCleaner
+from .ops.custom_tools import (
+    M8_OT_SortMaterials,
+    M8_OT_MergeNearbyObjects,
+    M8_OT_BatchCopyAlign,
+    M8_OT_AlignOriginToNormal,
+    VIEW3D_PT_M8_CustomTools,
+    M8_CustomTools_Props,
+)
+from .ui.panel.cleaner import VIEW3D_PT_M8_CleanUp, VIEW3D_PT_M8_MeshCleaner
 from .ui import icons as m8_icons
 from .ops.file.save_pie_ops import (
     M8_OT_OpenCurrentFolder,
@@ -205,6 +213,12 @@ from .property.preferences import (
 )
 
 CLASSES = [
+    M8_OT_SortMaterials,
+    M8_OT_MergeNearbyObjects,
+    M8_OT_BatchCopyAlign,
+    M8_OT_AlignOriginToNormal,
+    VIEW3D_PT_M8_CustomTools,
+    M8_CustomTools_Props,
     M8_MP7_MockDrawProperty,
     SIZE_TOOL_Preferences,
     SIZE_TOOL_OT_ResetTransformPieKeymap,
@@ -386,6 +400,7 @@ CLASSES = [
     MESH_OT_flat_loop_cleaner,
     MESH_OT_select_similar_loops,
     MESH_OT_flatten_loops,
+    VIEW3D_PT_M8_CleanUp,
     VIEW3D_PT_M8_MeshCleaner,
 ]
 
@@ -393,6 +408,7 @@ CLASSES.extend(baking_renaming_classes)
 
 _startup_timer_registered = False
 _startup_apply_runs = 0
+_registration_errors = []
 
 def _get_addon_prefs():
     root_pkg = (__package__ or "").split(".")[0]
@@ -463,14 +479,30 @@ def _set_windows_console_utf8():
 def register():
     global _startup_timer_registered
     global _startup_apply_runs
+    global _registration_errors
+    _registration_errors = []
     _set_windows_console_utf8()
     try:
         m8_icons.register()
     except Exception:
-        pass
+        import traceback
+        traceback.print_exc()
 
     for cls in CLASSES:
-        bpy.utils.register_class(cls)
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError:
+            try:
+                bpy.utils.unregister_class(cls)
+                bpy.utils.register_class(cls)
+            except Exception:
+                _registration_errors.append(cls)
+                import traceback
+                traceback.print_exc()
+        except Exception:
+            _registration_errors.append(cls)
+            import traceback
+            traceback.print_exc()
     
     prefs = _get_addon_prefs()
     if not prefs or getattr(prefs, "auto_new_object_origin_bottom", True):
@@ -478,11 +510,13 @@ def register():
     try:
         mp7_icons.register()
     except Exception:
-        pass
+        import traceback
+        traceback.print_exc()
     try:
         mp7_translate.register()
     except Exception:
-        pass
+        import traceback
+        traceback.print_exc()
     register_keymaps()
     if hasattr(bpy.types, "TOPBAR_MT_editor_menus"):
         bpy.types.TOPBAR_MT_editor_menus.append(draw_restart_blender_top_bar)
@@ -517,6 +551,7 @@ def register():
     )
 
     bpy.types.Scene.m8_clean_props = bpy.props.PointerProperty(type=M8_Clean_Props)
+    bpy.types.Scene.m8_custom_tools = bpy.props.PointerProperty(type=M8_CustomTools_Props)
 
     bpy.types.WindowManager.m8_last_obj_type = bpy.props.StringProperty(default="")
     bpy.types.WindowManager.m8_last_object_mode = bpy.props.StringProperty(default="")
@@ -532,7 +567,8 @@ def register():
     try:
         register_baking_renaming()
     except Exception:
-        pass
+        import traceback
+        traceback.print_exc()
 
 def unregister():
     global _startup_timer_registered
@@ -581,12 +617,17 @@ def unregister():
         del bpy.types.WindowManager.m8_cursor_z_axis
 
     for cls in reversed(CLASSES):
-        bpy.utils.unregister_class(cls)
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass
     
     if hasattr(bpy.types.Scene, "size_tool_padding"):
         del bpy.types.Scene.size_tool_padding
     if hasattr(bpy.types.Scene, "m8_clean_props"):
         del bpy.types.Scene.m8_clean_props
+    if hasattr(bpy.types.Scene, "m8_custom_tools"):
+        del bpy.types.Scene.m8_custom_tools
     try:
         m8_icons.unregister()
     except Exception:

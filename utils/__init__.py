@@ -159,6 +159,16 @@ BACKUPS_PREFERENCES_FILE = join(BACKUPS_FOLDER, "preferences")
 def get_pref():
     return get_addon_prefs()
 
+def get_pref_value(key, default=None):
+    pref = get_pref()
+    if pref is None:
+        return default
+    try:
+        return getattr(pref, key, default)
+    except AttributeError:
+        return default
+
+
 def view_selected(context):
     mt = get_pref().moving_view_type
     if mt == "NONE":

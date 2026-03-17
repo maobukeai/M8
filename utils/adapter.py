@@ -4,7 +4,14 @@ version 0.0.1
 """
 import bpy
 
-ALL_ICON = [i.identifier for i in bpy.types.Property.bl_rna.properties['icon'].enum_items_static]  # 所有的图标
+try:
+    _icon_enum = bpy.types.UILayout.bl_rna.functions["operator"].parameters["icon"].enum_items
+    ALL_ICON = {i.identifier for i in _icon_enum}
+except Exception:
+    try:
+        ALL_ICON = {i.identifier for i in bpy.types.Property.bl_rna.properties["icon"].enum_items_static}
+    except Exception:
+        ALL_ICON = set()
 
 
 def operator_invoke_confirm(self, event, context, title, message) -> set:
@@ -29,17 +36,17 @@ def get_adapter_blender_icon(icon=None):
     """获取适配的图标
     每个版本都会对图标进行添加或删除
     """
+    if icon is None:
+        return "NONE"
     version = bpy.app.version[:2]
 
+    if icon == "INTERNET" and version <= (4, 1):
+        icon = "URL"
+    if icon == "FILE_ALIAS" and version <= (4, 2):
+        icon = "FOLDER_REDIRECT"
+    if icon == "RNA_ADD" and version <= (5, 0):
+        icon = "ADD"
     if icon not in ALL_ICON:
         icon = "QUESTION"
-    elif icon == "INTERNET" and version <= (4, 1):
-        icon = "URL"
-    elif icon == "FILE_ALIAS" and version <= (4, 2):
-        icon = "FOLDER_REDIRECT"
-    elif icon == "RNA_ADD" and version <= (5, 0):
-        icon = "ADD"
-    elif icon is None:
-        icon = "NONE"
 
     return icon

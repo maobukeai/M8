@@ -5,7 +5,7 @@ from mathutils import Matrix, Euler, Vector
 
 from ...hub import Hub3DItem, hub_3d
 from ...hub.draw import MatrixHub
-from ...utils import get_pref
+from ...utils import get_pref, get_pref_value
 from ...utils.items import AXIS
 from ...utils.math import location_to_matrix, rotation_to_matrix
 
@@ -51,7 +51,7 @@ class MirrorAxis:
 
         mouse = Vector((event.mouse_region_x, event.mouse_region_y))
 
-        sensitivity = float(get_pref().mirror_sensitivity)
+        sensitivity = float(get_pref_value("mirror_sensitivity", 2.0))
         if sensitivity < 0.5:
             sensitivity = 0.5
         if sensitivity > 4.0:
@@ -64,7 +64,7 @@ class MirrorAxis:
         
         hub_3d_item = Hub3DItem(vert_size=3)
 
-        hub = Hub3DItem(vert_size=max(6.0, min(get_pref().mirror_preview_vert_size * 1.5, 18.0)))
+        hub = Hub3DItem(vert_size=max(6.0, min(get_pref_value("mirror_preview_vert_size", 6) * 1.5, 18.0)))
         
         # 缓存当前 active_coord 以检测变化
         current_active_coord = getattr(self, "active_coord", None)
@@ -345,10 +345,11 @@ class MirrorAxis:
         
         matrix = Matrix.LocRotScale(matrix.to_translation(), matrix.to_quaternion(), Vector((1, 1, 1)))
         
+        scale_value = self.get_hub_scale(context)
         self.matrix_hub = MatrixHub(
             self.bl_idname,
             matrix,
-            scale=self.get_hub_scale(context),
+            scale=scale_value,
             timeout=None,
             is_six_axis=self.bisect or self.mirror_mode in {"LATTICE", "ARMATURE"},
             area_restrictions=area_hash)

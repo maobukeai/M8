@@ -3,7 +3,7 @@ import bpy
 from mathutils import Vector, Matrix
 
 from ....hub import Hub3DItem, hub_3d
-from ....utils import get_pref
+from ....utils import get_pref, get_pref_value
 from ....utils.items import AXIS
 from ....utils.math import scale_to_matrix
 
@@ -49,8 +49,8 @@ class MeshPreview:
         active = self.get_mesh_active_object(context)
         
         # 预先获取相关属性，避免循环中查找
-        max_edges = pref.mirror_preview_max_edge_count
-        optimize = pref.mirror_preview_optimize
+        max_edges = get_pref_value("mirror_preview_max_edge_count", 10000)
+        optimize = get_pref_value("mirror_preview_optimize", False)
 
         def load(obj: bpy.types.Object, matrix: Matrix):
             # 优化：避免 update_from_editmode，它非常慢
@@ -217,7 +217,9 @@ class MeshPreview:
             elif self.axis_mode == "ACTIVE":
                 draw_matrix = self.active_matrix
 
-            hub = Hub3DItem(vert_size=pref.mirror_preview_vert_size, line_width=pref.mirror_preview_edge_width)
+            vert_size = get_pref_value("mirror_preview_vert_size", 6)
+            edge_width = get_pref_value("mirror_preview_edge_width", 2)
+            hub = Hub3DItem(vert_size=vert_size, line_width=edge_width)
             hub.depth_test = "LESS_EQUAL"
 
             bm = self.preview_bm.copy()
@@ -254,11 +256,12 @@ class MeshPreview:
                              merge_dist=self.threshold,
                              axis=self.axis)
 
+            edge_color = get_pref_value("mirror_preview_edge_color", (0.2, 0.8, 1.0, 1.0))
             for edge in bm.edges:
-                hub.edge(edge, color=pref.mirror_preview_edge_color, matrix=draw_matrix)
+                hub.edge(edge, color=edge_color, matrix=draw_matrix)
             self.cache_mesh_hub[key] = hub
 
-        hub.alpha = pref.mirror_preview_alpha if is_preview else None
+        hub.alpha = get_pref_value("mirror_preview_alpha", 0.5) if is_preview else None
         area_hash = hash(context.area)
         timeout = None if is_preview else 1.0
         hub_3d(f"{self.bl_idname}_preview", hub, timeout=timeout, area_restrictions=area_hash)

@@ -1,4 +1,5 @@
 import bpy
+from ...utils.i18n import _T
 
 def _mesh_select_ui_args(context):
     from bpy.app.translations import pgettext_iface
@@ -23,7 +24,7 @@ class VIEW3D_MT_SizeToolTransformPie(bpy.types.Menu):
 
         if context.mode in {"EDIT_MESH", "EDIT_CURVE"}:
             pie.operator("m8.mp7_cursor_to_select_smart", **_mesh_select_ui_args(context))
-            pie.operator("view3d.snap_selected_to_cursor", text="到游标", icon="RESTRICT_SELECT_OFF").use_offset = False
+            pie.operator("view3d.snap_selected_to_cursor", text=_T("到游标"), icon="RESTRICT_SELECT_OFF").use_offset = False
 
             col = pie.column(align=True)
             col.separator(factor=2)
@@ -33,54 +34,54 @@ class VIEW3D_MT_SizeToolTransformPie(bpy.types.Menu):
 
             row = col.split(factor=0.35)
             row.separator()
-            row.label(text="物体原点")
+            row.label(text=_T("物体原点"))
 
             sp = col.split(align=True)
             if context.mode == "EDIT_CURVE":
-                sp.operator("m8.mp7_origin_to_active_smart", text="到曲线", icon="CURVE_DATA")
-                sp.operator("m8.mp7_origin_to_cursor_smart", text="到游标", icon="ORIENTATION_CURSOR")
+                sp.operator("m8.mp7_origin_to_active_smart", text=_T("到曲线"), icon="CURVE_DATA")
+                sp.operator("m8.mp7_origin_to_cursor_smart", text=_T("到游标"), icon="ORIENTATION_CURSOR")
             else:
                 sp.operator("m8.mp7_origin_to_active_smart", **_mesh_select_ui_args(context))
-                sp.operator("m8.mp7_origin_to_cursor_smart", text="到游标", icon="ORIENTATION_CURSOR")
+                sp.operator("m8.mp7_origin_to_cursor_smart", text=_T("到游标"), icon="ORIENTATION_CURSOR")
 
             pie.separator()
-            pie.operator("view3d.snap_cursor_to_center", text="到原点", icon="WORLD")
-            pie.operator("view3d.snap_selected_to_cursor", text="到游标，偏移", icon="PIVOT_CURSOR").use_offset = True
+            pie.operator("view3d.snap_cursor_to_center", text=_T("到原点"), icon="WORLD")
+            pie.operator("view3d.snap_selected_to_cursor", text=_T("到游标，偏移"), icon="PIVOT_CURSOR").use_offset = True
             pie.separator()
             return
 
         # 1. West (Left) - 4
-        pie.operator("view3d.snap_cursor_to_selected", text="到所选", icon='RESTRICT_SELECT_OFF')
+        pie.operator("view3d.snap_cursor_to_selected", text=_T("到所选"), icon='RESTRICT_SELECT_OFF')
         # 2. East (Right) - 6
-        pie.operator("view3d.snap_selected_to_cursor", text="到游标", icon='PIVOT_CURSOR')
+        pie.operator("view3d.snap_selected_to_cursor", text=_T("到游标"), icon='PIVOT_CURSOR')
         
         # 3. South (Bottom)
         col = pie.column(align=True)
-        col.label(text="物体原点", icon='OBJECT_ORIGIN')
+        col.label(text=_T("物体原点"), icon='OBJECT_ORIGIN')
         sub = col.box().column(align=True)
         sub.scale_y = 1.30
         
         # Row 1
         row = sub.row(align=True)
         row.scale_y = 1.15
-        op = row.operator("object.origin_set", text="到几何中心", icon='OBJECT_ORIGIN')
+        op = row.operator("object.origin_set", text=_T("到几何中心"), icon='OBJECT_ORIGIN')
         op.type = 'ORIGIN_GEOMETRY'
         try:
             op.center = 'BOUNDS'
         except Exception:
             pass
-        row.operator("object.origin_set", text="到游标", icon='PIVOT_CURSOR').type = 'ORIGIN_CURSOR'
+        row.operator("object.origin_set", text=_T("到游标"), icon='PIVOT_CURSOR').type = 'ORIGIN_CURSOR'
         
         # Row 2
         row = sub.row(align=True)
         row.scale_y = 1.15
-        row.operator("object.origin_to_active", text="到活动", icon='RESTRICT_SELECT_OFF')
-        row.operator("object.quick_origin", text="到底部", icon='TRIA_DOWN').type = 'BOTTOM'
+        row.operator("object.origin_to_active", text=_T("到活动"), icon='RESTRICT_SELECT_OFF')
+        row.operator("object.quick_origin", text=_T("到底部"), icon='TRIA_DOWN').type = 'BOTTOM'
 
         sub.separator()
         row = sub.row(align=True)
         row.scale_y = 1.15
-        op = row.operator("object.freeze_transforms_maya", text="冻结所有变换", icon='FREEZE')
+        op = row.operator("object.freeze_transforms_maya", text=_T("冻结所有变换"), icon='FREEZE')
         op.freeze_location = True
         op.freeze_rotation = True
         op.freeze_scale = True
@@ -89,10 +90,10 @@ class VIEW3D_MT_SizeToolTransformPie(bpy.types.Menu):
         pie.separator()
         
         # 5. North-West (Top-Left) - 7
-        pie.operator("view3d.snap_cursor_to_center", text="到原点", icon='WORLD')
+        pie.operator("view3d.snap_cursor_to_center", text=_T("到原点"), icon='WORLD')
         
         # 6. North-East (Top-Right) - 9
-        op = pie.operator("view3d.snap_selected_to_cursor", text="到游标 (偏移)", icon='PIVOT_CURSOR')
+        op = pie.operator("view3d.snap_selected_to_cursor", text=_T("到游标 (偏移)"), icon='PIVOT_CURSOR')
         op.use_offset = True
 
         # 7. South-West (Bottom-Left) - 1
@@ -107,21 +108,21 @@ class VIEW3D_MT_SizeToolObjectOrigin(bpy.types.Menu):
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="物体原点", icon='OBJECT_ORIGIN')
+        layout.label(text=_T("物体原点"), icon='OBJECT_ORIGIN')
         
         col = layout.column(align=True)
         
         # Row 1
         row = col.row(align=True)
-        op = row.operator("object.origin_set", text="到几何中心", icon='CENTER_ONLY')
+        op = row.operator("object.origin_set", text=_T("到几何中心"), icon='CENTER_ONLY')
         op.type = 'ORIGIN_GEOMETRY'
         try:
             op.center = 'BOUNDS'
         except Exception:
             pass
-        row.operator("object.origin_set", text="到游标", icon='PIVOT_CURSOR').type = 'ORIGIN_CURSOR'
+        row.operator("object.origin_set", text=_T("到游标"), icon='PIVOT_CURSOR').type = 'ORIGIN_CURSOR'
 
         # Row 2
         row = col.row(align=True)
-        row.operator("object.origin_to_active", text="到活动", icon='OBJECT_ACTIVE')
-        row.operator("object.quick_origin", text="到底部", icon='ALIGN_BOTTOM').type = 'BOTTOM'
+        row.operator("object.origin_to_active", text=_T("到活动"), icon='OBJECT_ACTIVE')
+        row.operator("object.quick_origin", text=_T("到底部"), icon='ALIGN_BOTTOM').type = 'BOTTOM'

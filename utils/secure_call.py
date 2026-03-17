@@ -28,23 +28,18 @@ def __secure_call_args__():
         _type_: _description_
     """
     c = bpy.context
-    d = bpy.data
     ob = getattr(bpy.context, "object", None)
     sel_objs = getattr(bpy.context, "selected_objects", [])
-    use_sel_obj = ((not ob) and sel_objs)  # use selected object if no active object
+    use_sel_obj = ((not ob) and sel_objs)
     active_object = sel_objs[-1] if use_sel_obj else ob
-    mesh = active_object.data if active_object else None
 
-    return {'bpy': bpy,
-
-            'C': c,  # bpy.context
-            'D': d,  # bpy.data
-            'O': active_object,
-
-            'mesh': mesh,
-            'mode': c.mode,
-            'tool': c.tool_settings,
-            }
+    return {
+        "mode": getattr(c, "mode", ""),
+        "active_object_name": getattr(active_object, "name", ""),
+        "active_object_type": getattr(active_object, "type", ""),
+        "selected_objects_count": len(sel_objs),
+        "has_active_object": bool(active_object),
+    }
 
 
 __shield_hazard_type__ = {'Del',
@@ -55,6 +50,7 @@ __shield_hazard_type__ = {'Del',
                           'Assert',
                           'ClassDef',
                           'ImportFrom',
+                          'Call',
                           #   'Module',
                           #   'Expr',
                           #   'Call',
@@ -72,10 +68,10 @@ def __check_shield__(eval_string):
 
 
 def secure_call_eval(eval_string: str):
-    if __check_shield__(eval_string) is not Exception:
+    if __check_shield__(eval_string) is None:
         return eval(eval_string, __secure_call_globals__, __secure_call_args__())
 
 
 def secure_call_exec(eval_string: str):
-    if __check_shield__(eval_string) is not Exception:
+    if __check_shield__(eval_string) is None:
         return exec(eval_string, __secure_call_globals__, __secure_call_args__())

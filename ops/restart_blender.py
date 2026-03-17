@@ -60,9 +60,12 @@ def start_blender(step=1, open_recent=False, factory_startup=False, recover_auto
     import subprocess
     import os
     
-    # 如果不是工厂模式启动，保存用户偏好
     if not factory_startup:
-        bpy.ops.wm.save_userpref()
+        try:
+            bpy.ops.wm.save_userpref()
+        except Exception:
+            import traceback
+            traceback.print_exc()
 
     args = [bpy.app.binary_path, ]
     
@@ -97,10 +100,6 @@ def start_blender(step=1, open_recent=False, factory_startup=False, recover_auto
         if os.path.exists(quit_blend):
             args.append(quit_blend)
         else:
-            # 如果没有 quit.blend，尝试找 autosave 目录
-            autosave_dir = os.path.join(bpy.utils.user_resource('AUTOSAVE')) # 实际上 Blender API 没有直接的 AUTOSAVE 常量，通常就是临时目录或者 config 同级
-            # 备选：直接让 Blender 启动后执行 recover_auto_save 算子比较困难，因为命令行只能打开文件
-            # 所以这里主要针对 quit.blend
             pass
 
     window = bpy.context.window
@@ -114,7 +113,11 @@ def start_blender(step=1, open_recent=False, factory_startup=False, recover_auto
         str(window.height),
     ))
 
-    subprocess.Popen(args)
+    try:
+        subprocess.Popen(args)
+    except Exception:
+        import traceback
+        traceback.print_exc()
 
 
 def reload_addon(root_module: str):
@@ -126,7 +129,8 @@ def reload_addon(root_module: str):
         try:
             root.unregister()
         except Exception:
-            pass
+            import traceback
+            traceback.print_exc()
 
     module_names = [n for n in sys.modules.keys() if n == root_module or n.startswith(root_module + ".")]
     for name in sorted(module_names, key=len, reverse=True):
@@ -136,14 +140,16 @@ def reload_addon(root_module: str):
         try:
             importlib.reload(mod)
         except Exception:
-            pass
+            import traceback
+            traceback.print_exc()
 
     root = sys.modules.get(root_module)
     if root and hasattr(root, "register"):
         try:
             root.register()
         except Exception:
-            pass
+            import traceback
+            traceback.print_exc()
 
 
 class RestartBlender(
@@ -171,7 +177,10 @@ class RestartBlender(
         self.set_event_key(event)
         
         if self.not_key:
-            start_blender()
+            try:
+                start_blender()
+            except Exception as e:
+                self.report({"ERROR"}, str(e))
         elif self.only_alt:
             root_module = (__package__ or "").split(".")[0]
             if root_module:
@@ -181,17 +190,29 @@ class RestartBlender(
                 bpy.app.timers.register(_do_reload, first_interval=0.01)
         elif self.only_ctrl:
             # Ctrl: 恢复自动保存 (quit.blend)
-            start_blender(recover_auto_save=True)
-            bpy.ops.wm.quit_blender()
+            try:
+                start_blender(recover_auto_save=True)
+                bpy.ops.wm.quit_blender()
+            except Exception as e:
+                self.report({"ERROR"}, str(e))
         elif self.only_shift:
             # Shift: 打开最近的文件
-            start_blender(open_recent=True)
+            try:
+                start_blender(open_recent=True)
+            except Exception as e:
+                self.report({"ERROR"}, str(e))
         elif self.ctrl_shift_alt:
             # Ctrl+Alt+Shift: 工厂模式启动
-            start_blender(factory_startup=True)
+            try:
+                start_blender(factory_startup=True)
+            except Exception as e:
+                self.report({"ERROR"}, str(e))
         else:
-            start_blender()
-            self.report({"INFO"}, self.bl_description)
+            try:
+                start_blender()
+                self.report({"INFO"}, self.bl_description)
+            except Exception as e:
+                self.report({"ERROR"}, str(e))
 
     def invoke(self, context, event):
         if platform.system() == "Windows":
@@ -214,7 +235,7 @@ def draw_restart_blender_top_bar(self, context):
     except KeyError:
         ...
     
-    if pref.activate_restart_blender and is_draw:
+    if getattr(pref, "activate_restart_blender", True) and is_draw:
         row = self.layout.row(align=True)
         row.alert = True
         row.operator(

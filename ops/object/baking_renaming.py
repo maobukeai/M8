@@ -464,6 +464,7 @@ class BAKEMATCHER_PT_Main(Panel):
     bl_region_type = "UI"
     bl_category = "m8" # 整合到 m8 标签页
     bl_order = 20 # 设置顺序
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout = self.layout

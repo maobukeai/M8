@@ -735,6 +735,20 @@ def _call_operator_by_idname(op_idname, invoke=True, properties=None):
     except Exception:
         return None
 
+_ALLOWED_ADDON_MODULES = {
+    "io_scene_fbx",
+    "screencast_keys",
+    "space_view3d_screencast_keys",
+    "bl_ext.blender_org.screencast_keys",
+    "bl_ext.user_default.screencast_keys",
+}
+
+_ALLOWED_EXTERNAL_OPERATORS = {
+    "export_scene.fbx",
+    "wm.screencast_keys",
+    "view3d.screencast_keys",
+}
+
 class M8_OT_CallOperatorWithAddon(bpy.types.Operator):
     bl_idname = "m8.call_operator_with_addon"
     bl_label = "调用并自动启用插件"
@@ -750,16 +764,32 @@ class M8_OT_CallOperatorWithAddon(bpy.types.Operator):
             self.report({'WARNING'}, "未指定操作符")
             return {'CANCELLED'}
 
+        if not re.match(r"^[a-z0-9_]+\.[a-z0-9_]+$", op_idname):
+            self.report({'WARNING'}, f"操作符格式无效：{op_idname}")
+            return {'CANCELLED'}
+
+        module = (self.module or "").strip()
+        is_ours = op_idname.startswith("m8.")
+        is_allowed_external = op_idname in _ALLOWED_EXTERNAL_OPERATORS
+
+        if not (is_ours or is_allowed_external):
+            self.report({'WARNING'}, f"操作符未允许：{op_idname}")
+            return {'CANCELLED'}
+
+        if module and (module not in _ALLOWED_ADDON_MODULES):
+            self.report({'WARNING'}, f"插件模块未允许：{module}")
+            return {'CANCELLED'}
+
         res = _call_operator_by_idname(op_idname, invoke=bool(self.invoke))
         if res is not None:
             return {'FINISHED'}
 
-        module = (self.module or "").strip()
-        if module:
+        if module and is_allowed_external:
             try:
                 bpy.ops.preferences.addon_enable(module=module)
-            except Exception:
-                pass
+            except Exception as e:
+                self.report({'WARNING'}, f"启用插件失败：{module}（{e}）")
+                return {'CANCELLED'}
 
         res = _call_operator_by_idname(op_idname, invoke=bool(self.invoke))
         if res is not None:

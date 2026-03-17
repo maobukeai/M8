@@ -1,6 +1,6 @@
 import bpy
 from bpy.types import Menu
-
+from ...utils.i18n import _T
 
 class VIEW3D_MT_M8SmartPie(Menu):
     bl_label = "Smart Pie"
@@ -18,27 +18,27 @@ class VIEW3D_MT_M8SmartPie(Menu):
         except Exception:
             prefs = None
 
-        pie.operator("m8.smart_vert", text="智能顶点", icon="VERTEXSEL")
-        op_face = pie.operator("m8.smart_face", text="智能面", icon="FACESEL")
+        pie.operator("m8.smart_vert", text=_T("智能顶点"), icon="VERTEXSEL")
+        op_face = pie.operator("m8.smart_face", text=_T("智能面"), icon="FACESEL")
         if prefs:
             try:
                 op_face.focus_mode = bool(getattr(prefs, "smart_face_focus_mode", False))
                 op_face.stay_on_original = bool(getattr(prefs, "smart_face_stay_on_original", False))
             except Exception:
                 pass
-        pie.operator("m8.smart_edge", text="智能边", icon="EDGESEL")
+        pie.operator("m8.smart_edge", text=_T("智能边"), icon="EDGESEL")
 
         col = pie.column()
-        col.label(text="路径")
-        col.operator("m8.smart_paths_merge", text="合并", icon="AUTOMERGE_OFF")
-        col.operator("m8.smart_paths_connect", text="连接", icon="CONSTRAINT")
+        col.label(text=_T("路径"))
+        col.operator("m8.smart_paths_merge", text=_T("合并"), icon="AUTOMERGE_OFF")
+        col.operator("m8.smart_paths_connect", text=_T("连接"), icon="CONSTRAINT")
 
-        pie.operator("m8.smart_merge_center", text="中心合并", icon="PIVOT_CURSOR")
-        pie.operator("m8.smart_slide_extend", text="滑动延伸", icon="TRANSFORM_ORIGINS")
+        pie.operator("m8.smart_merge_center", text=_T("中心合并"), icon="PIVOT_CURSOR")
+        pie.operator("m8.smart_slide_extend", text=_T("滑动延伸"), icon="TRANSFORM_ORIGINS")
         
-        pie.operator("m8.smart_toggle_sharp", text="切换锐边", icon="SHARPCURVE")
+        pie.operator("m8.smart_toggle_sharp", text=_T("切换锐边"), icon="SHARPCURVE")
         
-        pie.operator("m8.smart_offset_edges", text="偏移边线", icon="MOD_BEVEL")
+        pie.operator("m8.smart_offset_edges", text=_T("偏移边线"), icon="MOD_BEVEL")
 
 classes = (
     VIEW3D_MT_M8SmartPie,

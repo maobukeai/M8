@@ -491,7 +491,7 @@ class M8_OT_SmartFace(bpy.types.Operator):
             try:
                 self.focus_mode = bool(getattr(prefs, "smart_face_focus_mode", self.focus_mode))
                 self.stay_on_original = bool(getattr(prefs, "smart_face_stay_on_original", self.stay_on_original))
-                if not self.is_property_set("face_action"):
+                if not self.properties.is_property_set("face_action"):
                     self.face_action = str(getattr(prefs, "smart_face_action", self.face_action))
             except Exception:
                 pass
@@ -644,6 +644,7 @@ class M8_OT_CleanUp(bpy.types.Operator):
     do_merge_by_distance: bpy.props.BoolProperty(name="合并重复点", default=True)
     do_dissolve_degenerate: bpy.props.BoolProperty(name="溶解退化几何", default=True)
     degenerate_dist: bpy.props.FloatProperty(name="退化阈值", default=0.00001, min=0.0)
+    do_delete_loose: bpy.props.BoolProperty(name="删除松散几何", default=True)
     do_delete_loose_edges: bpy.props.BoolProperty(name="删除孤立边", default=True)
     do_delete_loose_verts: bpy.props.BoolProperty(name="删除孤立点", default=True)
     do_recalc_normals: bpy.props.BoolProperty(name="重算法线", default=False)
@@ -655,60 +656,122 @@ class M8_OT_CleanUp(bpy.types.Operator):
     planar_iterations: bpy.props.IntProperty(name="迭代", default=1, min=1, max=10)
     
     do_delete_interior_faces: bpy.props.BoolProperty(name="删除内部面 (非流形)", default=False)
+    do_select_tools: bpy.props.BoolProperty(name="选择", default=True)
+    non_planar_angle: bpy.props.FloatProperty(name="非平面角度", default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
+    show_advanced: bpy.props.BoolProperty(name="高级", default=False)
 
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = True
+        layout.use_property_split = False
+
+        col = layout.column(align=True)
+
+        row = col.row(align=True)
+        row.prop(self, "do_merge_by_distance", text="重复")
+        row.prop(self, "do_dissolve_degenerate", text="退化")
+        sub = row.row(align=True)
+        sub.enabled = bool(self.do_merge_by_distance)
+        sub.prop(self, "merge_distance", text="")
+
+        row = col.row(align=True)
+        row.prop(self, "do_delete_loose", text="松散")
+        row.prop(self, "do_limited_dissolve", text="冗余")
+        sub = row.row(align=True)
+        sub.enabled = bool(self.do_limited_dissolve)
+        sub.prop(self, "limited_dissolve_angle", text="")
+
+        ts = getattr(context, "tool_settings", None)
+        if ts and getattr(ts, "mesh_select_mode", None):
+            row = col.row(align=True)
+            row.prop(ts, "mesh_select_mode", index=0, toggle=True, text="顶点")
+            row.prop(ts, "mesh_select_mode", index=1, toggle=True, text="边")
+            row.prop(ts, "mesh_select_mode", index=2, toggle=True, text="面")
+
+        row = col.row(align=True)
+        # 移除这些不适合在 Operator Redo Panel 中使用的按钮
+        # row.prop(self, "do_recalc_normals", text="重新计算法线")
+        # row.operator("mesh.flip_normals", text="翻转")
+
+        # row = col.row(align=True)
+        # row.prop(self, "do_select_tools", text="选择")
+        # row.operator("view3d.view_selected", text="查看所选")
+
+        # row = col.row(align=True)
+        # row.enabled = bool(self.do_select_tools)
+        # row.operator("mesh.select_non_manifold", text="非流形")
+        # # row.operator("mesh.select_non_planar", text="非平面") # 移除不可用的操作
+        # op = row.operator("mesh.select_face_by_sides", text="三角面")
+        # op.number = 3
+        # op.type = "EQUAL"
+        # op.extend = False
+        # op = row.operator("mesh.select_face_by_sides", text="N边面")
+        # op.number = 4
+        # op.type = "GREATER"
+        # op.extend = False
         
-        layout.prop(self, "affect", expand=True)
-        layout.prop(self, "merge_distance")
-        
+        # 只保留参数选项
+        col.prop(self, "do_recalc_normals", text="重新计算法线")
+
         box = layout.box()
-        box.label(text="Clean Options", icon="BRUSH_DATA")
-        
-        col = box.column(align=True)
-        col.prop(self, "do_merge_by_distance")
-        
-        row = col.row()
-        row.prop(self, "do_dissolve_degenerate")
-        if self.do_dissolve_degenerate:
-            row.prop(self, "degenerate_dist", text="")
-            
-        row = col.row()
-        row.prop(self, "do_limited_dissolve")
-        if self.do_limited_dissolve:
-            row.prop(self, "limited_dissolve_angle", text="")
-            
-        row = col.row()
-        row.prop(self, "do_make_planar")
-        if self.do_make_planar:
-            row.prop(self, "planar_iterations", text="")
-            
-        col.prop(self, "do_delete_interior_faces")
-        col.prop(self, "do_delete_loose_edges")
-        col.prop(self, "do_delete_loose_verts")
-        col.prop(self, "do_recalc_normals")
+        row = box.row(align=True)
+        row.prop(self, "show_advanced", toggle=True)
+        if self.show_advanced:
+            box.prop(self, "affect", expand=True)
+
+            row = box.row(align=True)
+            row.prop(self, "do_dissolve_degenerate")
+            sub = row.row(align=True)
+            sub.enabled = bool(self.do_dissolve_degenerate)
+            sub.prop(self, "degenerate_dist", text="")
+
+            row = box.row(align=True)
+            row.prop(self, "do_make_planar")
+            sub = row.row(align=True)
+            sub.enabled = bool(self.do_make_planar)
+            sub.prop(self, "planar_iterations", text="")
+
+            box.prop(self, "do_delete_interior_faces")
+
+            row = box.row(align=True)
+            row.prop(self, "do_delete_loose_edges")
+            row.prop(self, "do_delete_loose_verts")
+
+            row = box.row(align=True)
+            row.label(text="非平面角度")
+            row.prop(self, "non_planar_angle", text="")
 
     def invoke(self, context, event):
         prefs = _get_addon_prefs()
         if prefs:
             try:
-                if hasattr(prefs, "clean_up_merge_distance") and not self.is_property_set("merge_distance"):
+                if hasattr(prefs, "clean_up_merge_distance"):
                     self.merge_distance = float(getattr(prefs, "clean_up_merge_distance", self.merge_distance))
-                if hasattr(prefs, "clean_up_affect") and not self.is_property_set("affect"):
+                if hasattr(prefs, "clean_up_affect"):
                     self.affect = str(getattr(prefs, "clean_up_affect", self.affect))
-                if hasattr(prefs, "clean_up_degenerate_dist") and not self.is_property_set("degenerate_dist"):
+                if hasattr(prefs, "clean_up_do_merge_by_distance"):
+                    self.do_merge_by_distance = bool(getattr(prefs, "clean_up_do_merge_by_distance", self.do_merge_by_distance))
+                if hasattr(prefs, "clean_up_do_dissolve_degenerate"):
+                    self.do_dissolve_degenerate = bool(getattr(prefs, "clean_up_do_dissolve_degenerate", self.do_dissolve_degenerate))
+                if hasattr(prefs, "clean_up_degenerate_dist"):
                     self.degenerate_dist = float(getattr(prefs, "clean_up_degenerate_dist", self.degenerate_dist))
-                if hasattr(prefs, "clean_up_recalc_normals") and not self.is_property_set("do_recalc_normals"):
-                    self.do_recalc_normals = bool(getattr(prefs, "clean_up_recalc_normals", self.do_recalc_normals))
-                if hasattr(prefs, "clean_up_limited_dissolve") and not self.is_property_set("do_limited_dissolve"):
-                    self.do_limited_dissolve = bool(getattr(prefs, "clean_up_limited_dissolve", self.do_limited_dissolve))
-                if hasattr(prefs, "clean_up_limited_dissolve_angle") and not self.is_property_set("limited_dissolve_angle"):
+                if hasattr(prefs, "clean_up_do_limited_dissolve"):
+                    self.do_limited_dissolve = bool(getattr(prefs, "clean_up_do_limited_dissolve", self.do_limited_dissolve))
+                if hasattr(prefs, "clean_up_limited_dissolve_angle"):
                     self.limited_dissolve_angle = float(getattr(prefs, "clean_up_limited_dissolve_angle", self.limited_dissolve_angle))
-                if hasattr(prefs, "clean_up_make_planar") and not self.is_property_set("do_make_planar"):
-                    self.do_make_planar = bool(getattr(prefs, "clean_up_make_planar", self.do_make_planar))
-                if hasattr(prefs, "clean_up_delete_interior_faces") and not self.is_property_set("do_delete_interior_faces"):
-                    self.do_delete_interior_faces = bool(getattr(prefs, "clean_up_delete_interior_faces", self.do_delete_interior_faces))
+                if hasattr(prefs, "clean_up_do_make_planar"):
+                    self.do_make_planar = bool(getattr(prefs, "clean_up_do_make_planar", self.do_make_planar))
+                if hasattr(prefs, "clean_up_planar_iterations"):
+                    self.planar_iterations = int(getattr(prefs, "clean_up_planar_iterations", self.planar_iterations))
+                if hasattr(prefs, "clean_up_do_delete_interior_faces"):
+                    self.do_delete_interior_faces = bool(getattr(prefs, "clean_up_do_delete_interior_faces", self.do_delete_interior_faces))
+                if hasattr(prefs, "clean_up_do_delete_loose_edges"):
+                    self.do_delete_loose_edges = bool(getattr(prefs, "clean_up_do_delete_loose_edges", self.do_delete_loose_edges))
+                if hasattr(prefs, "clean_up_do_delete_loose_verts"):
+                    self.do_delete_loose_verts = bool(getattr(prefs, "clean_up_do_delete_loose_verts", self.do_delete_loose_verts))
+                if hasattr(prefs, "clean_up_recalc_normals"):
+                    self.do_recalc_normals = bool(getattr(prefs, "clean_up_recalc_normals", self.do_recalc_normals))
+                self.do_delete_loose = bool(self.do_delete_loose_edges or self.do_delete_loose_verts)
+
             except Exception:
                 pass
         return self.execute(context)
@@ -718,27 +781,40 @@ class M8_OT_CleanUp(bpy.types.Operator):
             return {"CANCELLED"}
 
         prefs = _get_addon_prefs()
-        merge_distance = float(self.merge_distance)
         if prefs:
             try:
-                if hasattr(prefs, "clean_up_merge_distance"):
-                    prefs.clean_up_merge_distance = merge_distance
-                if hasattr(prefs, "clean_up_affect"):
-                    prefs.clean_up_affect = str(self.affect)
-                if hasattr(prefs, "clean_up_degenerate_dist"):
-                    prefs.clean_up_degenerate_dist = float(self.degenerate_dist)
-                if hasattr(prefs, "clean_up_recalc_normals"):
-                    prefs.clean_up_recalc_normals = bool(self.do_recalc_normals)
-                if hasattr(prefs, "clean_up_limited_dissolve"):
-                    prefs.clean_up_limited_dissolve = bool(self.do_limited_dissolve)
-                if hasattr(prefs, "clean_up_limited_dissolve_angle"):
-                    prefs.clean_up_limited_dissolve_angle = float(self.limited_dissolve_angle)
-                if hasattr(prefs, "clean_up_make_planar"):
-                    prefs.clean_up_make_planar = bool(self.do_make_planar)
-                if hasattr(prefs, "clean_up_delete_interior_faces"):
-                    prefs.clean_up_delete_interior_faces = bool(self.do_delete_interior_faces)
+                if not self.properties.is_property_set("merge_distance") and hasattr(prefs, "clean_up_merge_distance"):
+                    self.merge_distance = float(getattr(prefs, "clean_up_merge_distance", self.merge_distance))
+                if not self.properties.is_property_set("affect") and hasattr(prefs, "clean_up_affect"):
+                    self.affect = str(getattr(prefs, "clean_up_affect", self.affect))
+                if not self.properties.is_property_set("do_merge_by_distance") and hasattr(prefs, "clean_up_do_merge_by_distance"):
+                    self.do_merge_by_distance = bool(getattr(prefs, "clean_up_do_merge_by_distance", self.do_merge_by_distance))
+                if not self.properties.is_property_set("do_dissolve_degenerate") and hasattr(prefs, "clean_up_do_dissolve_degenerate"):
+                    self.do_dissolve_degenerate = bool(getattr(prefs, "clean_up_do_dissolve_degenerate", self.do_dissolve_degenerate))
+                if not self.properties.is_property_set("degenerate_dist") and hasattr(prefs, "clean_up_degenerate_dist"):
+                    self.degenerate_dist = float(getattr(prefs, "clean_up_degenerate_dist", self.degenerate_dist))
+                if not self.properties.is_property_set("do_limited_dissolve") and hasattr(prefs, "clean_up_do_limited_dissolve"):
+                    self.do_limited_dissolve = bool(getattr(prefs, "clean_up_do_limited_dissolve", self.do_limited_dissolve))
+                if not self.properties.is_property_set("limited_dissolve_angle") and hasattr(prefs, "clean_up_limited_dissolve_angle"):
+                    self.limited_dissolve_angle = float(getattr(prefs, "clean_up_limited_dissolve_angle", self.limited_dissolve_angle))
+                if not self.properties.is_property_set("do_make_planar") and hasattr(prefs, "clean_up_do_make_planar"):
+                    self.do_make_planar = bool(getattr(prefs, "clean_up_do_make_planar", self.do_make_planar))
+                if not self.properties.is_property_set("planar_iterations") and hasattr(prefs, "clean_up_planar_iterations"):
+                    self.planar_iterations = int(getattr(prefs, "clean_up_planar_iterations", self.planar_iterations))
+                if not self.properties.is_property_set("do_delete_interior_faces") and hasattr(prefs, "clean_up_do_delete_interior_faces"):
+                    self.do_delete_interior_faces = bool(getattr(prefs, "clean_up_do_delete_interior_faces", self.do_delete_interior_faces))
+                if not self.properties.is_property_set("do_delete_loose_edges") and hasattr(prefs, "clean_up_do_delete_loose_edges"):
+                    self.do_delete_loose_edges = bool(getattr(prefs, "clean_up_do_delete_loose_edges", self.do_delete_loose_edges))
+                if not self.properties.is_property_set("do_delete_loose_verts") and hasattr(prefs, "clean_up_do_delete_loose_verts"):
+                    self.do_delete_loose_verts = bool(getattr(prefs, "clean_up_do_delete_loose_verts", self.do_delete_loose_verts))
+                if not self.properties.is_property_set("do_recalc_normals") and hasattr(prefs, "clean_up_recalc_normals"):
+                    self.do_recalc_normals = bool(getattr(prefs, "clean_up_recalc_normals", self.do_recalc_normals))
+                if not self.properties.is_property_set("do_delete_loose"):
+                    self.do_delete_loose = bool(self.do_delete_loose_edges or self.do_delete_loose_verts)
             except Exception:
                 pass
+
+        merge_distance = float(self.merge_distance)
 
         objs = []
         for o in getattr(context, "objects_in_mode_unique_data", []) or []:
@@ -825,7 +901,11 @@ class M8_OT_CleanUp(bpy.types.Operator):
                 except Exception:
                     pass
 
-            if self.do_delete_loose_edges:
+            delete_loose_edges = bool(self.do_delete_loose_edges) if self.properties.is_property_set("do_delete_loose_edges") else bool(self.do_delete_loose)
+            delete_loose_verts = bool(self.do_delete_loose_verts) if self.properties.is_property_set("do_delete_loose_verts") else bool(self.do_delete_loose)
+
+
+            if delete_loose_edges:
                 edges = get_target('EDGES')
                 loose_edges = [e for e in edges if len(e.link_faces) == 0]
                 if loose_edges:
@@ -834,7 +914,7 @@ class M8_OT_CleanUp(bpy.types.Operator):
                     bm.edges.ensure_lookup_table()
                     bm.faces.ensure_lookup_table()
 
-            if self.do_delete_loose_verts:
+            if delete_loose_verts:
                 verts = get_target('VERTS')
                 loose_verts = [v for v in verts if len(v.link_edges) == 0]
                 if loose_verts:

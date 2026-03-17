@@ -8,7 +8,7 @@ from bpy.app.handlers import persistent
 from gpu_extras.batch import batch_for_shader
 from mathutils import Vector, Matrix
 
-from ..utils import get_pref
+from ..utils import get_pref, get_pref_value
 from ..utils.string import is_contains_chinese
 
 DEBUG_HUB = False
@@ -104,7 +104,12 @@ class PublicHub:
     @property
     def is_draw(self) -> bool:
         """在窗口最大化时也进行绘制"""
-        screen = bpy.context.screen
+        
+        # Add safety check for context.screen
+        screen = getattr(bpy.context, "screen", None)
+        if not screen:
+            return False
+            
         parent_area = None
         if screen.show_fullscreen:
             if screen.name.endswith("-nonnormal"):
@@ -112,12 +117,22 @@ class PublicHub:
                 if parent_screen is not None:
                     for area in parent_screen.areas:
                         if area.type == "EMPTY":
-                            parent_area = hash(area)
+                            try:
+                                parent_area = hash(area)
+                            except:
+                                pass
                             break
 
         if self.area_restrictions is not None:
-            area = bpy.context.area
-            area_hash = hash(area)
+            area = getattr(bpy.context, "area", None)
+            if not area:
+                return False
+                
+            try:
+                area_hash = hash(area)
+            except:
+                return False
+                
             if isinstance(self.area_restrictions, int):
                 if area_hash == self.area_restrictions:
                     return True
@@ -148,25 +163,25 @@ class PublicHub:
     @property
     def text_color(self):
         """偏好设置hub文字颜色"""
-        return get_pref().hub_text_color
+        return get_pref_value("hub_text_color", (1, 1, 1, 1))
 
     @property
     def view_3d_color(self):
         """偏好设置view 3d颜色"""
-        return get_pref().hub_3d_color
+        return get_pref_value("hub_3d_color", (0.2, 0.6, 1, 0.8))
 
     @property
     def area_color(self):
-        return get_pref().hub_area_color
+        return get_pref_value("hub_area_color", (0.2, 0.6, 1, 0.2))
 
     @property
     def line_width(self):
         """线宽"""
-        return get_pref().hub_line_width
+        return get_pref_value("hub_line_width", 2)
 
     @property
     def matrix_line_width(self):
-        return get_pref().hub_matrix_line_width
+        return get_pref_value("hub_matrix_line_width", 3)
 
     def register_timer(self):
         if self.timeout is not None:  # 如果有超时时间就添加一个定时器
@@ -199,7 +214,10 @@ class TextHub(PublicHub):
     def offset(self) -> Vector:
         """calculate_offset
         通过文本对齐方式和输入的偏移值获取需要偏移的位置"""
-        area = bpy.context.area
+        area = getattr(bpy.context, "area", None)
+        if not area:
+            return self.text_offset
+            
         aw, ah = area.width, area.height
         key = (aw, ah, self.scale, self.text_offset)
 
@@ -231,7 +249,7 @@ class TextHub(PublicHub):
             if self.text_align == TextAlign.CENTER_DOWN:
                 return self.text_offset + Vector((aw / 2 - self.w / 2, self.h))
             elif self.text_align == TextAlign.CENTER_UP:
-                return self.text_offset + Vector((aw / 2 - self.w / 2, ah - self.h - top))
+                return self.text_offset + Vector((aw / 2 - self.w / 2, ah - top))
             return self.text_offset
 
         if key in self.offset_data:
@@ -247,7 +265,15 @@ class TextHub(PublicHub):
 
     @property
     def scale(self) -> float:
-        return get_pref().hub_scale
+        return get_pref_value("hub_scale", 0.35)
+
+    @property
+    def text_align(self):
+        return self._text_align
+
+    @text_align.setter
+    def text_align(self, value):
+        self._text_align = value
 
     def dimensions_texts(self):
         """测量所有文本"""
@@ -258,9 +284,13 @@ class TextHub(PublicHub):
             size = info.get("font_size", info.get("size", 20))
             font_id = info.get("font_id", 0)
 
-            blf.size(font_id, size * self.scale)
+            blf.size(font_id, int(size * self.scale))
 
-            (width, height) = blf.dimensions(font_id, text)
+            try:
+                (width, height) = blf.dimensions(font_id, text)
+            except:
+                width, height = 0, 0
+                
             info["width"] = width
             info["height"] = height
             h += height * 1.5
@@ -286,7 +316,7 @@ class TextHub(PublicHub):
         text_data[identifier] = self
         self.texts = texts
         self.text_offset = text_offset
-        self.text_align = text_align
+        self._text_align = text_align
 
         self.dimensions_texts()
 
@@ -310,7 +340,7 @@ class TextHub(PublicHub):
                     blf.clipping(font_id, 0, 0, 0, 0)
                     blf.disable(font_id, blf.CLIPPING)
                     blf.position(font_id, 0, 0, 0)
-                    blf.size(font_id, size * self.scale)
+                    blf.size(font_id, int(size * self.scale))
                     
                     # Fix blf.color arguments: blf.color(fontid, r, g, b, a)
                     # *color unpacks (r, g, b, a)
@@ -515,12 +545,20 @@ class MatrixHub(PublicHub):
             rot = rotation_to_matrix(m.to_euler())
             self.matrices.append(loc @ rot)
         self.is_six_axis = is_six_axis
-        self.scale = scale
+        self._scale = scale
 
         super().__init__(identifier, timeout, area_restrictions)
 
+    @property
+    def scale(self):
+        return self._scale
+
+    @scale.setter
+    def scale(self, value):
+        self._scale = value
+
     def get_scale(self):
-        return self.scale if self.scale is not None else get_pref().hub_scale
+        return self.scale if self.scale is not None else get_pref_value("hub_scale", 0.35)
 
     def get_coords_colors_old(self):
         """旧版本方法绘制出来不好看"""
@@ -585,11 +623,11 @@ class MatrixHub(PublicHub):
                 self.init_shader()
 
             gpu.state.blend_set("ALPHA")
-            gpu.state.line_width_set(self.matrix_line_width)
+            gpu.state.line_width_set(float(self.matrix_line_width))
             gpu.state.depth_mask_set(True)
             gpu.state.depth_test_set(self.depth_test)
             # NONE, ALWAYS, LESS, LESS_EQUAL, EQUAL, GREATER and GREATER_EQUAL
-            gpu.state.point_size_set(self.vert_size)
+            gpu.state.point_size_set(int(self.vert_size))
 
             if self.matrices:
                 for matrix in self.matrices:
@@ -606,21 +644,34 @@ class MatrixHub(PublicHub):
         return colors[axis]
 
     def draw_matrix(self, matrix):
-        scale = self.scale if self.scale is not None else get_pref().hub_scale
+        scale = self.scale if self.scale is not None else get_pref_value("hub_scale", 0.35)
         alpha = self.alpha
 
         width = self.matrix_line_width
+        z = matrix @ Vector()
+
+        coords = []
+        colors = []
+        coords_neg = []
+        colors_neg = []
+
         for i in range(3):
             p = matrix @ Vector([scale if j == i else 0 for j in range(3)])
-            z = matrix @ Vector()
-            n = matrix @ Vector([-scale if j == i else 0 for j in range(3)])
             color = (*self.get_color(i), alpha)
-            nc = [i * .8 for i in color]
+
+            coords.extend((p, z))
+            colors.extend((color, color))
+
             if self.is_six_axis:
-                draw_lines((p, z), (color, color), width)
-                draw_lines((z, n), (nc, nc), width * .8)
-            else:
-                draw_lines((p, z), (color, color,), width)
+                n = matrix @ Vector([-scale if j == i else 0 for j in range(3)])
+                nc = (color[0] * 0.8, color[1] * 0.8, color[2] * 0.8, color[3])
+                coords_neg.extend((z, n))
+                colors_neg.extend((nc, nc))
+        
+        if coords:
+             draw_lines(coords, colors, width)
+        if coords_neg:
+             draw_lines(coords_neg, colors_neg, width * .8)
 
     def register_handler(self):
         global matrix_handler, matrix_data
@@ -663,16 +714,21 @@ def try_update_timer(is_enforce=False):
             bpy.app.timers.unregister(try_update_timer)
             return None
 
-    fps = 1 / get_pref().hub_fps
+    fps = 1 / get_pref_value("hub_fps", 60.0)
     count += 1
     return fps
 
 
 @persistent
-def hub_undo_clear(context, event):
+def hub_undo_clear(scene):
     """在撤销时清理部分hub
     部分hub在撤销的时候不会删除,所以这里手动删除
     """
+    # Safe check for UNDO_CLEAR_HUB in case it's not defined
+    global UNDO_CLEAR_HUB
+    if 'UNDO_CLEAR_HUB' not in globals():
+        return
+
     for identifier in UNDO_CLEAR_HUB:
         if identifier in text_data:
             text_data.pop(identifier)

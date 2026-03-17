@@ -1,5 +1,6 @@
 import bpy
 
+from ...utils.adapter import get_adapter_blender_icon as _ICON
 from ...ops.mesh.switch_mesh_mode import M8_OT_SwitchMeshMode
 from ...ops.mesh.switch_uv_mode import M8_OT_SwitchUVMode
 from ...ops.mesh.surface_sliding import ui as surface_sliding_ui
@@ -124,7 +125,8 @@ def _mesh_select_depress(context: bpy.types.Context, mode: str) -> bool:
 
 
 def draw_switch_view_3d_mode_operator(context: bpy.types.Context, pie: bpy.types.UILayout, pref, direction: str):
-    mode = getattr(pref, f"switch_mode_{direction}")
+    default_modes = {"left": "VERT", "right": "FACE", "down": "EDGE", "up": "SWITCH_MODE"}
+    mode = getattr(pref, f"switch_mode_{direction}", default_modes.get(direction, "VERT"))
     num = _DIR_NUM.get(direction, "")
 
     if mode == "SWITCH_MODE":
@@ -153,7 +155,8 @@ def draw_switch_image_mode_operator(context: bpy.types.Context, pie: bpy.types.U
     if override_mode:
         mode = override_mode
     else:
-        mode = getattr(pref, f"switch_mode_{direction}")
+        default_modes = {"left": "VERT", "right": "FACE", "down": "EDGE", "up": "SWITCH_MODE"}
+        mode = getattr(pref, f"switch_mode_{direction}", default_modes.get(direction, "VERT"))
     num = _DIR_NUM.get(direction, "")
 
     if mode == "SWITCH_MODE":
@@ -194,7 +197,8 @@ def draw_switch_bone_mode_operator(context: bpy.types.Context, pie: bpy.types.UI
     active = context.active_object
     data = context.object.data
     om = active.mode
-    mode = getattr(pref, f"switch_bone_mode_{direction}")
+    default_modes = {"left": "BONE_POSITION", "right": "POSE", "down": "VIEW_SELECTED", "up": "EDIT_OR_OBJECT"}
+    mode = getattr(pref, f"switch_bone_mode_{direction}", default_modes.get(direction, "POSE"))
     
     if mode == "EDIT_OR_OBJECT":
         text, icon, mode = (
@@ -306,7 +310,7 @@ def draw_node_editor_ops(context: bpy.types.Context, pie: bpy.types.UILayout):
     col = pie.column(align=True)
     col.scale_y = 1.3
     col.operator("node.view_all", text="查看全部", icon="VIEWZOOM")
-    col.operator("node.backimage_fit", text="重置节点", icon="LOOP_BACK")
+    col.operator("node.backimage_fit", text="重置节点", icon=_ICON("LOOP_BACK"))
 
 
 class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):

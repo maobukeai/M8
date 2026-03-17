@@ -10,7 +10,7 @@ from .lattice import MirrorLattice
 from .mesh import MirrorMesh
 from .armature import MirrorArmature
 from .status_bar import StatusBar
-from ...utils import get_operator_bl_idname, get_pref
+from ...utils import get_operator_bl_idname, get_pref, get_pref_value
 from ...utils.items import ENUM_AXIS, AXIS
 
 
@@ -83,7 +83,7 @@ class Mirror(
             
         region_3d = context.space_data.region_3d
         view_distance = region_3d.view_distance
-        return view_distance * 0.2 * pref.hub_scale
+        return view_distance * 0.2 * get_pref_value("hub_scale", 0.35)
 
     @classmethod
     def poll(cls, context):
@@ -179,7 +179,7 @@ class Mirror(
             
         # 支持松开快捷键即确认
         # 检查偏好设置是否启用了自动确认
-        if get_pref().mirror_auto_confirm:
+        if get_pref_value("mirror_auto_confirm", True):
             # 默认主键是 X
             trigger_key = 'X' # 默认
             

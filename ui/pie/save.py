@@ -16,6 +16,7 @@ from ...ops.file.save_pie_ops import (
     M8_OT_CallOperatorWithAddon,
 )
 from ...ops.misc.screencast import M8_OT_InternalScreencast
+from ...utils.adapter import get_adapter_blender_icon as _ICON
 from ..icons import get_icon_id
 
 def _safe_operator(layout, idname, text="", icon='NONE', icon_value=0, emboss=True, depress=False, **props):
@@ -235,7 +236,7 @@ class VIEW3D_MT_M8SavePie(bpy.types.Menu):
         pie.operator("wm.open_mainfile", text="打开...", icon="FILE_FOLDER")
         
         # 2. East (6): Save
-        pie.operator("wm.save_mainfile", text="保存*" if dirty else "保存", icon="FILE_TICK")
+        pie.operator("wm.save_mainfile", text="保存*" if dirty else "保存", icon=_ICON("FILE_TICK"))
         
         # 3. South (2): Save As
         pie.operator("wm.save_as_mainfile", text="另存为*" if dirty else "另存为", icon="FILE_REFRESH")

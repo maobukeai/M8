@@ -1,5 +1,6 @@
 import bpy
 from bpy.app.translations import contexts as i18n_contexts
+from ...utils.adapter import get_adapter_blender_icon as _ICON
 
 
 def _draw_edge_overlay_toggles(context, layout):
@@ -51,7 +52,7 @@ class VIEW3D_MT_M8EdgePropertyPie(bpy.types.Menu):
         pie = self.layout.menu_pie()
 
         pie.operator("mesh.edge_rotate", icon="LOOP_FORWARDS", text="顺时针旋转边").use_ccw = False
-        pie.operator("mesh.edge_rotate", icon="LOOP_BACK", text="逆时针旋转边").use_ccw = True
+        pie.operator("mesh.edge_rotate", icon=_ICON("LOOP_BACK"), text="逆时针旋转边").use_ccw = True
         pie.operator(M8_OT_ClearAllEdgeProperty.bl_idname, icon="TRASH", text="清除所有属性")
 
         _draw_top_block(context, pie)
@@ -115,4 +116,3 @@ class VIEW3D_MT_M8EdgePropertyPie(bpy.types.Menu):
         row.scale_y = 1.2
         row.operator("mesh.mark_freestyle_edge", text="", icon="PANEL_CLOSE").clear = True
         row.operator("mesh.mark_freestyle_edge", text="标记 Freestyle").clear = False
-

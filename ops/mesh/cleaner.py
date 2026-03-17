@@ -66,6 +66,34 @@ class M8_Clean_Props(bpy.types.PropertyGroup):
         default=False
     )
 
+    cleanup_initialized: bpy.props.BoolProperty(
+        name="cleanup_initialized",
+        default=False
+    )
+
+    cleanup_affect: bpy.props.EnumProperty(
+        name="影响范围",
+        items=[
+            ("ALL", "全部", ""),
+            ("SELECTED", "仅选中", ""),
+        ],
+        default="ALL",
+    )
+    cleanup_merge_distance: bpy.props.FloatProperty(name="合并距离", default=0.0001, min=0.0)
+    cleanup_do_merge_by_distance: bpy.props.BoolProperty(name="重复", default=True)
+    cleanup_do_dissolve_degenerate: bpy.props.BoolProperty(name="退化", default=True)
+    cleanup_degenerate_dist: bpy.props.FloatProperty(name="退化阈值", default=0.00001, min=0.0)
+    cleanup_do_delete_loose: bpy.props.BoolProperty(name="松散", default=True)
+    cleanup_do_limited_dissolve: bpy.props.BoolProperty(name="冗余", default=False)
+    cleanup_limited_dissolve_angle: bpy.props.FloatProperty(name="角度", default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
+    cleanup_do_recalc_normals: bpy.props.BoolProperty(name="重新计算法线", default=False)
+    cleanup_do_make_planar: bpy.props.BoolProperty(name="平坦化面", default=False)
+    cleanup_planar_iterations: bpy.props.IntProperty(name="迭代", default=1, min=1, max=10)
+    cleanup_do_delete_interior_faces: bpy.props.BoolProperty(name="删除内部面 (非流形)", default=False)
+    cleanup_do_select_tools: bpy.props.BoolProperty(name="选择", default=True)
+    cleanup_non_planar_angle: bpy.props.FloatProperty(name="非平面角度", default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
+    cleanup_show_advanced: bpy.props.BoolProperty(name="高级", default=False)
+
 # -------------------------------------------------------------------
 # Circular Loop Cleaner Operators
 # -------------------------------------------------------------------
@@ -225,27 +253,26 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
         start_edge = selected_edges[0]
         
         # Clear and select starting edge
-        for e in bm.edges:
-            e.select = False
+        bpy.ops.mesh.select_all(action='DESELECT')
         start_edge.select = True
+        bmesh.update_edit_mesh(mesh) # Ensure selection is updated for bpy.ops
         
-        # Get all selected edges after loop selection using BMesh logic
-        all_selected = set()
         if self.use_checker_deselect:
-            # For checker deselect: get edge ring, then filter, then convert to loops
-            # ring is already sorted by get_edge_ring
-            ring = get_edge_ring(start_edge)
-            checkered_ring = get_checker_deselect(ring)
-            for e in checkered_ring:
-                all_selected.update(get_edge_loop(e))
+            # For checker deselect: select edge ring, then use checker, then convert to loops
+            bpy.ops.mesh.loop_multi_select(ring=True)
+            bpy.ops.mesh.select_nth()
+            bpy.ops.mesh.loop_multi_select(ring=False)
         else:
             # Normal flow: ring selection then loop selection
-            ring = get_edge_ring(start_edge)
-            for e in ring:
-                all_selected.update(get_edge_loop(e))
+            bpy.ops.mesh.loop_multi_select(ring=True)
+            bpy.ops.mesh.loop_multi_select(ring=False)
+        
+        # Get all selected edges after loop selection
+        bm = bmesh.from_edit_mesh(mesh)
+        selected_edges = [e for e in bm.edges if e.select]
         
         # Group edges into loops
-        edge_loops = self.group_edges_into_loops(list(all_selected))
+        edge_loops = self.group_edges_into_loops(selected_edges)
         
         # Filter loops based on settings
         filtered_loops = []
@@ -267,21 +294,18 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
                 filtered_loops.append(loop)
         
         # Clear selection and select only filtered loops
-        for e in bm.edges:
-            e.select = False
+        bpy.ops.mesh.select_all(action='DESELECT')
         
-        final_edges_to_dissolve = []
         for loop in filtered_loops:
             for edge in loop:
                 edge.select = True
-                final_edges_to_dissolve.append(edge)
-        
-        # Auto dissolve if enabled
-        if self.auto_dissolve and final_edges_to_dissolve:
-            bmesh.ops.dissolve_edges(bm, edges=final_edges_to_dissolve, use_verts=True, use_face_split=False)
         
         # Update mesh
         bmesh.update_edit_mesh(mesh)
+        
+        # Auto dissolve if enabled
+        if self.auto_dissolve:
+            bpy.ops.mesh.dissolve_edges(use_verts=True)
         
         # Restore hidden elements
         if self.hide_high_valence:
@@ -449,37 +473,25 @@ class MESH_OT_simple_edge_loop_cleaner(bpy.types.Operator):
         start_edge = selected_edges[0]
         
         # Clear current selection
-        for e in bm.edges:
-            e.select = False
+        bpy.ops.mesh.select_all(action='DESELECT')
         
         # Select the starting edge
         start_edge.select = True
+        bmesh.update_edit_mesh(mesh) # Ensure selection is updated for bpy.ops
         
-        all_selected = set()
         if self.use_checker_deselect:
-            # For checker deselect: get edge ring, then filter, then convert to loops
-            # ring is already sorted by get_edge_ring
-            ring = get_edge_ring(start_edge)
-            checkered_ring = get_checker_deselect(ring)
-            for e in checkered_ring:
-                all_selected.update(get_edge_loop(e))
+            # For checker deselect: select edge ring, then use checker, then convert to loops
+            bpy.ops.mesh.loop_multi_select(ring=True)
+            bpy.ops.mesh.select_nth()
+            bpy.ops.mesh.loop_multi_select(ring=False)
         else:
             # Normal flow: ring selection then loop selection
-            ring = get_edge_ring(start_edge)
-            for e in ring:
-                all_selected.update(get_edge_loop(e))
+            bpy.ops.mesh.loop_multi_select(ring=True)
+            bpy.ops.mesh.loop_multi_select(ring=False)
         
-        # Select final edges
-        final_edges_to_dissolve = []
-        for e in all_selected:
-            e.select = True
-            final_edges_to_dissolve.append(e)
-            
         # Auto dissolve if enabled
-        if self.auto_dissolve and final_edges_to_dissolve:
-            bmesh.ops.dissolve_edges(bm, edges=final_edges_to_dissolve, use_verts=True, use_face_split=False)
-        
-        bmesh.update_edit_mesh(mesh)
+        if self.auto_dissolve:
+            bpy.ops.mesh.dissolve_edges(use_verts=True)
         
         self.report({'INFO'}, "Simple edge loop cleaning completed")
         
@@ -574,6 +586,7 @@ class MESH_OT_decimate_selected(bpy.types.Operator):
     
     def execute(self, context):
         objects = context.objects_in_mode_unique_data
+        total_success = 0
         total_success = 0
         original_active = context.view_layer.objects.active
         
@@ -728,26 +741,31 @@ class MESH_OT_checker_deselect(bpy.types.Operator):
         total_processed = 0
         loops_processed = 0
         
-        final_selection = set()
-        
         for loop in edge_loops:
             if len(loop) <= 1:
                 continue
             
-            sorted_loop = sort_edge_loop(loop)
-            checkered_loop = get_checker_deselect(sorted_loop)
+            # Clear all selection first
+            bpy.ops.mesh.select_all(action='DESELECT')
             
-            for e in checkered_loop:
-                final_selection.add(e)
+            # Select only this loop
+            for edge in loop:
+                edge.select = True
             
-            loops_processed += 1
-            total_processed += len(checkered_loop)
-        
-        # Apply final selection
-        for e in bm.edges:
-            e.select = False
-        for e in final_selection:
-            e.select = True
+            # Update mesh so Blender sees the selection
+            bmesh.update_edit_mesh(mesh)
+            
+            # Apply checker deselect to this loop
+            try:
+                bpy.ops.mesh.select_nth()
+                loops_processed += 1
+                total_processed += len([e for e in loop if e.select])
+            except Exception as e:
+                self.report({'WARNING'}, f"Checker deselect failed on one loop: {str(e)}")
+                continue
+            
+            # Refresh bmesh to get updated selection
+            bm = bmesh.from_edit_mesh(mesh)
         
         # Update final mesh state
         bmesh.update_edit_mesh(mesh)

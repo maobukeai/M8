@@ -6,7 +6,7 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 from mathutils import Color, Vector, Matrix
 
-from ..utils import get_pref
+from ..utils import get_pref, get_pref_value
 
 if bpy.app.background:
     SMOOTH_COLOR = None
@@ -42,10 +42,9 @@ class Shader:
 
     def __init__(self, color: Color = None, line_width: float = None, vert_size: float = None,
                  alpha: float | None = None):
-        pref = get_pref()
-        self.color = pref.hub_3d_color if color is None else color
-        self.line_width = pref.hub_line_width if line_width is None else line_width
-        self.vert_size = pref.hub_vert_size if vert_size is None else vert_size
+        self.color = get_pref_value("hub_3d_color", (0.2, 0.6, 1, 0.8)) if color is None else color
+        self.line_width = get_pref_value("hub_line_width", 2) if line_width is None else line_width
+        self.vert_size = get_pref_value("hub_vert_size", 6) if vert_size is None else vert_size
         self.alpha = alpha
 
         # 添加阶段使用bmesh来记录绘制信息

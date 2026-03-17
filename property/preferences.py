@@ -1,4 +1,4 @@
-import bpy
+﻿import bpy
 
 PIE_MENU_ID = "VIEW3D_MT_size_tool_transform_pie"
 SWITCH_MODE_PIE_ID = "VIEW3D_MT_m8_switch_mode_pie"
@@ -521,6 +521,254 @@ def _on_autopack_update(self, context):
             unreg_auto()
     except Exception:
         pass
+
+from ..utils.i18n import _T
+from ..utils.adapter import get_adapter_blender_icon as _ICON
+
+def _active_tab_items(self, context):
+    return [
+        ("GENERAL", _T("常规设置"), ""),
+        ("ABOUT", _T("关于"), ""),
+    ]
+
+def _smart_face_action_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("SEPARATE", "Separate", ""),
+            ("DUPLICATE", "Duplicate & Separate", ""),
+            ("DISSOLVE", "Dissolve", ""),
+            ("EXTRACT", "Extract & Separate", ""),
+        ]
+    return [
+        ("SEPARATE", "分离", ""),
+        ("DUPLICATE", "复制后分离", ""),
+        ("DISSOLVE", "溶解", ""),
+        ("EXTRACT", "提取后分离", ""),
+    ]
+
+def _clean_up_affect_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("ALL", "All", ""),
+            ("SELECTED", "Selected", ""),
+        ]
+    return [
+        ("ALL", "全部", ""),
+        ("SELECTED", "仅选中", ""),
+    ]
+
+def _switch_mode_tab_behavior_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("INSTANT", "Instant (Compatible)", "Press Tab to switch immediately"),
+            ("TAP_HOLD", "Tap Switch / Hold Menu", "Tap for default action, hold for the switch menu"),
+        ]
+    return [
+        ("INSTANT", "立即执行(兼容)", "按下 Tab 立即执行（与 Blender 默认更接近）"),
+        ("TAP_HOLD", "轻按切换 / 长按菜单", "轻按执行默认行为，长按弹出模式切换饼菜单"),
+    ]
+
+def _screencast_align_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("LEFT", "Left", ""),
+            ("CENTER", "Center", ""),
+            ("RIGHT", "Right", ""),
+        ]
+    return [
+        ("LEFT", "左", ""),
+        ("CENTER", "中", ""),
+        ("RIGHT", "右", ""),
+    ]
+
+def _screencast_style_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("KEYCAPS", "Keycaps", ""),
+            ("BOX", "Box", ""),
+        ]
+    return [
+        ("KEYCAPS", "键帽", ""),
+        ("BOX", "文本框", ""),
+    ]
+
+def _screencast_operator_label_mode_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("ZH", "Chinese First", ""),
+            ("EN", "English", ""),
+            ("BOTH", "Chinese/English", ""),
+        ]
+    return [
+        ("ZH", "中文优先", ""),
+        ("EN", "英文", ""),
+        ("BOTH", "中文/英文", ""),
+    ]
+
+def _screencast_stack_direction_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("UP", "Bottom-Up", "New entries appear above"),
+            ("DOWN", "Top-Down", "New entries appear below"),
+        ]
+    return [
+        ("UP", "向上 (Bottom-Up)", "新消息在上方"),
+        ("DOWN", "向下 (Top-Down)", "新消息在下方"),
+    ]
+
+def _addon_language_items(self, context):
+    return [
+        ("ZH", "中文", ""),
+        ("EN", "English", ""),
+    ]
+
+def _smart_edge_mode_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("SELECT", "Select Region", "Convert a closed edge loop to face selection"),
+            ("SHARPS", "Sharps", "Mark or clear sharp edges"),
+            ("BRIDGE", "Bridge", "Bridge two edge loops"),
+            ("FILL", "Fill", "Fill a closed region"),
+        ]
+    return [
+        ("SELECT", "选择区域", "将闭合边环转换为面选择"),
+        ("SHARPS", "锐边", "标记或清除锐边"),
+        ("BRIDGE", "桥接", "桥接两个边环"),
+        ("FILL", "填充", "填充闭合区域"),
+    ]
+
+def _group_tool_empty_type_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("PLAIN_AXES", "Plain Axes", ""),
+            ("ARROWS", "Arrows", ""),
+            ("SINGLE_ARROW", "Single Arrow", ""),
+            ("CIRCLE", "Circle", ""),
+            ("CUBE", "Cube", ""),
+            ("SPHERE", "Sphere", ""),
+            ("CONE", "Cone", ""),
+            ("IMAGE", "Image", ""),
+        ]
+    return [
+        ("PLAIN_AXES", "十字", ""),
+        ("ARROWS", "坐标轴", ""),
+        ("SINGLE_ARROW", "单箭头", ""),
+        ("CIRCLE", "圆环", ""),
+        ("CUBE", "方块", ""),
+        ("SPHERE", "球体", ""),
+        ("CONE", "锥体", ""),
+        ("IMAGE", "图片", ""),
+    ]
+
+def _switch_mode_target_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("VERT", "Vertex", ""),
+            ("EDGE", "Edge", ""),
+            ("FACE", "Face", ""),
+            ("SWITCH_MODE", "Switch Mode", ""),
+        ]
+    return [
+        ("VERT", "点", ""),
+        ("EDGE", "边", ""),
+        ("FACE", "面", ""),
+        ("SWITCH_MODE", "模式切换", ""),
+    ]
+
+def _switch_bone_mode_target_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("EDIT_OR_OBJECT", "Edit/Object", ""),
+            ("BONE_POSITION", "Bone Position", ""),
+            ("POSE", "Pose", ""),
+            ("EDIT", "Edit (Only Pose)", "Only show in pose mode"),
+            ("VIEW_SELECTED", "View Selected", ""),
+            ("TOGGLE_XRAY", "Toggle X-Ray", ""),
+            ("TOGGLE_NAMES", "Toggle Names", ""),
+            ("TOGGLE_AXES", "Toggle Axes", ""),
+        ]
+    return [
+        ("EDIT_OR_OBJECT", "编辑/物体", ""),
+        ("BONE_POSITION", "骨骼位置", ""),
+        ("POSE", "姿态", ""),
+        ("EDIT", "编辑(仅姿态)", "仅在姿态模式显示"),
+        ("VIEW_SELECTED", "视图聚焦选中", ""),
+        ("TOGGLE_XRAY", "切换透视(X-Ray)", ""),
+        ("TOGGLE_NAMES", "切换名称显示", ""),
+        ("TOGGLE_AXES", "切换轴显示", ""),
+    ]
+
+def _delete_pie_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("DELETE_VERT", "Delete Vertices", "", "VERTEXSEL", 1),
+            ("DELETE_EDGE", "Delete Edges", "", "EDGESEL", 2),
+            ("DELETE_FACE", "Delete Faces", "", "FACESEL", 3),
+            ("DISSOLVE_VERT", "Dissolve Vertices", "", "VERTEXSEL", 4),
+            ("DISSOLVE_EDGE", "Dissolve Edges", "", "MOD_WIREFRAME", 5),
+            ("DISSOLVE_FACE", "Dissolve Faces", "", "FACESEL", 6),
+            ("LIMITED_DISSOLVE", "Limited Dissolve", "", "MESH_DATA", 7),
+            ("EDGE_LOOP", "Delete Edge Loops", "", "MOD_EDGESPLIT", 8),
+            ("EDGE_COLLAPSE", "Collapse Edges", "", "UV_EDGESEL", 9),
+            ("ONLY_EDGE_FACE", "Only Edges & Faces", "", "EDGESEL", 10),
+            ("ONLY_FACE", "Only Faces", "", "FACESEL", 11),
+            ("DISSOLVE_ALL", "Dissolve (Smart)", "", "MOD_WIREFRAME", 12),
+            ("NONE", "None", "", "X", 0),
+        ]
+    return [
+        ("DELETE_VERT", "删除顶点", "", "VERTEXSEL", 1),
+        ("DELETE_EDGE", "删除边", "", "EDGESEL", 2),
+        ("DELETE_FACE", "删除面", "", "FACESEL", 3),
+        ("DISSOLVE_VERT", "融并顶点", "", "VERTEXSEL", 4),
+        ("DISSOLVE_EDGE", "融并边", "", "MOD_WIREFRAME", 5),
+        ("DISSOLVE_FACE", "融并面", "", "FACESEL", 6),
+        ("LIMITED_DISSOLVE", "有限融并", "", "MESH_DATA", 7),
+        ("EDGE_LOOP", "循环边", "", "MOD_EDGESPLIT", 8),
+        ("EDGE_COLLAPSE", "塌陷边", "", "UV_EDGESEL", 9),
+        ("ONLY_EDGE_FACE", "仅边和面", "", "EDGESEL", 10),
+        ("ONLY_FACE", "仅面", "", "FACESEL", 11),
+        ("DISSOLVE_ALL", "融并点线面", "", "MOD_WIREFRAME", 12),
+        ("NONE", "无", "", "X", 0),
+    ]
+
+def _unity_fbx_apply_scale_options_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("FBX_SCALE_NONE", "All Local", ""),
+            ("FBX_SCALE_UNITS", "FBX Units Scale", ""),
+            ("FBX_SCALE_CUSTOM", "FBX Custom Scale", ""),
+            ("FBX_SCALE_ALL", "FBX All", ""),
+        ]
+    return [
+        ("FBX_SCALE_NONE", "全部本地", ""),
+        ("FBX_SCALE_UNITS", "FBX 单位缩放", ""),
+        ("FBX_SCALE_CUSTOM", "FBX 自定义缩放", ""),
+        ("FBX_SCALE_ALL", "FBX 全部", ""),
+    ]
+
+def _origin_default_operator_types_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("ROTATE", "Rotate", "", "NONE", 1),
+            ("LOCATION", "Location", "", "NONE", 2),
+        ]
+    return [
+        ("ROTATE", "旋转", "", "NONE", 1),
+        ("LOCATION", "位置", "", "NONE", 2),
+    ]
+
+def _moving_view_type_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("NONE", "None", "", "RESTRICT_SELECT_ON", 0),
+            ("MAINTAINING_ZOOM", "Maintaining Zoom", "", "VIEWZOOM", 1),
+            ("ANIMATION", "Animation", "", "ANIM", 2),
+        ]
+    return [
+        ("NONE", "无", "", "RESTRICT_SELECT_ON", 0),
+        ("MAINTAINING_ZOOM", "保持缩放", "", "VIEWZOOM", 1),
+        ("ANIMATION", "动画", "", "ANIM", 2),
+    ]
 
 # --- Finder Functions for UI / Operators ---
 # These now search wm.keyconfigs.addon directly (standard) OR could use addon_keymaps.
@@ -1381,6 +1629,12 @@ class M8_MP7_MockDrawProperty(bpy.types.PropertyGroup):
 class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     bl_idname = (__package__ or "").split(".")[0]
 
+    addon_language: bpy.props.EnumProperty(
+        name="界面语言",
+        items=_addon_language_items,
+        default=0,
+    )
+
     backup_suffix: bpy.props.StringProperty(name="备用盒后缀", default="_Backup")
     backup_collection_name: bpy.props.StringProperty(name="备用盒集合名", default="SizeTool_Backups")
     default_padding: bpy.props.FloatProperty(name="默认 Padding", default=0.0, min=0.0, unit='LENGTH')
@@ -1411,63 +1665,47 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     ui_show_smart_pie_keymap: bpy.props.BoolProperty(name="显示快捷键详情(智能饼菜单)", default=False)
     smart_edge_mode: bpy.props.EnumProperty(
         name="Smart Edge 模式",
-        items=[
-            ("SELECT", "选择区域 (Select)", "将闭合边环转换为面选择"),
-            ("SHARPS", "锐边 (Sharps)", "标记或清除锐边"),
-            ("BRIDGE", "桥接 (Bridge)", "桥接两个边环"),
-            ("FILL", "填充 (Fill)", "填充闭合区域"),
-        ],
-        default="SELECT",
+        items=_smart_edge_mode_items,
+        default=0,
     )
     smart_face_focus_mode: bpy.props.BoolProperty(name="Smart Face: 聚焦模式", default=False)
     smart_face_stay_on_original: bpy.props.BoolProperty(name="Smart Face: 停留在原始对象", default=False)
     smart_face_action: bpy.props.EnumProperty(
         name="Smart Face 默认动作",
-        items=[
-            ("SEPARATE", "分离", ""),
-            ("DUPLICATE", "复制后分离", ""),
-            ("DISSOLVE", "溶解", ""),
-            ("EXTRACT", "提取后分离", ""),
-        ],
-        default="SEPARATE",
+        items=_smart_face_action_items,
+        default=0,
     )
-    clean_up_merge_distance: bpy.props.FloatProperty(name="Clean Up: 合并距离", default=0.0001, min=0.0)
+    clean_up_merge_distance: bpy.props.FloatProperty(name="合并距离", default=0.0001, min=0.0)
     clean_up_affect: bpy.props.EnumProperty(
-        name="Clean Up: 影响范围",
-        items=[
-            ("ALL", "全部", ""),
-            ("SELECTED", "仅选中", ""),
-        ],
-        default="ALL",
+        name="影响范围",
+        items=_clean_up_affect_items,
+        default=0,
     )
-    clean_up_degenerate_dist: bpy.props.FloatProperty(name="Clean Up: 退化阈值", default=0.00001, min=0.0)
-    clean_up_recalc_normals: bpy.props.BoolProperty(name="Clean Up: 重算法线", default=False)
+    clean_up_do_merge_by_distance: bpy.props.BoolProperty(name="合并重复点", default=True)
+    clean_up_do_dissolve_degenerate: bpy.props.BoolProperty(name="溶解退化几何", default=True)
+    clean_up_degenerate_dist: bpy.props.FloatProperty(name="退化阈值", default=0.00001, min=0.0)
+    clean_up_do_limited_dissolve: bpy.props.BoolProperty(name="有限溶解", default=False)
+    clean_up_limited_dissolve_angle: bpy.props.FloatProperty(name="有限溶解角度", default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
+    clean_up_do_make_planar: bpy.props.BoolProperty(name="平坦化面", default=False)
+    clean_up_planar_iterations: bpy.props.IntProperty(name="平坦化迭代", default=1, min=1, max=10)
+    clean_up_do_delete_interior_faces: bpy.props.BoolProperty(name="删除内部面", default=False)
+    clean_up_do_delete_loose_edges: bpy.props.BoolProperty(name="删除孤立边", default=True)
+    clean_up_do_delete_loose_verts: bpy.props.BoolProperty(name="删除孤立点", default=True)
+    clean_up_recalc_normals: bpy.props.BoolProperty(name="重算法线", default=False)
     activate_double_click_select_group: bpy.props.BoolProperty(name="双击选择组", default=False, update=_on_prefs_update)
     group_tool_radius: bpy.props.FloatProperty(name="组半径", default=1.0, min=0.1, unit='LENGTH')
     group_tool_empty_type: bpy.props.EnumProperty(
         name="空物体类型",
-        items=[
-            ("PLAIN_AXES", "十字 (Plain Axes)", ""),
-            ("ARROWS", "坐标轴 (Arrows)", ""),
-            ("SINGLE_ARROW", "单箭头 (Single Arrow)", ""),
-            ("CIRCLE", "圆环 (Circle)", ""),
-            ("CUBE", "方块 (Cube)", ""),
-            ("SPHERE", "球体 (Sphere)", ""),
-            ("CONE", "锥体 (Cone)", ""),
-            ("IMAGE", "图片 (Image)", ""),
-        ],
-        default="SPHERE",
+        items=_group_tool_empty_type_items,
+        default=5,
     )
     group_tool_hide_empty: bpy.props.BoolProperty(name="隐藏组空物体", default=False, description="创建组时自动隐藏组父物体")
     activate_restart_blender: bpy.props.BoolProperty(name="启用重启 Blender 按钮", default=True)
 
     active_tab: bpy.props.EnumProperty(
         name="Tab",
-        items=[
-            ("GENERAL", "常规设置", "插件的主要功能设置"),
-            ("ABOUT", "关于", "关于本插件"),
-        ],
-        default="GENERAL",
+        items=_active_tab_items,
+        default=0,
     )
 
     navigation_tab: bpy.props.EnumProperty(
@@ -1494,19 +1732,14 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     ui_show_all_settings: bpy.props.BoolProperty(name="显示全部", default=False)
 
-    fbx_export_unity_preset: bpy.props.BoolProperty(name="FBX 导出使用 Unity 预设", default=False)
+    fbx_export_unity_preset: bpy.props.BoolProperty(name="FBX 导出使用 Unity 预设", default=True)
     unity_fbx_use_selection: bpy.props.BoolProperty(name="Unity FBX: 仅导出选择", default=True)
     unity_fbx_global_scale: bpy.props.FloatProperty(name="Unity FBX: 全局缩放", default=100.0, min=0.001, max=1000.0)
     unity_fbx_apply_unit_scale: bpy.props.BoolProperty(name="Unity FBX: 应用单位", default=True)
     unity_fbx_apply_scale_options: bpy.props.EnumProperty(
         name="Unity FBX: Apply Scalings",
-        items=[
-            ("FBX_SCALE_NONE", "All Local", ""),
-            ("FBX_SCALE_UNITS", "FBX Units Scale", ""),
-            ("FBX_SCALE_CUSTOM", "FBX Custom Scale", ""),
-            ("FBX_SCALE_ALL", "FBX All", ""),
-        ],
-        default="FBX_SCALE_ALL",
+        items=_unity_fbx_apply_scale_options_items,
+        default=3,
     )
     unity_fbx_use_triangles: bpy.props.BoolProperty(name="Unity FBX: 三角化", default=True)
     unity_fbx_use_tspace: bpy.props.BoolProperty(name="Unity FBX: 导出切线", default=True)
@@ -1517,12 +1750,12 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     unity_fbx_reveal_after_export: bpy.props.BoolProperty(name="Unity FBX: 导出后定位文件", default=True)
     ui_show_unity_fbx_advanced: bpy.props.BoolProperty(name="Unity FBX: 高级", default=False)
 
-    auto_pack_resources_on_save: bpy.props.BoolProperty(name="保存时自动打包资源", default=False, update=_on_autopack_update)
-    auto_purge_unused_materials_on_save: bpy.props.BoolProperty(name="保存时自动清除孤立数据", default=False, update=_on_autopack_update)
+    auto_pack_resources_on_save: bpy.props.BoolProperty(name="保存时自动打包资源", default=True, update=_on_autopack_update)
+    auto_purge_unused_materials_on_save: bpy.props.BoolProperty(name="保存时自动清除孤立数据", default=True, update=_on_autopack_update)
     
     auto_new_object_origin_bottom: bpy.props.BoolProperty(name="新建物体默认原点到底部", default=False, update=_on_autoorigin_update)
     auto_new_object_snap_to_floor: bpy.props.BoolProperty(name="新建物体自动落地 (Z=0)", default=False, update=_on_autoorigin_update)
-    auto_exclusive_shift_s_on_startup: bpy.props.BoolProperty(name="启动时自动独占所有快捷键", default=True)
+    auto_exclusive_shift_s_on_startup: bpy.props.BoolProperty(name="启动时自动独占所有快捷键", default=False)
     auto_exclusive_shift_s_include_user: bpy.props.BoolProperty(name="同时处理用户键位冲突", default=True)
 
     # --- MP7Tools Integration Properties ---
@@ -1555,25 +1788,20 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     mirror_fixed_scale_value: bpy.props.FloatProperty(name="固定大小值", default=1.0, min=0.01, max=1000.0)
     
     activate_face_groups: bpy.props.BoolProperty(name="启用面组", default=True)
-
     origin_default_operator_types: bpy.props.EnumProperty(
+        name="Default Origin Operator",
+        description="Shift Add Selection",
+        options={"ENUM_FLAG"},
         items=[
             ("ROTATE", "Rotate", ""),
             ("LOCATION", "Location", ""),
         ],
         default={"ROTATE", "LOCATION"},
-        options={"ENUM_FLAG"},
-        name="Default Origin Operator",
-        description="Shift Add Selection",
     )
     moving_view_type: bpy.props.EnumProperty(
-        default="ANIMATION",
+        default=2,
         name="Moving View Type",
-        items=[
-            ("NONE", "None", "", "RESTRICT_SELECT_ON", 0),
-            ("MAINTAINING_ZOOM", "Maintaining Zoom", "", "VIEWZOOM", 1),
-            ("ANIMATION", "Animation", "", "ANIM", 2),
-        ]
+        items=_moving_view_type_items
     )
     draw_property: bpy.props.PointerProperty(type=M8_MP7_MockDrawProperty)
 
@@ -1646,7 +1874,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     screencast_enabled: bpy.props.BoolProperty(
         name="启用 Screencast", 
-        default=False, 
+        default=True, 
         description="启用/禁用屏幕投射功能",
         update=_on_screencast_enabled_update
     )
@@ -1657,12 +1885,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     screencast_offset_y: bpy.props.IntProperty(name="Y 偏移", default=50)
     screencast_align: bpy.props.EnumProperty(
         name="对齐", 
-        items=[
-            ("LEFT", "左", ""), 
-            ("CENTER", "中", ""), 
-            ("RIGHT", "右", "")
-        ], 
-        default="LEFT"
+        items=_screencast_align_items,
+        default=0
     )
     screencast_history_count: bpy.props.IntProperty(name="显示行数", default=5, min=1, max=20)
     screencast_timeout: bpy.props.FloatProperty(name="消失延迟 (秒)", default=2.0, min=0.1, max=10.0)
@@ -1671,11 +1895,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     screencast_show_last_operator: bpy.props.BoolProperty(name="显示最后操作", default=True)
     screencast_style: bpy.props.EnumProperty(
         name="显示风格",
-        items=[
-            ("KEYCAPS", "键帽", ""),
-            ("BOX", "文本框", ""),
-        ],
-        default="KEYCAPS",
+        items=_screencast_style_items,
+        default=0,
     )
     screencast_cap_radius: bpy.props.IntProperty(name="键帽圆角", default=8, min=0, max=50)
     screencast_cap_gap: bpy.props.IntProperty(name="键帽间距", default=6, min=0, max=30)
@@ -1686,76 +1907,38 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     screencast_translate_operator_label: bpy.props.BoolProperty(name="汉化操作提示", default=True)
     screencast_operator_label_mode: bpy.props.EnumProperty(
         name="操作提示语言",
-        items=[
-            ("ZH", "中文优先", ""),
-            ("EN", "英文", ""),
-            ("BOTH", "中文/英文", ""),
-        ],
-        default="ZH",
+        items=_screencast_operator_label_mode_items,
+        default=0,
     )
     screencast_use_symbols: bpy.props.BoolProperty(name="使用符号显示修饰键 (⌃⇧⌥⌘)", default=False)
     screencast_smart_merge_numbers: bpy.props.BoolProperty(name="智能合并数字输入", default=True, description="将连续输入的数字（如 1,2,.）合并显示为单个数值")
     screencast_stack_direction: bpy.props.EnumProperty(
         name="堆叠方向",
-        items=[
-            ("UP", "向上 (Bottom-Up)", "新消息在上方"),
-            ("DOWN", "向下 (Top-Down)", "新消息在下方"),
-        ],
-        default="UP"
+        items=_screencast_stack_direction_items,
+        default=0
     )
     screencast_entry_animation: bpy.props.BoolProperty(name="启用入场动画", default=True)
 
     # --- Mode Switching Properties ---
-    items = [
-        ("VERT", "Vert", ""),
-        ("EDGE", "Edge", ""),
-        ("FACE", "Face", ""),
-        ("SWITCH_MODE", "Switch Mode", "")
-    ]
-    switch_mode_up: bpy.props.EnumProperty(items=items, name="Up", default="SWITCH_MODE")
-    switch_mode_down: bpy.props.EnumProperty(items=items, name="Down", default="EDGE")
-    switch_mode_left: bpy.props.EnumProperty(items=items, name="Left", default="VERT")
-    switch_mode_right: bpy.props.EnumProperty(items=items, name="Right", default="FACE")
+    switch_mode_up: bpy.props.EnumProperty(items=_switch_mode_target_items, name="Up", default=3)
+    switch_mode_down: bpy.props.EnumProperty(items=_switch_mode_target_items, name="Down", default=1)
+    switch_mode_left: bpy.props.EnumProperty(items=_switch_mode_target_items, name="Left", default=0)
+    switch_mode_right: bpy.props.EnumProperty(items=_switch_mode_target_items, name="Right", default=2)
 
-    bone_items = [
-        ("EDIT_OR_OBJECT", "Edit/Object", ""),
-        ("BONE_POSITION", "Bone Position", ""),
-        ("POSE", "Pose", ""),
-        ("EDIT", "Edit(Only Pose)", "Only show in pose mode"),
-        ("VIEW_SELECTED", "View Selected", ""),
-        ("TOGGLE_XRAY", "Toggle X-Ray", ""),
-        ("TOGGLE_NAMES", "Toggle Names", ""),
-        ("TOGGLE_AXES", "Toggle Axes", ""),
-    ]
-    switch_bone_mode_up: bpy.props.EnumProperty(items=bone_items, name="Up", default="EDIT_OR_OBJECT")
-    switch_bone_mode_down: bpy.props.EnumProperty(items=bone_items, name="Down", default="VIEW_SELECTED")
-    switch_bone_mode_left: bpy.props.EnumProperty(items=bone_items, name="Left", default="BONE_POSITION")
-    switch_bone_mode_right: bpy.props.EnumProperty(items=bone_items, name="Right", default="POSE")
+    switch_bone_mode_up: bpy.props.EnumProperty(items=_switch_bone_mode_target_items, name="Up", default=0)
+    switch_bone_mode_down: bpy.props.EnumProperty(items=_switch_bone_mode_target_items, name="Down", default=4)
+    switch_bone_mode_left: bpy.props.EnumProperty(items=_switch_bone_mode_target_items, name="Left", default=1)
+    switch_bone_mode_right: bpy.props.EnumProperty(items=_switch_bone_mode_target_items, name="Right", default=2)
 
     # --- Delete Pie Properties ---
-    delete_items = [
-        ("DELETE_VERT", "删除顶点", "", "VERTEXSEL", 1),
-        ("DELETE_EDGE", "删除边", "", "EDGESEL", 2),
-        ("DELETE_FACE", "删除面", "", "FACESEL", 3),
-        ("DISSOLVE_VERT", "融并顶点", "", "VERTEXSEL", 4),
-        ("DISSOLVE_EDGE", "融并边", "", "MOD_WIREFRAME", 5),
-        ("DISSOLVE_FACE", "融并面", "", "FACESEL", 6),
-        ("LIMITED_DISSOLVE", "有限融并", "", "MESH_DATA", 7),
-        ("EDGE_LOOP", "循环边", "", "MOD_EDGESPLIT", 8),
-        ("EDGE_COLLAPSE", "塌陷边", "", "UV_EDGESEL", 9),
-        ("ONLY_EDGE_FACE", "仅边和面", "", "EDGESEL", 10),
-        ("ONLY_FACE", "仅面", "", "FACESEL", 11),
-        ("DISSOLVE_ALL", "融并点线面", "", "MOD_WIREFRAME", 12),
-        ("NONE", "无", "", "X", 0),
-    ]
-    delete_pie_left: bpy.props.EnumProperty(items=delete_items, name="Left", default="DELETE_VERT")
-    delete_pie_right: bpy.props.EnumProperty(items=delete_items, name="Right", default="DELETE_FACE")
-    delete_pie_down: bpy.props.EnumProperty(items=delete_items, name="Down", default="DELETE_EDGE")
-    delete_pie_up: bpy.props.EnumProperty(items=delete_items, name="Up", default="DISSOLVE_ALL")
-    delete_pie_top_left: bpy.props.EnumProperty(items=delete_items, name="Top-Left", default="EDGE_LOOP")
-    delete_pie_top_right: bpy.props.EnumProperty(items=delete_items, name="Top-Right", default="EDGE_COLLAPSE")
-    delete_pie_bottom_left: bpy.props.EnumProperty(items=delete_items, name="Bottom-Left", default="ONLY_EDGE_FACE")
-    delete_pie_bottom_right: bpy.props.EnumProperty(items=delete_items, name="Bottom-Right", default="ONLY_FACE")
+    delete_pie_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Left", default=0)
+    delete_pie_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Right", default=2)
+    delete_pie_down: bpy.props.EnumProperty(items=_delete_pie_items, name="Down", default=1)
+    delete_pie_up: bpy.props.EnumProperty(items=_delete_pie_items, name="Up", default=11)
+    delete_pie_top_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Top-Left", default=7)
+    delete_pie_top_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Top-Right", default=8)
+    delete_pie_bottom_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Left", default=9)
+    delete_pie_bottom_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Right", default=10)
 
 
     switch_mode_smart_focus: bpy.props.BoolProperty(
@@ -1767,17 +1950,21 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     switch_mode_double_click_edit_switch: bpy.props.BoolProperty(
         name="双击切换编辑对象",
         description="网格编辑模式下，双击其他物体切换到其编辑模式",
-        default=False,
+        default=True,
+        update=_on_prefs_update,
+    )
+
+    switch_mode_double_click_edge_loop_ring: bpy.props.BoolProperty(
+        name="双击边环形选择",
+        description="网格编辑模式下，双击边自动选择循环列(Edge Ring)，Shift 可加选",
+        default=True,
         update=_on_prefs_update,
     )
 
     switch_mode_tab_behavior: bpy.props.EnumProperty(
         name="Tab 行为",
-        items=[
-            ("INSTANT", "立即执行(兼容)", "按下 Tab 立即执行（与 Blender 默认更接近）"),
-            ("TAP_HOLD", "轻按切换 / 长按菜单", "轻按执行默认行为，长按弹出模式切换饼菜单"),
-        ],
-        default="INSTANT",
+        items=_switch_mode_tab_behavior_items,
+        default=0,
         update=_on_prefs_update,
     )
     switch_mode_hold_ms: bpy.props.IntProperty(
@@ -1791,12 +1978,15 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     def draw_switch_mode_basic(self, layout):
         layout.use_property_split = True
         layout.use_property_decorate = False
-        layout.prop(self, "switch_mode_smart_focus")
-        layout.prop(self, "switch_mode_double_click_edit_switch")
-        layout.prop(self, "switch_mode_tab_behavior")
+        layout.prop(self, "switch_mode_smart_focus", text=_T("智能聚焦"))
+        layout.prop(self, "switch_mode_double_click_edit_switch", text=_T("双击切换编辑对象"))
+        sub = layout.column()
+        sub.enabled = self.switch_mode_double_click_edit_switch
+        sub.prop(self, "switch_mode_double_click_edge_loop_ring", text=_T("双击边环形选择"))
+        layout.prop(self, "switch_mode_tab_behavior", text=_T("Tab 行为"))
         sub = layout.column()
         sub.enabled = self.switch_mode_tab_behavior == "TAP_HOLD"
-        sub.prop(self, "switch_mode_hold_ms")
+        sub.prop(self, "switch_mode_hold_ms", text=_T("长按阈值(ms)"))
 
     def draw_switch_mode_mapping(self, layout):
         layout.use_property_split = True
@@ -1804,9 +1994,9 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
         draw_data = {1: "up", 3: "left", 5: "right", 7: "down"}
         box_a = layout.box()
-        box_a.label(text="3D 视图", icon="VIEW3D")
+        box_a.label(text=_T("3D 视图"), icon="VIEW3D")
         box_b = layout.box()
-        box_b.label(text="骨骼", icon="ARMATURE_DATA")
+        box_b.label(text=_T("骨骼"), icon="ARMATURE_DATA")
 
         for i in range(3):
             row_a = box_a.row(align=True)
@@ -1832,7 +2022,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         }
 
         box = layout.box()
-        box.label(text="网格编辑模式 (Edit Mesh)", icon="EDITMODE_HLT")
+        box.label(text=_T("网格编辑模式 (Edit Mesh)"), icon="EDITMODE_HLT")
         grid_col = box.column()
 
         for i in range(3):
@@ -1867,41 +2057,134 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         row = col.row(align=True)
         row.alignment = 'CENTER'
         row.scale_y = 1.5
-        row.label(text="M8 全能工具箱", icon="TOPBAR")
+        row.label(text=_T("M8 全能工具箱"), icon=_ICON("TOPBAR"))
+        
+        col.separator()
+        
+        # Language Switch
+        box = col.box()
+        row = box.row(align=True)
+        row.alignment = 'CENTER'
+        row.label(text=_T("界面语言"), icon=_ICON("WORLD"))
+        row.prop(self, "addon_language", expand=True)
         
         col.separator()
         
         # Info Grid
         box = col.box()
-        grid = box.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=True)
+        grid = box.grid_flow(row_major=True, columns=3, even_columns=True, even_rows=True)
         
-        grid.label(text="作者: 猫步可爱")
-        grid.label(text="版本: 2.0")
+        grid.label(text=_T("作者:") + " 猫步可爱")
+        grid.label(text=_T("微信:") + " LiLan-8")
+        grid.label(text=_T("版本:") + " 3.0")
         
+        col.separator()
+        
+        # Links
+        row = col.row(align=True)
+        row.scale_y = 1.3
+        op = row.operator("wm.url_open", text=_T("Bilibili 教程与动态"), icon=_ICON("URL"))
+        op.url = "https://space.bilibili.com/35723238"
+        
+        op = row.operator("wm.url_open", text=_T("QQ 频道交流"), icon=_ICON("COMMUNITY"))
+        op.url = "https://pd.qq.com/s/clcugqtln"
+        
+        col.separator()
+        
+        # QR Codes
+        try:
+            from ..src import icons as mp7_icons
+            pcoll = mp7_icons.previews_icons
+            if pcoll:
+                # 使用 box 包含二维码区域，使其背景稍有区分
+                qr_box = col.box()
+                row = qr_box.row()
+                
+                # 左侧：联系二维码
+                col1 = row.column(align=True)
+                col1.alignment = 'CENTER'
+                col1.label(text=_T("联系作者"))
+                if "wechat_code" in pcoll:
+                    # scale 控制图标大小，10.0 约为 200px 左右
+                    col1.template_icon(icon_value=pcoll["wechat_code"].icon_id, scale=8.0)
+                else:
+                    col1.label(text=_T("图片未找到"), icon=_ICON("ERROR"))
+                    col1.label(text=_T("请放入") + " wechat_code.png")
+                
+                # 右侧：捐款码
+                col2 = row.column(align=True)
+                col2.alignment = 'CENTER'
+                col2.label(text=_T("赞赏支持"))
+                if "donate_code" in pcoll:
+                    col2.template_icon(icon_value=pcoll["donate_code"].icon_id, scale=8.0)
+                else:
+                    col2.label(text=_T("图片未找到"), icon=_ICON("ERROR"))
+                    col2.label(text=_T("请放入") + " donate_code.png")
+        except Exception:
+            pass
+            
         col.separator()
         
         # Description
         box = col.box()
-        box.label(text="功能简介:", icon="INFO")
-        box.label(text="• 变换辅助: 增强 Shift+S，快速调整原点和游标")
-        box.label(text="• 模式切换: 智能 Tab 切换，支持多模式")
-        box.label(text="• 智能删除: 快速删除物体和网格元素")
-        box.label(text="• 对齐工具: 强大的物体和元素对齐功能")
-        box.label(text="• 视图着色: 快速切换透视、线框、实体及渲染预览模式")
-        box.label(text="• 保存导出: 自动打包资源、清理材质及 Unity FBX 导出预设")
-        box.label(text="• 批量命名: 支持变量、正则替换、序号生成及预览")
-        box.label(text="• 按键显示: 实时在视口显示键盘鼠标操作")
+        box.label(text=_T("功能简介:"), icon=_ICON("INFO"))
+        col_desc = box.column(align=True)
+        row = col_desc.row()
+        row.label(text=_T("在复杂的 3D 建模项目中，效率就是生命。"), icon=_ICON("FORWARD"))
+        row = col_desc.row()
+        row.label(text=_T("M8 不仅仅是一个工具箱，它是你工作流中的润滑剂。"), icon=_ICON("FORWARD"))
+        
+        box.separator()
+        
+        # Features List
+        box.label(text=_T("核心模块:"), icon=_ICON("MODIFIER"))
+        
+        split = box.split(factor=0.5)
+        col1 = split.column(align=True)
+        col2 = split.column(align=True)
+        
+        # Left Column
+        col1.label(text=_T("变换辅助 (Shift+S): 原点与游标控制"), icon=_ICON("PIVOT_CURSOR"))
+        col1.label(text=_T("模式切换 (Tab): 智能多模式切换"), icon=_ICON("FILE_REFRESH"))
+        col1.label(text=_T("智能删除 (X): 智能判断无需确认"), icon=_ICON("TRASH"))
+        col1.label(text=_T("对齐工具 (Alt+A): 物体与元素对齐"), icon=_ICON("ALIGN_CENTER"))
+        col1.label(text=_T("视图着色 (Z): 快速切换显示模式"), icon=_ICON("SHADING_RENDERED"))
+        
+        # Right Column
+        col2.label(text=_T("保存导出 (Ctrl+S): 自动打包及导出"), icon=_ICON("FILE_TICK"))
+        col2.label(text=_T("批量命名 (F2): 变量/正则/预览"), icon=_ICON("FONT_DATA"))
+        col2.label(text=_T("智能饼菜单 (1): 点/线/面/清理/路径"), icon=_ICON("VIEW3D"))
+        col2.label(text=_T("区域切换 (T): 侧栏及资产浏览器"), icon=_ICON("FULLSCREEN_ENTER"))
+        col2.label(text=_T("按键显示: 实时按键操作反馈"), icon=_ICON("WINDOW"))
 
     def draw(self, context):
         layout = self.layout
+        try:
+            required = ("active_tab", "navigation_tab", "enable_transform_pie", "activate_switch_mode")
+            missing = [k for k in required if k not in self.bl_rna.properties]
+        except Exception:
+            missing = ["active_tab", "navigation_tab"]
+        if missing:
+            box = layout.box()
+            box.label(text=_T("偏好项未完成注册：请重新启用插件或重启 Blender"), icon=_ICON("ERROR"))
+            box.label(text=_T("常见原因：升级后未重启；或 Blender\\4.4/5.0 同时存在多个 M8，实际加载的不是当前文件。"), icon=_ICON("INFO"))
+            return
+        # Safe access to active_tab property
+        active_tab = getattr(self, "active_tab", "GENERAL")
+        
         row = layout.row(align=True)
-        row.prop(self, "active_tab", expand=True)
+        if "active_tab" in self.bl_rna.properties:
+            row.prop(self, "active_tab", expand=True)
         layout.separator()
 
-        if self.active_tab == "GENERAL":
-            self.draw_general(context)
-        else:
-            self.draw_about_settings(layout)
+        try:
+            if active_tab == "GENERAL":
+                self.draw_general(context)
+            else:
+                self.draw_about_settings(layout)
+        except Exception:
+            box = layout.box()
+            box.label(text=_T("偏好设置界面绘制失败，请打开系统控制台查看报错。"), icon=_ICON("ERROR"))
 
     def _draw_sidebar_button(self, layout, icon, text, item_value):
         # 移除 row.alignment = 'LEFT' 让按钮充满宽度
@@ -1913,30 +2196,37 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         # 我们使用 EMBOSS (默认) 风格，这样选中时会有凹陷感
         # 如果当前项被选中，我们可以加一个图标或者改变文字来增强提示，但 prop_enum 本身已经足够
         
-        if self.navigation_tab == item_value:
-            # 选中状态：使用主图标，并且不高亮（保持按下状态）
-            row.prop_enum(self, "navigation_tab", item_value, icon=icon, text=text)
+        # Safe access to navigation_tab property
+        nav_tab = getattr(self, "navigation_tab", "TRANSFORM")
+        
+        if "navigation_tab" in self.bl_rna.properties:
+            if nav_tab == item_value:
+                # 选中状态：使用主图标，并且不高亮（保持按下状态）
+                row.prop_enum(self, "navigation_tab", item_value, icon=_ICON(icon), text=_T(text))
+            else:
+                # 未选中状态：也可以正常绘制，保持可点击
+                row.prop_enum(self, "navigation_tab", item_value, icon=_ICON(icon), text=_T(text))
         else:
-            # 未选中状态：也可以正常绘制，保持可点击
-            row.prop_enum(self, "navigation_tab", item_value, icon=icon, text=text)
+            # Fallback if property is missing
+            row.label(text=_T(text), icon=_ICON(icon))
 
     def _get_tab_description(self, key=None):
-        key = key or self.navigation_tab
+        key = key or getattr(self, "navigation_tab", "TRANSFORM")
         desc = {
-            "TRANSFORM": ("变换辅助", "Shift+S 增强版，包含原点调整、游标控制及变换操作"),
-            "SWITCH_MODE": ("模式切换", "Tab 智能切换，支持物体、编辑、骨骼及UV模式的快速切换"),
-            "DELETE": ("智能删除", "X/Del 键增强，根据选区智能判断删除元素，无需弹窗确认"),
-            "EDGE_PROPERTY": ("边属性", "Shift+E 增强，支持快速设置 Crease, Bevel Weight, Seam, Sharp 等"),
-            "ALIGN": ("对齐工具", "Alt+A 增强版，提供物体、网格、UV的对齐与分布功能"),
-            "SHADING": ("视图着色", "Z 键增强，快速切换透视、线框、实体及渲染预览模式"),
-            "SAVE": ("保存导出", "Ctrl+S 增强，支持自动打包资源、清理材质及 Unity FBX 导出预设"),
-            "RENAME": ("批量命名", "F2 增强，支持变量($N $T)、正则替换、序号生成及预览"),
-            "MIRROR": ("镜像工具", "Shift+Alt+X，提供直观的轴向滑动选择镜像功能"),
-            "SMART_PIE": ("智能饼菜单", "编辑模式下 1/2/3 的智能建模操作合集（顶点/边/面/清理/路径等）"),
-            "TOGGLE_AREA": ("区域切换", "T 键切换 Toolbar/Sidebar 及 Asset Browser/Shelf"),
-            "SCREENCAST": ("按键显示", "实时在视口显示键盘鼠标操作，支持自定义外观"),
-            "OTHER": ("系统设置", "包含备份设置、新建物体默认行为等全局选项"),
-            "ABOUT": ("关于", "关于 M8 工具箱"),
+            "TRANSFORM": (_T("变换辅助"), _T("Shift+S 增强版，包含原点调整、游标控制及变换操作")),
+            "SWITCH_MODE": (_T("模式切换"), _T("Tab 智能切换，支持物体、编辑、骨骼及UV模式的快速切换")),
+            "DELETE": (_T("智能删除"), _T("X/Del 键增强，根据选区智能判断删除元素，无需弹窗确认")),
+            "EDGE_PROPERTY": (_T("边属性"), _T("Shift+E 增强，支持快速设置 Crease, Bevel Weight, Seam, Sharp 等")),
+            "ALIGN": (_T("对齐工具"), _T("Alt+A 增强版，提供物体、网格、UV的对齐与分布功能")),
+            "SHADING": (_T("视图着色"), _T("Z 键增强，快速切换透视、线框、实体及渲染预览模式")),
+            "SAVE": (_T("保存导出"), _T("Ctrl+S 增强，支持自动打包资源、清理材质及 Unity FBX 导出预设")),
+            "RENAME": (_T("批量命名"), _T("F2 增强，支持变量($N $T)、正则替换、序号生成及预览")),
+            "MIRROR": (_T("镜像工具"), _T("Shift+Alt+X，提供直观的轴向滑动选择镜像功能")),
+            "SMART_PIE": (_T("智能饼菜单"), _T("编辑模式下 1/2/3 的智能建模操作合集（顶点/边/面/清理/路径等）")),
+            "TOGGLE_AREA": (_T("区域切换"), _T("T 键切换 Toolbar/Sidebar 及 Asset Browser/Shelf")),
+            "SCREENCAST": (_T("按键显示"), _T("实时在视口显示键盘鼠标操作，支持自定义外观")),
+            "OTHER": (_T("系统设置"), _T("包含备份设置、新建物体默认行为等全局选项")),
+            "ABOUT": (_T("关于"), _T("关于 M8 工具箱")),
         }
         return desc.get(key, ("", ""))
 
@@ -1960,6 +2250,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "TOGGLE_AREA": "FULLSCREEN_ENTER",
             "SCREENCAST": "WINDOW",
             "OTHER": "PREFERENCES",
+            "ABOUT": "INFO",
         }
 
         split = layout.split(factor=0.23)
@@ -1968,9 +2259,9 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         nav_box = col.box()
         col_nav = nav_box.column(align=True)
 
-        col_nav.label(text="核心功能", icon="MODIFIER")
-        self._draw_sidebar_button(col_nav, "PIVOT_CURSOR", "变换 (Shift+S)", "TRANSFORM")
-        self._draw_sidebar_button(col_nav, "FILE_REFRESH", "切换模式 (Tab)", "SWITCH_MODE")
+        col_nav.label(text=_T("核心功能"), icon="MODIFIER")
+        self._draw_sidebar_button(col_nav, "PIVOT_CURSOR", "变换辅助 (Shift+S)", "TRANSFORM")
+        self._draw_sidebar_button(col_nav, "FILE_REFRESH", "模式切换 (Tab)", "SWITCH_MODE")
         self._draw_sidebar_button(col_nav, "TRASH", "删除 (X)", "DELETE")
         self._draw_sidebar_button(col_nav, "EDGESEL", "边属性 (Shift+E)", "EDGE_PROPERTY")
         self._draw_sidebar_button(col_nav, "ALIGN_CENTER", "对齐 (Alt+A)", "ALIGN")
@@ -1982,37 +2273,47 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         self._draw_sidebar_button(col_nav, "FULLSCREEN_ENTER", "区域切换 (T)", "TOGGLE_AREA")
 
         col_nav.separator()
-        col_nav.label(text="实用工具", icon="TOOL_SETTINGS")
+        col_nav.label(text=_T("实用工具"), icon="TOOL_SETTINGS")
         self._draw_sidebar_button(col_nav, "FONT_DATA", "重命名 (F2)", "RENAME")
         self._draw_sidebar_button(col_nav, "WINDOW", "按键显示", "SCREENCAST")
 
         col_nav.separator()
-        col_nav.label(text="设置", icon="PREFERENCES")
+        col_nav.label(text=_T("设置"), icon="PREFERENCES")
         self._draw_sidebar_button(col_nav, "PREFERENCES", "其它设置", "OTHER")
+        self._draw_sidebar_button(col_nav, "INFO", "关于", "ABOUT")
         col_nav.separator()
-        col_nav.prop(self, "ui_show_all_settings", text="显示全部", toggle=True, icon="ALIGN_JUSTIFY")
+        if "ui_show_all_settings" in self.bl_rna.properties:
+            col_nav.prop(self, "ui_show_all_settings", text=_T("显示全部"), toggle=True, icon=_ICON("ALIGN_JUSTIFY"))
 
         col = split.column()
 
         header_box = col.box()
         header_row = header_box.row(align=True)
         header_row.alignment = "LEFT"
-        if self.ui_show_all_settings:
-            header_row.label(text="全部设置", icon="PREFERENCES")
+        
+        # Safe access to ui_show_all_settings
+        show_all = getattr(self, "ui_show_all_settings", False)
+        # Safe access to navigation_tab
+        nav_tab = getattr(self, "navigation_tab", "TRANSFORM")
+        
+        if show_all:
+            header_row.label(text=_T("全部设置"), icon="PREFERENCES")
         else:
-            title, desc = self._get_tab_description()
-            header_row.label(text=title, icon=icon_map.get(self.navigation_tab, "INFO"))
+            title, desc = self._get_tab_description(nav_tab)
+            header_row.label(text=title, icon=_ICON(icon_map.get(nav_tab, "INFO")))
+        if "ui_show_all_settings" in self.bl_rna.properties:
+            header_row.prop(self, "ui_show_all_settings", text=_T("显示全部"), toggle=True, icon=_ICON("ALIGN_JUSTIFY"))
 
         desc_row = header_box.row(align=True)
         desc_row.alignment = "LEFT"
-        if self.ui_show_all_settings:
-            desc_row.label(text="按模块分区显示全部偏好设置")
+        if show_all:
+            desc_row.label(text=_T("按模块分区显示全部偏好设置"))
         else:
             desc_row.label(text=desc)
 
         col.separator()
 
-        if self.ui_show_all_settings:
+        if show_all:
             ordered = [
                 "TRANSFORM",
                 "SWITCH_MODE",
@@ -2028,11 +2329,12 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 "TOGGLE_AREA",
                 "SCREENCAST",
                 "OTHER",
+                "ABOUT",
             ]
             for key in ordered:
                 section = col.box()
                 row = section.row(align=True)
-                row.prop_enum(self, "navigation_tab", key, text=self._get_tab_description(key)[0], icon=icon_map.get(key, "DOT"))
+                row.prop_enum(self, "navigation_tab", key, text=self._get_tab_description(key)[0], icon=_ICON(icon_map.get(key, "DOT")))
                 sub = section.column()
                 if key == "TRANSFORM":
                     self.draw_transform_settings(sub)
@@ -2062,77 +2364,92 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     self.draw_screencast_settings(sub)
                 elif key == "OTHER":
                     self.draw_other_settings(sub)
+                elif key == "ABOUT":
+                    self.draw_about_settings(sub)
         else:
             box = col.box()
-            if self.navigation_tab == "TRANSFORM":
+            if nav_tab == "TRANSFORM":
                 self.draw_transform_settings(box)
-            elif self.navigation_tab == "SWITCH_MODE":
+            elif nav_tab == "SWITCH_MODE":
                 self.draw_switch_mode_settings(box)
-            elif self.navigation_tab == "DELETE":
+            elif nav_tab == "DELETE":
                 self.draw_delete_settings(box)
-            elif self.navigation_tab == "EDGE_PROPERTY":
+            elif nav_tab == "EDGE_PROPERTY":
                 self.draw_edge_property_settings(box)
-            elif self.navigation_tab == "ALIGN":
+            elif nav_tab == "ALIGN":
                 self.draw_align_settings(box)
-            elif self.navigation_tab == "SHADING":
+            elif nav_tab == "SHADING":
                 self.draw_shading_settings(box)
-            elif self.navigation_tab == "SAVE":
+            elif nav_tab == "SAVE":
                 self.draw_save_settings(box)
-            elif self.navigation_tab == "RENAME":
+            elif nav_tab == "RENAME":
                 self.draw_rename_settings(box)
-            elif self.navigation_tab == "MIRROR":
+            elif nav_tab == "MIRROR":
                 self.draw_mirror_settings(box)
-            elif self.navigation_tab == "GROUP":
+            elif nav_tab == "GROUP":
                 self.draw_group_settings(box)
-            elif self.navigation_tab == "SMART_PIE":
+            elif nav_tab == "SMART_PIE":
                 self.draw_smart_pie_settings(box)
-            elif self.navigation_tab == "TOGGLE_AREA":
+            elif nav_tab == "TOGGLE_AREA":
                 self.draw_toggle_area_settings(box)
-            elif self.navigation_tab == "SCREENCAST":
+            elif nav_tab == "SCREENCAST":
                 self.draw_screencast_settings(box)
-            elif self.navigation_tab == "OTHER":
+            elif nav_tab == "OTHER":
                 self.draw_other_settings(box)
+            elif nav_tab == "ABOUT":
+                self.draw_about_settings(box)
 
     def draw_switch_mode_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_switch_mode")
-        row.prop(self, "ui_show_tab_keymap", text="快捷键")
-        row.prop(self, "ui_show_switch_mode_mapping", text="映射")
-        row.operator("size_tool.force_switch_mode_priority", text="置顶", icon="SORT_DESC")
-        row.operator("m8.reset_switch_mode_prefs", text="恢复默认", icon="LOOP_BACK")
+        if "activate_switch_mode" in self.bl_rna.properties:
+            row.prop(self, "activate_switch_mode", text=_T("启用模式切换(Tab)"))
+        if "ui_show_tab_keymap" in self.bl_rna.properties:
+            row.prop(self, "ui_show_tab_keymap", text=_T("快捷键"))
+        if "ui_show_switch_mode_mapping" in self.bl_rna.properties:
+            row.prop(self, "ui_show_switch_mode_mapping", text=_T("映射"))
+        row.operator("size_tool.force_switch_mode_priority", text=_T("置顶"), icon=_ICON("SORT_DESC"))
+        row.operator("m8.reset_switch_mode_prefs", text=_T("恢复默认"), icon=_ICON("LOOP_BACK"))
 
-        if self.activate_switch_mode:
+        if getattr(self, "activate_switch_mode", False):
             self.draw_switch_mode_basic(col)
 
-            if self.ui_show_tab_keymap:
+            if getattr(self, "ui_show_tab_keymap", False):
                 sub_col = col.column()
                 try:
                     import rna_keymap_ui
                     items = _find_switch_mode_keymap_items()
                     if not items:
-                        sub_col.label(text="未找到 Tab 绑定", icon="INFO")
+                        sub_col.label(text=_T("未找到 Tab 绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in items:
                             row = sub_col.row(align=True)
-                            row.label(text=km.name, icon="DOT")
+                            row.label(text=km.name, icon=_ICON("DOT"))
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, row, 0)
                 except Exception:
                     pass
 
-            if self.ui_show_switch_mode_mapping:
+            if getattr(self, "ui_show_switch_mode_mapping", False):
                 self.draw_switch_mode_mapping(col)
 
     def draw_transform_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "enable_transform_pie")
-        row.prop(self, "ui_show_shift_keymap", text="快捷键")
-        row.prop(self, "ui_show_shift_s_advanced", text="高级")
+        if "enable_transform_pie" in self.bl_rna.properties:
+            row.prop(self, "enable_transform_pie", text=_T("启用变换辅助饼菜单"))
+        if "ui_show_shift_keymap" in self.bl_rna.properties:
+            row.prop(self, "ui_show_shift_keymap", text=_T("快捷键"))
+        if "ui_show_shift_s_advanced" in self.bl_rna.properties:
+            row.prop(self, "ui_show_shift_s_advanced", text=_T("高级"))
         row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
 
-        if self.enable_transform_pie:
-            if self.ui_show_shift_keymap:
+        # Safe access to enable_transform_pie
+        enable_pie = getattr(self, "enable_transform_pie", True)
+        
+        if enable_pie:
+            # Safe access to ui_show_shift_keymap
+            show_keymap = getattr(self, "ui_show_shift_keymap", False)
+            if show_keymap:
                 sub_col = col.column()
                 try:
                     import rna_keymap_ui
@@ -2140,28 +2457,32 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     if kc and km and kmi:
                         rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
                     else:
-                        sub_col.label(text="未找到 Shift+S 绑定", icon="INFO")
+                        sub_col.label(text=_T("未找到 Shift+S 绑定"), icon="INFO")
                 except Exception:
                     pass
 
-            if self.ui_show_shift_s_advanced:
+            # Safe access to ui_show_shift_s_advanced
+            show_advanced = getattr(self, "ui_show_shift_s_advanced", False)
+            if show_advanced:
                 sub_col = col.column()
                 row = sub_col.row(align=True)
-                row.operator("size_tool.exclusive_transform_pie_hotkey", text="独占(禁用冲突)")
-                row.operator("size_tool.restore_shift_s_conflicts", text="恢复冲突")
+                row.operator("size_tool.exclusive_transform_pie_hotkey", text=_T("独占(禁用冲突)"))
+                row.operator("size_tool.restore_shift_s_conflicts", text=_T("恢复冲突"))
                 row = sub_col.row(align=True)
-                row.operator("size_tool.force_transform_pie_priority", text="强制置顶")
-                row.operator("size_tool.reset_transform_pie_keymap", text="恢复默认")
-                sub_col.prop(self, "auto_exclusive_shift_s_on_startup")
-                sub_col.prop(self, "auto_exclusive_shift_s_include_user")
+                row.operator("size_tool.force_transform_pie_priority", text=_T("强制置顶"))
+                row.operator("size_tool.reset_transform_pie_keymap", text=_T("恢复默认"))
+                if "auto_exclusive_shift_s_on_startup" in self.bl_rna.properties:
+                    sub_col.prop(self, "auto_exclusive_shift_s_on_startup", text=_T("启动时自动独占所有快捷键"))
+                if "auto_exclusive_shift_s_include_user" in self.bl_rna.properties:
+                    sub_col.prop(self, "auto_exclusive_shift_s_include_user", text=_T("同时处理用户键位冲突"))
 
     def draw_delete_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_quick_delete", text="快速删除 (Object)")
-        row.prop(self, "activate_delete_pie", text="饼菜单 (Edit)")
-        row.prop(self, "ui_show_delete_keymap", text="快捷键")
-        row.prop(self, "ui_show_delete_mapping", text="映射")
+        row.prop(self, "activate_quick_delete", text=_T("快速删除 (Object)"))
+        row.prop(self, "activate_delete_pie", text=_T("饼菜单 (Edit)"))
+        row.prop(self, "ui_show_delete_keymap", text=_T("快捷键"))
+        row.prop(self, "ui_show_delete_mapping", text=_T("映射"))
 
         if self.activate_quick_delete or self.activate_delete_pie:
             if self.ui_show_delete_keymap:
@@ -2172,15 +2493,15 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     pie_items = _find_delete_pie_keymap_items()
                     
                     if not quick_items and not pie_items:
-                            sub_col.label(text="未找到删除相关绑定", icon="INFO")
+                            sub_col.label(text=_T("未找到删除相关绑定"), icon="INFO")
                     
                     if quick_items:
-                        sub_col.label(text="快速删除 (Object):")
+                        sub_col.label(text=_T("快速删除 (Object):"))
                         for kc, km, kmi in quick_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
                             
                     if pie_items:
-                        sub_col.label(text="饼菜单 (Edit Mesh):")
+                        sub_col.label(text=_T("饼菜单 (Edit Mesh):"))
                         for kc, km, kmi in pie_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
 
@@ -2193,91 +2514,118 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     def draw_edge_property_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_edge_property_pie", text="启用 Shift+E")
-        row.prop(self, "ui_show_edge_property_keymap", text="快捷键")
-        row.prop(self, "ui_show_edge_property_advanced", text="高级")
+        if "activate_edge_property_pie" in self.bl_rna.properties:
+            row.prop(self, "activate_edge_property_pie", text=_T("启用 Shift+E"))
+        if "ui_show_edge_property_keymap" in self.bl_rna.properties:
+            row.prop(self, "ui_show_edge_property_keymap", text=_T("快捷键"))
+        if "ui_show_edge_property_advanced" in self.bl_rna.properties:
+            row.prop(self, "ui_show_edge_property_advanced", text=_T("高级"))
         row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
 
-        if self.activate_edge_property_pie:
-            if self.ui_show_edge_property_keymap:
+        # Safe access to activate_edge_property_pie
+        activate_pie = getattr(self, "activate_edge_property_pie", True)
+        
+        if activate_pie:
+            # Safe access to ui_show_edge_property_keymap
+            show_keymap = getattr(self, "ui_show_edge_property_keymap", False)
+            if show_keymap:
                 sub_col = col.column()
                 try:
                     import rna_keymap_ui
                     items = _find_edge_property_pie_keymap_items()
                     
                     if not items:
-                        sub_col.label(text="未找到 Edge Property 绑定", icon="INFO")
+                        sub_col.label(text=_T("未找到 Edge Property 绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in items:
                             row = sub_col.row(align=True)
-                            row.label(text=km.name, icon="DOT")
+                            row.label(text=km.name, icon=_ICON("DOT"))
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, row, 0)
                 except Exception:
                     pass
 
-            if self.ui_show_edge_property_advanced:
+            # Safe access to ui_show_edge_property_advanced
+            show_advanced = getattr(self, "ui_show_edge_property_advanced", False)
+            if show_advanced:
                 sub_col = col.column()
                 row = sub_col.row(align=True)
-                row.operator("size_tool.exclusive_edge_property_pie_hotkey", text="独占(禁用冲突)")
-                row.operator("size_tool.restore_shift_e_conflicts", text="恢复冲突")
+                row.operator("size_tool.exclusive_edge_property_pie_hotkey", text=_T("独占(禁用冲突)"))
+                row.operator("size_tool.restore_shift_e_conflicts", text=_T("恢复冲突"))
                 row = sub_col.row(align=True)
-                row.operator("size_tool.force_edge_property_pie_priority", text="强制置顶")
+                row.operator("size_tool.force_edge_property_pie_priority", text=_T("强制置顶"))
 
     def draw_align_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_align_pie")
-        row.prop(self, "ui_show_align_keymap", text="快捷键")
-        row.prop(self, "ui_show_align_advanced", text="高级")
+        if "activate_align_pie" in self.bl_rna.properties:
+            row.prop(self, "activate_align_pie")
+        if "ui_show_align_keymap" in self.bl_rna.properties:
+            row.prop(self, "ui_show_align_keymap", text=_T("快捷键"))
+        if "ui_show_align_advanced" in self.bl_rna.properties:
+            row.prop(self, "ui_show_align_advanced", text=_T("高级"))
         row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
 
-        if self.activate_align_pie:
-            if self.ui_show_align_keymap:
+        # Safe access to activate_align_pie
+        activate_pie = getattr(self, "activate_align_pie", True)
+        
+        if activate_pie:
+            # Safe access to ui_show_align_keymap
+            show_keymap = getattr(self, "ui_show_align_keymap", False)
+            if show_keymap:
                 sub_col = col.column()
                 try:
                     import rna_keymap_ui
                     align_items = _find_align_pie_keymap_items()
                     
                     if not align_items:
-                            sub_col.label(text="未找到对齐相关绑定", icon="INFO")
+                            sub_col.label(text=_T("未找到对齐相关绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in align_items:
                             row = sub_col.row(align=True)
                             mode_label = km.name
-                            if mode_label == "3D View Generic": mode_label = "3D 视图通用"
-                            elif mode_label == "Object Mode": mode_label = "物体模式"
-                            elif mode_label == "Mesh": mode_label = "网格编辑"
-                            elif mode_label == "UV Editor": mode_label = "UV 编辑器"
+                            if mode_label == "3D View Generic": mode_label = _T("3D 视图通用")
+                            elif mode_label == "Object Mode": mode_label = _T("物体模式")
+                            elif mode_label == "Mesh": mode_label = _T("网格编辑")
+                            elif mode_label == "UV Editor": mode_label = _T("UV 编辑器")
                             
-                            row.label(text=mode_label, icon="DOT")
+                            row.label(text=mode_label, icon=_ICON("DOT"))
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, row, 0)
                 except Exception:
                     pass
             
-            if self.ui_show_align_advanced:
+            # Safe access to ui_show_align_advanced
+            show_advanced = getattr(self, "ui_show_align_advanced", False)
+            if show_advanced:
                 sub_col = col.column()
                 row = sub_col.row(align=True)
-                row.operator("size_tool.exclusive_align_pie_hotkey", text="独占(禁用冲突)")
-                row.operator("size_tool.restore_alt_a_conflicts", text="恢复冲突")
+                row.operator("size_tool.exclusive_align_pie_hotkey", text=_T("独占(禁用冲突)"))
+                row.operator("size_tool.restore_alt_a_conflicts", text=_T("恢复冲突"))
                 row = sub_col.row(align=True)
-                row.operator("size_tool.force_align_pie_priority", text="强制置顶")
+                row.operator("size_tool.force_align_pie_priority", text=_T("强制置顶"))
 
     def draw_shading_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_shading_pie")
-        row.prop(self, "ui_show_shading_keymap", text="快捷键")
+        if "activate_shading_pie" in self.bl_rna.properties:
+            row.prop(self, "activate_shading_pie")
+        if "ui_show_shading_keymap" in self.bl_rna.properties:
+            row.prop(self, "ui_show_shading_keymap", text=_T("快捷键"))
         row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
 
-        if self.activate_shading_pie:
-            if self.ui_show_shading_keymap:
+        # Safe access to activate_shading_pie
+        activate_pie = getattr(self, "activate_shading_pie", True)
+        
+        if activate_pie:
+            # Safe access to ui_show_shading_keymap
+            show_keymap = getattr(self, "ui_show_shading_keymap", False)
+            if show_keymap:
                 sub_col = col.column()
                 try:
                     import rna_keymap_ui
                     shading_items = _find_shading_pie_keymap_items()
                     
                     if not shading_items:
-                            sub_col.label(text="未找到着色相关绑定", icon="INFO")
+                            sub_col.label(text=_T("未找到着色相关绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in shading_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
@@ -2287,33 +2635,47 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     def draw_save_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_save_pie")
-        row.prop(self, "ui_show_save_keymap", text="快捷键")
-        row.prop(self, "ui_show_save_advanced", text="高级")
+        if "activate_save_pie" in self.bl_rna.properties:
+            row.prop(self, "activate_save_pie", text=_T("启用保存饼菜单 (Ctrl+S)"))
+        if "ui_show_save_keymap" in self.bl_rna.properties:
+            row.prop(self, "ui_show_save_keymap", text=_T("快捷键"))
+        if "ui_show_save_advanced" in self.bl_rna.properties:
+            row.prop(self, "ui_show_save_advanced", text=_T("高级"))
         row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
 
-        if self.activate_save_pie:
-            col.prop(self, "auto_pack_resources_on_save")
-            col.prop(self, "auto_purge_unused_materials_on_save")
-            col.prop(self, "fbx_export_unity_preset")
+        # Safe access to activate_save_pie
+        activate_pie = getattr(self, "activate_save_pie", True)
+        
+        if activate_pie:
+            if "auto_pack_resources_on_save" in self.bl_rna.properties:
+                col.prop(self, "auto_pack_resources_on_save", text=_T("保存时自动打包资源"))
+            if "auto_purge_unused_materials_on_save" in self.bl_rna.properties:
+                col.prop(self, "auto_purge_unused_materials_on_save", text=_T("保存时自动清除孤立数据"))
+            if "fbx_export_unity_preset" in self.bl_rna.properties:
+                col.prop(self, "fbx_export_unity_preset", text=_T("FBX 导出使用 Unity 预设"))
+            
+            # Safe access to fbx_export_unity_preset
+            fbx_preset = getattr(self, "fbx_export_unity_preset", False)
+            
             sub = col.column()
-            sub.enabled = bool(self.fbx_export_unity_preset)
-            sub.operator("m8.reset_unity_fbx_preset", text="设为 Unity 标准", icon="FILE_REFRESH")
-            sub.prop(self, "unity_fbx_use_blend_dir")
+            sub.enabled = bool(fbx_preset)
+            sub.operator("m8.reset_unity_fbx_preset", text=_T("设为 Unity 标准"), icon="FILE_REFRESH")
+            if "unity_fbx_use_blend_dir" in self.bl_rna.properties:
+                sub.prop(self, "unity_fbx_use_blend_dir", text=_T("Unity FBX: 使用 .blend 同目录"))
             row = sub.row(align=True)
             row.enabled = not bool(self.unity_fbx_use_blend_dir)
-            row.prop(self, "unity_fbx_export_dir")
-            sub.prop(self, "unity_fbx_reveal_after_export")
-            sub.prop(self, "ui_show_unity_fbx_advanced", text="Unity FBX 高级")
+            row.prop(self, "unity_fbx_export_dir", text=_T("Unity FBX: 导出目录"))
+            sub.prop(self, "unity_fbx_reveal_after_export", text=_T("Unity FBX: 导出后定位文件"))
+            sub.prop(self, "ui_show_unity_fbx_advanced", text=_T("Unity FBX: 高级"))
             if self.ui_show_unity_fbx_advanced:
-                sub.prop(self, "unity_fbx_use_selection")
-                sub.prop(self, "unity_fbx_global_scale")
-                sub.prop(self, "unity_fbx_apply_unit_scale")
-                sub.prop(self, "unity_fbx_apply_scale_options")
-                sub.prop(self, "unity_fbx_use_triangles")
-                sub.prop(self, "unity_fbx_use_tspace")
-                sub.prop(self, "unity_fbx_bake_anim")
-                sub.prop(self, "unity_fbx_open_folder_after_export")
+                sub.prop(self, "unity_fbx_use_selection", text=_T("Unity FBX: 仅导出选择"))
+                sub.prop(self, "unity_fbx_global_scale", text=_T("Unity FBX: 全局缩放"))
+                sub.prop(self, "unity_fbx_apply_unit_scale", text=_T("Unity FBX: 应用单位"))
+                sub.prop(self, "unity_fbx_apply_scale_options", text=_T("Unity FBX: 应用缩放方式"))
+                sub.prop(self, "unity_fbx_use_triangles", text=_T("Unity FBX: 三角化"))
+                sub.prop(self, "unity_fbx_use_tspace", text=_T("Unity FBX: 导出切线"))
+                sub.prop(self, "unity_fbx_bake_anim", text=_T("Unity FBX: 导出动画"))
+                sub.prop(self, "unity_fbx_open_folder_after_export", text=_T("Unity FBX: 导出后打开文件夹"))
 
             if self.ui_show_save_keymap:
                 sub_col = col.column()
@@ -2322,7 +2684,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     save_items = _find_save_pie_keymap_items()
                     
                     if not save_items:
-                            sub_col.label(text="未找到保存相关绑定", icon="INFO")
+                            sub_col.label(text=_T("未找到保存相关绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in save_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
@@ -2332,15 +2694,15 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             if self.ui_show_save_advanced:
                 sub_col = col.column()
                 row = sub_col.row(align=True)
-                row.operator("size_tool.exclusive_save_pie_hotkey", text="独占(禁用冲突)")
-                row.operator("size_tool.restore_ctrl_s_conflicts", text="恢复冲突")
+                row.operator("size_tool.exclusive_save_pie_hotkey", text=_T("独占(禁用冲突)"))
+                row.operator("size_tool.restore_ctrl_s_conflicts", text=_T("恢复冲突"))
                 row = sub_col.row(align=True)
-                row.operator("size_tool.force_save_pie_priority", text="强制置顶")
+                row.operator("size_tool.force_save_pie_priority", text=_T("强制置顶"))
 
     def draw_rename_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_advanced_rename")
+        row.prop(self, "activate_advanced_rename", text=_T("启用高级重命名 (F2)"))
         
         sub_col = col.column()
         try:
@@ -2348,7 +2710,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             rename_items = _find_rename_keymap_items()
             
             if not rename_items:
-                    sub_col.label(text="未找到重命名相关绑定", icon="INFO")
+                    sub_col.label(text=_T("未找到重命名相关绑定"), icon="INFO")
             else:
                 for kc, km, kmi in rename_items:
                     rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
@@ -2358,54 +2720,66 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     def draw_mirror_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_mirror")
-        row.prop(self, "ui_show_mirror_keymap", text="快捷键")
-        row.prop(self, "ui_show_mirror_advanced", text="高级")
+        if "activate_mirror" in self.bl_rna.properties:
+            row.prop(self, "activate_mirror", text=_T("启用镜像 (Shift+Alt+X)"))
+        if "ui_show_mirror_keymap" in self.bl_rna.properties:
+            row.prop(self, "ui_show_mirror_keymap", text=_T("快捷键"))
+        if "ui_show_mirror_advanced" in self.bl_rna.properties:
+            row.prop(self, "ui_show_mirror_advanced", text=_T("高级"))
         row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
 
-        if self.activate_mirror:
+        # Safe access to activate_mirror
+        activate_mirror = getattr(self, "activate_mirror", True)
+        
+        if activate_mirror:
             # Appearance Settings
             box = col.box()
-            box.label(text="外观设置:", icon="BRUSH_DATA")
+            box.label(text=_T("外观设置:"), icon="BRUSH_DATA")
             row = box.row()
-            row.prop(self, "hub_scale")
+            if "hub_scale" in self.bl_rna.properties:
+                row.prop(self, "hub_scale", text=_T("Gizmo 缩放"))
             
             row = box.row()
-            row.prop(self, "hub_3d_color")
-            row.prop(self, "hub_area_color")
-            row.prop(self, "hub_text_color")
+            if "hub_3d_color" in self.bl_rna.properties:
+                row.prop(self, "hub_3d_color", text=_T("轴向颜色"))
+            if "hub_area_color" in self.bl_rna.properties:
+                row.prop(self, "hub_area_color", text=_T("区域颜色"))
+            if "hub_text_color" in self.bl_rna.properties:
+                row.prop(self, "hub_text_color", text=_T("文本颜色"))
             
             row = box.row()
-            row.prop(self, "hub_line_width")
-            row.prop(self, "hub_matrix_line_width")
+            if "hub_line_width" in self.bl_rna.properties:
+                row.prop(self, "hub_line_width", text=_T("线宽"))
+            if "hub_matrix_line_width" in self.bl_rna.properties:
+                row.prop(self, "hub_matrix_line_width", text=_T("轴线宽"))
 
-            box.label(text="预览设置:", icon="SHADING_WIREFRAME")
+            box.label(text=_T("预览设置:"), icon="SHADING_WIREFRAME")
             row = box.row()
-            row.prop(self, "mirror_show_preview")
+            row.prop(self, "mirror_show_preview", text=_T("显示网格预览"))
             
             if self.mirror_show_preview:
                 row = box.row()
-                row.prop(self, "mirror_preview_vert_size")
-                row.prop(self, "mirror_preview_edge_width")
+                row.prop(self, "mirror_preview_vert_size", text=_T("预览点大小"))
+                row.prop(self, "mirror_preview_edge_width", text=_T("预览线宽"))
                 row = box.row()
-                row.prop(self, "mirror_preview_edge_color")
-                row.prop(self, "mirror_preview_alpha")
+                row.prop(self, "mirror_preview_edge_color", text=_T("预览线颜色"))
+                row.prop(self, "mirror_preview_alpha", text=_T("预览透明度"))
                 row = box.row()
-                row.prop(self, "mirror_preview_max_edge_count")
-                row.prop(self, "mirror_preview_optimize")
+                row.prop(self, "mirror_preview_max_edge_count", text=_T("最大边数优化"))
+                row.prop(self, "mirror_preview_optimize", text=_T("强制简化预览"))
             
             row = box.row()
-            row.prop(self, "mirror_use_mouse_pos")
-            row.prop(self, "mirror_auto_confirm")
+            row.prop(self, "mirror_use_mouse_pos", text=_T("Gizmo 跟随鼠标"))
+            row.prop(self, "mirror_auto_confirm", text=_T("松开即确认"))
             
             row = box.row()
-            row.prop(self, "mirror_sensitivity")
+            row.prop(self, "mirror_sensitivity", text=_T("感应灵敏度"))
             
             row = box.row()
-            row.prop(self, "mirror_use_fixed_scale")
+            row.prop(self, "mirror_use_fixed_scale", text=_T("使用固定大小"))
             sub = row.row()
             sub.enabled = self.mirror_use_fixed_scale
-            sub.prop(self, "mirror_fixed_scale_value")
+            sub.prop(self, "mirror_fixed_scale_value", text=_T("固定大小值"))
 
             if self.ui_show_mirror_keymap:
                 sub_col = col.column()
@@ -2414,7 +2788,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     mirror_items = _find_mirror_keymap_items()
                     
                     if not mirror_items:
-                            sub_col.label(text="未找到镜像相关绑定", icon="INFO")
+                            sub_col.label(text=_T("未找到镜像相关绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in mirror_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
@@ -2424,26 +2798,29 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             if self.ui_show_mirror_advanced:
                 sub_col = col.column()
                 row = sub_col.row(align=True)
-                row.operator("size_tool.exclusive_mirror_hotkey", text="独占(禁用冲突)")
-                row.operator("size_tool.restore_shift_alt_x_conflicts", text="恢复冲突")
+                row.operator("size_tool.exclusive_mirror_hotkey", text=_T("独占(禁用冲突)"))
+                row.operator("size_tool.restore_shift_alt_x_conflicts", text=_T("恢复冲突"))
                 row = sub_col.row(align=True)
-                row.operator("size_tool.force_mirror_priority", text="强制置顶")
+                row.operator("size_tool.force_mirror_priority", text=_T("强制置顶"))
 
     def draw_group_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_group_tool")
-        row.prop(self, "ui_show_group_keymap", text="快捷键")
-        row.prop(self, "ui_show_group_advanced", text="高级")
+        if "activate_group_tool" in self.bl_rna.properties:
+            row.prop(self, "activate_group_tool", text=_T("启用打组 (Ctrl+G)"))
+        if "ui_show_group_keymap" in self.bl_rna.properties:
+            row.prop(self, "ui_show_group_keymap", text=_T("快捷键"))
+        if "ui_show_group_advanced" in self.bl_rna.properties:
+            row.prop(self, "ui_show_group_advanced", text=_T("高级"))
         row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
 
-        if self.activate_group_tool:
-            col.prop(self, "activate_double_click_select_group")
-            col.prop(self, "group_tool_radius")
-            col.prop(self, "group_tool_empty_type")
-            col.prop(self, "group_tool_hide_empty")
+        if getattr(self, "activate_group_tool", False):
+            col.prop(self, "activate_double_click_select_group", text=_T("双击选择组"))
+            col.prop(self, "group_tool_radius", text=_T("组半径"))
+            col.prop(self, "group_tool_empty_type", text=_T("空物体类型"))
+            col.prop(self, "group_tool_hide_empty", text=_T("隐藏组空物体"))
 
-            if self.ui_show_group_keymap:
+            if getattr(self, "ui_show_group_keymap", False):
                 sub_col = col.column()
                 try:
                     import rna_keymap_ui
@@ -2451,51 +2828,90 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     double_click_items = _find_double_click_select_group_keymap_items()
                     
                     if not group_items and not double_click_items:
-                            sub_col.label(text="未找到打组相关绑定", icon="INFO")
+                            sub_col.label(text=_T("未找到打组相关绑定"), icon="INFO")
                     
                     if group_items:
-                        sub_col.label(text="打组 (Ctrl+G):")
+                        sub_col.label(text=_T("打组 (Ctrl+G):"))
                         for kc, km, kmi in group_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
                     
                     if double_click_items:
-                        sub_col.label(text="双击选择组:")
+                        sub_col.label(text=_T("双击选择组:"))
                         for kc, km, kmi in double_click_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
                 except Exception:
                     pass
             
-            if self.ui_show_group_advanced:
+            if getattr(self, "ui_show_group_advanced", False):
                 sub_col = col.column()
                 row = sub_col.row(align=True)
-                row.operator("size_tool.exclusive_group_tool_hotkey", text="独占(禁用冲突)")
-                row.operator("size_tool.restore_ctrl_g_conflicts", text="恢复冲突")
+                row.operator("size_tool.exclusive_group_tool_hotkey", text=_T("独占(禁用冲突)"))
+                row.operator("size_tool.restore_ctrl_g_conflicts", text=_T("恢复冲突"))
                 row = sub_col.row(align=True)
-                row.operator("size_tool.force_group_tool_priority", text="强制置顶")
+                row.operator("size_tool.force_group_tool_priority", text=_T("强制置顶"))
 
     def draw_smart_pie_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_smart_pie")
-        row.prop(self, "ui_show_smart_pie_keymap", text="快捷键")
+        row.prop(self, "activate_smart_pie", text=_T("启用智能饼菜单 (1)"))
+        row.prop(self, "ui_show_smart_pie_keymap", text=_T("快捷键"))
 
         sub = col.column()
         sub.enabled = bool(self.activate_smart_pie)
-        sub.prop(self, "smart_edge_mode")
-        sub.prop(self, "smart_face_action")
-        sub.prop(self, "smart_face_focus_mode")
-        sub.prop(self, "smart_face_stay_on_original")
-        sub.prop(self, "clean_up_merge_distance")
-        sub.prop(self, "clean_up_affect")
-        sub.prop(self, "clean_up_degenerate_dist")
-        sub.prop(self, "clean_up_recalc_normals")
+        sub.prop(self, "smart_edge_mode", text=_T("Smart Edge 模式"))
+        sub.prop(self, "smart_face_action", text=_T("Smart Face 默认动作"))
+        sub.prop(self, "smart_face_focus_mode", text=_T("Smart Face: 聚焦模式"))
+        sub.prop(self, "smart_face_stay_on_original", text=_T("Smart Face: 停留在原始对象"))
+
+        box = sub.box()
+        box.label(text=_T("清理默认设置"), icon="BRUSH_DATA")
+        
+        row = box.row()
+        row.prop(self, "clean_up_affect", text=_T("影响范围"))
+        row.prop(self, "clean_up_merge_distance", text=_T("合并距离"))
+        
+        box.separator()
+        
+        split = box.split(factor=0.55)
+        
+        # Left Column
+        col = split.column(align=True)
+        col.label(text=_T("优化处理:"))
+        col.prop(self, "clean_up_do_merge_by_distance", text=_T("合并重复点"))
+        
+        row = col.row(align=True)
+        row.prop(self, "clean_up_do_dissolve_degenerate", text=_T("溶解退化几何"))
+        sub_row = row.row()
+        sub_row.enabled = self.clean_up_do_dissolve_degenerate
+        sub_row.prop(self, "clean_up_degenerate_dist", text="")
+        
+        row = col.row(align=True)
+        row.prop(self, "clean_up_do_limited_dissolve", text=_T("有限溶解"))
+        sub_row = row.row()
+        sub_row.enabled = self.clean_up_do_limited_dissolve
+        sub_row.prop(self, "clean_up_limited_dissolve_angle", text="")
+        
+        row = col.row(align=True)
+        row.prop(self, "clean_up_do_make_planar", text=_T("平坦化面"))
+        sub_row = row.row()
+        sub_row.enabled = self.clean_up_do_make_planar
+        sub_row.prop(self, "clean_up_planar_iterations", text="")
+
+        # Right Column
+        col = split.column(align=True)
+        col.label(text=_T("清理选项:"))
+        col.prop(self, "clean_up_do_delete_loose_verts", text=_T("删除孤立点"))
+        col.prop(self, "clean_up_do_delete_loose_edges", text=_T("删除孤立边"))
+        col.prop(self, "clean_up_do_delete_interior_faces", text=_T("删除内部面"))
+        col.separator()
+        col.prop(self, "clean_up_recalc_normals", toggle=True, text=_T("重算法线"))
 
         if self.ui_show_smart_pie_keymap:
             try:
                 import rna_keymap_ui
                 items = _find_smart_pie_keymap_items()
                 if not items:
-                    sub.label(text="未找到智能饼菜单相关绑定", icon="INFO")
+                    sub.label(text=_T("未找到智能饼菜单相关绑定"), icon="INFO")
                 else:
                     for kc, km, kmi in items:
                         rna_keymap_ui.draw_kmi([], kc, km, kmi, sub, 0)
@@ -2505,21 +2921,21 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     def draw_toggle_area_settings(self, layout):
         col = layout.column()
         row = col.row(align=True)
-        row.prop(self, "activate_toggle_area")
-        row.prop(self, "ui_show_toggle_area_keymap", text="快捷键")
+        row.prop(self, "activate_toggle_area", text=_T("启用区域切换 (T)"))
+        row.prop(self, "ui_show_toggle_area_keymap", text=_T("快捷键"))
         
         if self.activate_toggle_area:
             col.separator()
-            col.prop(self, "toggle_area_close_range")
-            col.prop(self, "toggle_area_prefer_left_right")
-            col.prop(self, "toggle_area_wrap_mouse")
+            col.prop(self, "toggle_area_close_range", text=_T("关闭范围 (%)"))
+            col.prop(self, "toggle_area_prefer_left_right", text=_T("首选左/右切换"))
+            col.prop(self, "toggle_area_wrap_mouse", text=_T("鼠标跟随"))
             
             box = col.box()
-            box.label(text="Asset Browser / Shelf (3D View)", icon="ASSET_MANAGER")
-            box.prop(self, "toggle_area_asset_shelf")
-            box.prop(self, "toggle_area_asset_browser_top")
-            box.prop(self, "toggle_area_asset_browser_bottom")
-            box.prop(self, "toggle_area_split_factor")
+            box.label(text=_T("资产浏览器/资产架 (3D 视图)"), icon="ASSET_MANAGER")
+            box.prop(self, "toggle_area_asset_shelf", text=_T("切换资产架"))
+            box.prop(self, "toggle_area_asset_browser_top", text=_T("切换资产浏览器到顶部"))
+            box.prop(self, "toggle_area_asset_browser_bottom", text=_T("切换资产浏览器到底部"))
+            box.prop(self, "toggle_area_split_factor", text=_T("分割比例"))
 
             if self.ui_show_toggle_area_keymap:
                 try:
@@ -2541,78 +2957,78 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
                     items = _find_toggle_area_keymap_items()
                     if not items:
-                        col.label(text="未找到相关绑定", icon="INFO")
+                        col.label(text=_T("未找到相关绑定"), icon="INFO")
                     else:
                         sub = col.column()
                         for kc, km, kmi in items:
                             row = sub.row(align=True)
-                            row.label(text=km.name, icon="DOT")
+                            row.label(text=km.name, icon=_ICON("DOT"))
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, row, 0)
                 except Exception:
                     pass
 
     def draw_screencast_settings(self, layout):
         col = layout.column()
-        col.prop(self, "screencast_enabled", text="启用 Screencast (按键显示)")
+        col.prop(self, "screencast_enabled", text=_T("启用 Screencast (按键显示)"))
         
         col = col.column()
         col.enabled = self.screencast_enabled
-        col.prop(self, "screencast_font_size")
-        col.prop(self, "screencast_style")
-        col.prop(self, "screencast_color")
+        col.prop(self, "screencast_font_size", text=_T("字体大小"))
+        col.prop(self, "screencast_style", text=_T("显示风格"))
+        col.prop(self, "screencast_color", text=_T("文字颜色"))
         if self.screencast_style == "KEYCAPS":
-            col.prop(self, "screencast_cap_bg_color")
-            col.prop(self, "screencast_cap_outline_color")
+            col.prop(self, "screencast_cap_bg_color", text=_T("键帽背景"))
+            col.prop(self, "screencast_cap_outline_color", text=_T("键帽描边"))
             row = col.row(align=True)
-            row.prop(self, "screencast_cap_radius")
-            row.prop(self, "screencast_cap_gap")
+            row.prop(self, "screencast_cap_radius", text=_T("键帽圆角"))
+            row.prop(self, "screencast_cap_gap", text=_T("键帽间距"))
             row = col.row(align=True)
-            row.prop(self, "screencast_cap_shadow")
-            row.prop(self, "screencast_cap_uppercase")
+            row.prop(self, "screencast_cap_shadow", text=_T("键帽阴影"))
+            row.prop(self, "screencast_cap_uppercase", text=_T("键帽大写"))
         else:
-            col.prop(self, "screencast_bg_color")
+            col.prop(self, "screencast_bg_color", text=_T("背景颜色"))
         
         row = col.row(align=True)
-        row.prop(self, "screencast_align")
+        row.prop(self, "screencast_align", text=_T("对齐"))
         
         row = col.row(align=True)
-        row.prop(self, "screencast_offset_x")
-        row.prop(self, "screencast_offset_y")
+        row.prop(self, "screencast_offset_x", text=_T("X 偏移"))
+        row.prop(self, "screencast_offset_y", text=_T("Y 偏移"))
         
-        col.prop(self, "screencast_history_count")
-        col.prop(self, "screencast_timeout")
-        col.prop(self, "screencast_stack_direction")
-        col.prop(self, "screencast_show_mouse")
-        col.prop(self, "screencast_show_mouse_move")
-        col.prop(self, "screencast_show_last_operator")
-        col.prop(self, "screencast_operator_label_mode")
-        col.prop(self, "screencast_use_symbols")
-        col.prop(self, "screencast_smart_merge_numbers")
-        col.prop(self, "screencast_entry_animation")
+        col.prop(self, "screencast_history_count", text=_T("显示行数"))
+        col.prop(self, "screencast_timeout", text=_T("消失延迟 (秒)"))
+        col.prop(self, "screencast_stack_direction", text=_T("堆叠方向"))
+        col.prop(self, "screencast_show_mouse", text=_T("显示鼠标点击"))
+        col.prop(self, "screencast_show_mouse_move", text=_T("显示鼠标移动"))
+        col.prop(self, "screencast_show_last_operator", text=_T("显示最后操作"))
+        col.prop(self, "screencast_operator_label_mode", text=_T("操作提示语言"))
+        col.prop(self, "screencast_use_symbols", text=_T("使用符号显示修饰键 (⌃⇧⌥⌘)"))
+        col.prop(self, "screencast_smart_merge_numbers", text=_T("智能合并数字输入"))
+        col.prop(self, "screencast_entry_animation", text=_T("启用入场动画"))
 
     def draw_other_settings(self, layout):
         col = layout.column()
         
         box = col.box()
-        box.label(text="全局快捷键管理:", icon="KEYINGSET")
+        box.label(text=_T("全局快捷键管理:"), icon="KEYINGSET")
         row = box.row(align=True)
         row.scale_y = 1.2
-        row.operator("size_tool.exclusive_all_hotkeys", text="一键独占所有快捷键 (禁用冲突)")
-        row.operator("size_tool.restore_all_conflicts", text="一键恢复所有冲突")
-        box.prop(self, "auto_exclusive_shift_s_on_startup", text="启动时自动独占所有快捷键")
+        row.operator("size_tool.exclusive_all_hotkeys", text=_T("一键独占所有快捷键 (禁用冲突)"))
+        row.operator("size_tool.restore_all_conflicts", text=_T("一键恢复所有冲突"))
+        box.prop(self, "auto_exclusive_shift_s_on_startup", text=_T("启动时自动独占所有快捷键"))
         
         col.separator()
-        col.prop(self, "activate_restart_blender", text="在顶部菜单栏显示重启 Blender 按钮")
+        col.prop(self, "activate_restart_blender", text=_T("在顶部菜单栏显示重启 Blender 按钮"))
         col.separator()
         row = col.row(align=True)
-        row.operator("m8.reset_prefs_ui", text="重置界面设置", icon="FILE_REFRESH")
+        row.operator("m8.reset_prefs_ui", text=_T("重置界面设置"), icon="FILE_REFRESH")
         
-        col.prop(self, "backup_suffix")
-        col.prop(self, "backup_collection_name")
-        col.prop(self, "default_padding")
-        col.prop(self, "archive_default_bake")
+        col.prop(self, "backup_suffix", text=_T("备用盒后缀"))
+        col.prop(self, "backup_collection_name", text=_T("备用盒集合名"))
+        col.prop(self, "default_padding", text=_T("默认 Padding"))
+        col.prop(self, "archive_default_bake", text=_T("备用盒默认烘焙"))
         col.separator()
-        col.prop(self, "auto_new_object_origin_bottom")
+        col.prop(self, "auto_new_object_origin_bottom", text=_T("新建物体默认原点到底部"))
         sub = col.column()
         sub.enabled = self.auto_new_object_origin_bottom
-        sub.prop(self, "auto_new_object_snap_to_floor")
+        sub.prop(self, "auto_new_object_snap_to_floor", text=_T("新建物体自动落地 (Z=0)"))
