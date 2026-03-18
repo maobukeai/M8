@@ -1,4 +1,4 @@
-﻿import bpy
+import bpy
 
 PIE_MENU_ID = "VIEW3D_MT_size_tool_transform_pie"
 SWITCH_MODE_PIE_ID = "VIEW3D_MT_m8_switch_mode_pie"
@@ -179,6 +179,11 @@ def register_keymaps(force_default=False):
     active = get_pref("activate_switch_mode", True) and get_pref("switch_mode_double_click_edit_switch", False)
     km = kc.keymaps.new(name="Mesh", space_type="EMPTY")
     kmi = km.keymap_items.new('m8.double_click_edit_switch', 'LEFTMOUSE', 'DOUBLE_CLICK')
+    kmi.active = active
+    _ensure_pie_keymap_priority(km, kmi)
+    addon_keymaps.append((km, kmi))
+
+    kmi = km.keymap_items.new('m8.double_click_edit_switch', 'LEFTMOUSE', 'DOUBLE_CLICK', shift=True)
     kmi.active = active
     _ensure_pie_keymap_priority(km, kmi)
     addon_keymaps.append((km, kmi))
@@ -1955,8 +1960,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     )
 
     switch_mode_double_click_edge_loop_ring: bpy.props.BoolProperty(
-        name="双击边环形选择",
-        description="网格编辑模式下，双击边自动选择循环列(Edge Ring)，Shift 可加选",
+        name="双击边循环选择",
+        description="网格编辑模式下，双击边自动选择循环边(Edge Loop)，Shift 可加选",
         default=True,
         update=_on_prefs_update,
     )
@@ -1982,7 +1987,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         layout.prop(self, "switch_mode_double_click_edit_switch", text=_T("双击切换编辑对象"))
         sub = layout.column()
         sub.enabled = self.switch_mode_double_click_edit_switch
-        sub.prop(self, "switch_mode_double_click_edge_loop_ring", text=_T("双击边环形选择"))
+        sub.prop(self, "switch_mode_double_click_edge_loop_ring", text=_T("双击边循环选择"))
         layout.prop(self, "switch_mode_tab_behavior", text=_T("Tab 行为"))
         sub = layout.column()
         sub.enabled = self.switch_mode_tab_behavior == "TAP_HOLD"
@@ -2076,7 +2081,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         
         grid.label(text=_T("作者:") + " 猫步可爱")
         grid.label(text=_T("微信:") + " LiLan-8")
-        grid.label(text=_T("版本:") + " 3.0")
+        grid.label(text=_T("版本:") + " 3.0.1")
         
         col.separator()
         

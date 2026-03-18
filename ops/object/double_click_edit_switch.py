@@ -19,12 +19,16 @@ class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
     def poll(cls, context):
         return bool(context.area and context.area.type == "VIEW_3D")
 
-    def _try_edge_loop_ring_select(self, context, event):
+    def _try_edge_loop_select(self, context, event):
         ts = context.tool_settings
         if not ts or not getattr(ts, "mesh_select_mode", None):
             return False
 
         if not ts.mesh_select_mode[1]:
+            return False
+
+        obj = context.object
+        if not obj or obj.type != "MESH" or obj.mode != "EDIT":
             return False
 
         x = getattr(event, "mouse_region_x", None)
@@ -33,6 +37,14 @@ class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
             return False
 
         extend = bool(getattr(event, "shift", False))
+        prev_selected_edge_indices = None
+        if extend:
+            try:
+                bm = bmesh.from_edit_mesh(obj.data)
+                bm.edges.ensure_lookup_table()
+                prev_selected_edge_indices = {e.index for e in bm.edges if e.select}
+            except Exception:
+                prev_selected_edge_indices = None
 
         try:
             if not extend:
@@ -65,12 +77,9 @@ class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
         except Exception:
             return False
 
-        obj = context.object
-        if not obj or obj.type != "MESH" or obj.mode != "EDIT":
-            return False
-
         try:
             bm = bmesh.from_edit_mesh(obj.data)
+            bm.edges.ensure_lookup_table()
         except Exception:
             return False
 
@@ -79,13 +88,29 @@ class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
             return False
 
         try:
-            bpy.ops.mesh.loop_multi_select(ring=True)
+            bpy.ops.mesh.loop_multi_select(ring=False)
         except Exception:
             return False
 
-        bm = bmesh.from_edit_mesh(obj.data)
-        sel_after_ring = sum(1 for e in bm.edges if e.select)
-        return sel_after_ring >= sel_initial
+        try:
+            bm = bmesh.from_edit_mesh(obj.data)
+            bm.edges.ensure_lookup_table()
+            if extend and prev_selected_edge_indices:
+                for idx in prev_selected_edge_indices:
+                    if 0 <= idx < len(bm.edges):
+                        bm.edges[idx].select = True
+                bmesh.update_edit_mesh(obj.data, loop_triangles=False, destructive=False)
+        except Exception:
+            pass
+
+        try:
+            bm = bmesh.from_edit_mesh(obj.data)
+            bm.edges.ensure_lookup_table()
+        except Exception:
+            return False
+
+        sel_after = sum(1 for e in bm.edges if e.select)
+        return sel_after >= sel_initial
 
     def invoke(self, context, event):
         pref = self._get_pref()
@@ -109,7 +134,7 @@ class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
 
         if obj == active:
             if getattr(pref, "switch_mode_double_click_edge_loop_ring", True):
-                if self._try_edge_loop_ring_select(context, event):
+                if self._try_edge_loop_select(context, event):
                     return {"FINISHED"}
             return {"PASS_THROUGH"}
 

@@ -955,6 +955,25 @@ class M8_OT_SmartMergeCenter(bpy.types.Operator):
         default="CENTER",
     )
 
+    def invoke(self, context, event):
+        if context.mode != "EDIT_MESH":
+            return {"CANCELLED"}
+        obj = context.edit_object
+        if not obj or obj.type != "MESH":
+            return {"CANCELLED"}
+
+        bm = bmesh.from_edit_mesh(obj.data)
+        select_mode = context.tool_settings.mesh_select_mode
+
+        if select_mode[1] and any(e.select for e in bm.edges):
+            return bpy.ops.mesh.edge_collapse("INVOKE_DEFAULT")
+
+        if any(v.select for v in bm.verts) or any(f.select for f in bm.faces):
+            merge_type = "CURSOR" if self.target == "CURSOR" else "CENTER"
+            return bpy.ops.mesh.merge("INVOKE_DEFAULT", type=merge_type)
+
+        return {"CANCELLED"}
+
     def execute(self, context):
         if context.mode != "EDIT_MESH":
             return {"CANCELLED"}
@@ -963,30 +982,15 @@ class M8_OT_SmartMergeCenter(bpy.types.Operator):
             return {"CANCELLED"}
         bm = bmesh.from_edit_mesh(obj.data)
         select_mode = context.tool_settings.mesh_select_mode
-        verts = []
-        if select_mode[0]:
-            verts = [v for v in bm.verts if v.select]
-        elif select_mode[1]:
-            edges = [e for e in bm.edges if e.select]
-            for e in edges:
-                verts.extend(e.verts)
-            verts = list({v for v in verts})
-        elif select_mode[2]:
-            faces = [f for f in bm.faces if f.select]
-            for f in faces:
-                verts.extend(f.verts)
-            verts = list({v for v in verts})
-        if not verts:
-            return {"CANCELLED"}
-        if self.target == "CURSOR":
-            co = obj.matrix_world.inverted() @ context.scene.cursor.location
-        else:
-            co = _avg_co(verts)
-            if co is None:
-                return {"CANCELLED"}
-        _pointmerge_to_co(bm, verts, co)
-        bmesh.update_edit_mesh(obj.data, destructive=True)
-        return {"FINISHED"}
+
+        if select_mode[1] and any(e.select for e in bm.edges):
+            return bpy.ops.mesh.edge_collapse("EXEC_DEFAULT")
+
+        if any(v.select for v in bm.verts) or any(f.select for f in bm.faces):
+            merge_type = "CURSOR" if self.target == "CURSOR" else "CENTER"
+            return bpy.ops.mesh.merge("EXEC_DEFAULT", type=merge_type)
+
+        return {"CANCELLED"}
 
 
 class M8_OT_SmartPathsMerge(bpy.types.Operator):
