@@ -231,11 +231,14 @@ def draw_switch_bone_mode_operator(context: bpy.types.Context, pie: bpy.types.UI
     elif mode == "VIEW_SELECTED":
         pie.operator("view3d.view_selected", text="聚焦", icon="VIEWZOOM")
     elif mode == "TOGGLE_XRAY":
-        pie.prop(active, "show_in_front", text="前台显示", icon="XRAY")
+        op = pie.operator("wm.context_toggle", text="前台显示", icon="XRAY", depress=active.show_in_front)
+        op.data_path = "active_object.show_in_front"
     elif mode == "TOGGLE_NAMES":
-        pie.prop(data, "show_names", text="显示名称", icon="SORTALPHA")
+        op = pie.operator("wm.context_toggle", text="显示名称", icon="SORTALPHA", depress=data.show_names)
+        op.data_path = "object.data.show_names"
     elif mode == "TOGGLE_AXES":
-        pie.prop(data, "show_axes", text="显示轴向", icon="AXIS_SIDE")
+        op = pie.operator("wm.context_toggle", text="显示轴向", icon="AXIS_SIDE", depress=data.show_axes)
+        op.data_path = "object.data.show_axes"
     else:
         pie.label(text=f"Invalid mode {mode}")
 
@@ -440,7 +443,8 @@ class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):
             pie.operator(M8_OT_LightQuickSettings.bl_idname, text="灯光设置", icon="LIGHT_DATA")
 
             if hasattr(light, "use_shadow"):
-                pie.prop(light, "use_shadow", text="投影")
+                op = pie.operator("wm.context_toggle", text="投影", depress=light.use_shadow)
+                op.data_path = "object.data.use_shadow"
             else:
                 pie.separator()
 
@@ -463,7 +467,9 @@ class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):
             pie.operator("view3d.view_camera", text="查看摄像机", icon="CAMERA_DATA")
             
             if context.space_data and context.space_data.type == 'VIEW_3D':
-                pie.prop(context.space_data, "lock_camera", text="锁定相机到视图", icon="LOCKVIEW_ON")
+                is_locked = context.space_data.lock_camera
+                op = pie.operator("wm.context_toggle", text="锁定相机到视图", icon="LOCKVIEW_ON", depress=is_locked)
+                op.data_path = "space_data.lock_camera"
             else:
                 pie.separator()
 
@@ -478,7 +484,8 @@ class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):
             pie.operator("view3d.view_selected", text="聚焦", icon="VIEWZOOM")
 
             if hasattr(data, "use_outside"):
-                pie.prop(data, "use_outside", text="外部影响")
+                op = pie.operator("wm.context_toggle", text="外部影响", depress=data.use_outside)
+                op.data_path = "object.data.use_outside"
             else:
                 pie.separator()
 
@@ -657,7 +664,8 @@ class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):
             pie.operator("wm.call_menu_pie", text="切换类型", icon="EMPTY_DATA").name = "VIEW3D_MT_m8_empty_type_pie"
 
             # 4. Top
-            pie.prop(obj, "show_in_front", text="前台显示", icon="XRAY")
+            op = pie.operator("wm.context_toggle", text="前台显示", icon="XRAY", depress=obj.show_in_front)
+            op.data_path = "object.show_in_front"
 
             # 5. Top Left
             pie.operator("view3d.localview", text="局部视图", icon="HIDE_OFF")
@@ -735,7 +743,8 @@ class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):
             # 8. Bottom Right
             # 常用属性：洋葱皮
             if hasattr(data, "use_onion_skinning"):
-                pie.prop(data, "use_onion_skinning", text="", icon="ONIONSKIN_ON")
+                op = pie.operator("wm.context_toggle", text="洋葱皮", icon="ONIONSKIN_ON", depress=data.use_onion_skinning)
+                op.data_path = "object.data.use_onion_skinning"
             else:
                 pie.separator()
 

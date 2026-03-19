@@ -102,6 +102,7 @@ from .ui.pie.shading import VIEW3D_MT_M8ShadingPie
 from .ui.pie.delete_pie import VIEW3D_MT_M8DeletePie
 from .ui.pie.save import VIEW3D_MT_M8SavePie
 from .ui.pie.edge_property_pie import VIEW3D_MT_M8EdgePropertyPie
+from .ui.pie.switch_editor_pie import VIEW3D_MT_M8SwitchEditorPie, M8_OT_SwitchEditorArea
 from .ui.pie.align_generic import M8_OT_AlignPieContextCall
 from .ops.smart_tools import (
     M8_OT_SmartVert,
@@ -164,6 +165,13 @@ from .ops.file.save_pie_ops import (
     M8_OT_CallOperatorWithAddon,
 )
 from .ops.file.auto_pack import register as register_auto_pack, unregister as unregister_auto_pack
+from .ops.file.image_save_preset import (
+    M8_ImageSavePresetProps,
+    M8_OT_AppendFilenameSuffix,
+    M8_OT_SetFilenamePrefix,
+    FILEBROWSER_PT_m8_image_save_presets,
+    FILEBROWSER_PT_m8_image_save_presets_extra,
+)
 from .ops.misc.screencast import M8_OT_InternalScreencast
 from .ops.restart_blender import RestartBlender, draw_restart_blender_top_bar
 from .ops.mirror import Mirror
@@ -339,6 +347,8 @@ CLASSES = [
     VIEW3D_MT_M8DeletePie,
     VIEW3D_MT_M8SavePie,
     VIEW3D_MT_M8EdgePropertyPie,
+    VIEW3D_MT_M8SwitchEditorPie,
+    M8_OT_SwitchEditorArea,
     M8_OT_AlignPieContextCall,
     M8_OT_OpenCurrentFolder,
     M8_OT_OpenTempDir,
@@ -357,6 +367,11 @@ CLASSES = [
     M8_OT_CreateAssetGroup,
     M8_OT_OrphansPurgeKeepAssets,
     M8_OT_CallOperatorWithAddon,
+    M8_ImageSavePresetProps,
+    M8_OT_AppendFilenameSuffix,
+    M8_OT_SetFilenamePrefix,
+    FILEBROWSER_PT_m8_image_save_presets,
+    FILEBROWSER_PT_m8_image_save_presets_extra,
     M8_OT_InternalScreencast,
     RestartBlender,
     Mirror,
@@ -552,6 +567,7 @@ def register():
 
     bpy.types.Scene.m8_clean_props = bpy.props.PointerProperty(type=M8_Clean_Props)
     bpy.types.Scene.m8_custom_tools = bpy.props.PointerProperty(type=M8_CustomTools_Props)
+    bpy.types.Scene.m8_image_save_preset_props = bpy.props.PointerProperty(type=M8_ImageSavePresetProps)
 
     bpy.types.WindowManager.m8_last_obj_type = bpy.props.StringProperty(default="")
     bpy.types.WindowManager.m8_last_object_mode = bpy.props.StringProperty(default="")
@@ -628,6 +644,8 @@ def unregister():
         del bpy.types.Scene.m8_clean_props
     if hasattr(bpy.types.Scene, "m8_custom_tools"):
         del bpy.types.Scene.m8_custom_tools
+    if hasattr(bpy.types.Scene, "m8_image_save_preset_props"):
+        del bpy.types.Scene.m8_image_save_preset_props
     try:
         m8_icons.unregister()
     except Exception:

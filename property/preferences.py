@@ -3,6 +3,7 @@ import bpy
 PIE_MENU_ID = "VIEW3D_MT_size_tool_transform_pie"
 SWITCH_MODE_PIE_ID = "VIEW3D_MT_m8_switch_mode_pie"
 EDGE_PROPERTY_PIE_ID = "VIEW3D_MT_m8_edge_property_pie"
+SWITCH_EDITOR_PIE_ID = "M8_MT_switch_editor_pie"
 MIRROR_OP_ID = "m8.mirror"
 
 TRANSFORM_PIE_KEYMAP_BINDINGS = (
@@ -51,6 +52,9 @@ SHADING_PIE_KEYMAP_BINDINGS = (
 
 SAVE_PIE_ID = "VIEW3D_MT_m8_save_pie"
 SAVE_PIE_KEYMAP_BINDINGS = (
+    ("Window", "EMPTY"),
+)
+SWITCH_EDITOR_PIE_KEYMAP_BINDINGS = (
     ("Window", "EMPTY"),
 )
 
@@ -387,6 +391,16 @@ def register_keymaps(force_default=False):
         _ensure_pie_keymap_priority(km, kmi)
         addon_keymaps.append((km, kmi))
 
+
+    # Switch Editor Pie (F12)
+    active = get_pref("activate_switch_editor_pie", True)
+    km = kc.keymaps.new(name="Window", space_type="EMPTY")
+    kmi = km.keymap_items.new('wm.call_menu_pie', 'F12', 'PRESS')
+    kmi.properties.name = SWITCH_EDITOR_PIE_ID
+    kmi.active = active
+    _ensure_pie_keymap_priority(km, kmi)
+    addon_keymaps.append((km, kmi))
+
 def unregister_keymaps():
     global addon_keymaps
     for km, kmi in addon_keymaps:
@@ -461,6 +475,9 @@ def update_keymaps(self, context):
             "m8.smart_face",
         }
 
+    def is_switch_editor_pie(kmi):
+        return kmi.idname == "wm.call_menu_pie" and getattr(kmi.properties, "name", "") == SWITCH_EDITOR_PIE_ID
+
     def is_toggle_area(kmi):
         return kmi.idname == TOGGLE_AREA_OP_ID
 
@@ -481,6 +498,7 @@ def update_keymaps(self, context):
     p_double_click_select_group = getattr(self, "activate_double_click_select_group", False)
     p_smart_pie = getattr(self, "activate_smart_pie", True)
     p_toggle_area = getattr(self, "activate_toggle_area", True)
+    p_switch_editor = getattr(self, "activate_switch_editor_pie", True)
 
     for km, kmi in addon_keymaps:
         try:
@@ -500,6 +518,7 @@ def update_keymaps(self, context):
             elif is_smart_pie(kmi): kmi.active = p_smart_pie
             elif is_smart_tools(kmi): kmi.active = p_smart_pie
             elif is_toggle_area(kmi): kmi.active = p_toggle_area
+            elif is_switch_editor_pie(kmi): kmi.active = p_switch_editor
         except Exception:
             pass
 
@@ -529,6 +548,15 @@ def _on_autopack_update(self, context):
 
 from ..utils.i18n import _T
 from ..utils.adapter import get_adapter_blender_icon as _ICON
+
+
+def _switch_editor_items(self, context):
+    from ..ui.pie.switch_editor_pie import EDITOR_TYPES
+    items = []
+    for val, name_en, name_zh, icon, _ in EDITOR_TYPES:
+        name = name_en if getattr(self, "addon_language", "ZH") == "EN" else name_zh
+        items.append((val, name, "", icon, _))
+    return items
 
 def _active_tab_items(self, context):
     return [
@@ -781,7 +809,7 @@ def _moving_view_type_items(self, context):
 
 def _is_our_pie_keymap_item(kmi):
     if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") in {PIE_MENU_ID, SWITCH_MODE_PIE_ID, EDGE_PROPERTY_PIE_ID, SMART_PIE_ID}
+    return getattr(kmi.properties, "name", "") in {PIE_MENU_ID, SWITCH_MODE_PIE_ID, EDGE_PROPERTY_PIE_ID, SMART_PIE_ID, SWITCH_EDITOR_PIE_ID}
 
 def _is_our_switch_mode_item(kmi):
     return getattr(kmi, "idname", "") == 'object.switch_mode'
@@ -826,6 +854,10 @@ def _is_our_shading_pie_item(kmi):
 def _is_our_save_pie_item(kmi):
     if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
     return getattr(kmi.properties, "name", "") == SAVE_PIE_ID
+
+def _is_our_switch_editor_pie_item(kmi):
+    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
+    return getattr(kmi.properties, "name", "") == SWITCH_EDITOR_PIE_ID
 
 def _is_our_rename_item(kmi):
     return getattr(kmi, "idname", "") == 'm8.advanced_rename'
@@ -936,6 +968,18 @@ def _find_save_pie_keymap_items():
         if km:
             for kmi in km.keymap_items:
                 if _is_our_save_pie_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_switch_editor_pie_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in SWITCH_EDITOR_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_switch_editor_pie_item(kmi): items.append((kc, km, kmi))
     return items
 
 def _find_rename_keymap_items():
@@ -1621,6 +1665,7 @@ class M8_OT_ResetPrefsUI(bpy.types.Operator):
         prefs.ui_show_delete_mapping = False
         prefs.ui_show_save_keymap = False
         prefs.ui_show_save_advanced = False
+        prefs.ui_show_switch_editor_keymap = False
         
         prefs.ui_show_section_switch_mode = True
         prefs.ui_show_section_transform_pie = True
@@ -1655,6 +1700,18 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     activate_mirror: bpy.props.BoolProperty(name="启用镜像 (Shift+Alt+X)", default=True, update=_on_prefs_update)
     activate_group_tool: bpy.props.BoolProperty(name="启用打组 (Ctrl+G)", default=True, update=_on_prefs_update)
     activate_smart_pie: bpy.props.BoolProperty(name="启用智能饼菜单 (1)", default=True, update=_on_prefs_update)
+
+    activate_switch_editor_pie: bpy.props.BoolProperty(name="启用切换窗口饼菜单 (F12)", default=True, update=_on_prefs_update)
+    ui_show_switch_editor_keymap: bpy.props.BoolProperty(name="显示快捷键详情(切换窗口)", default=False)
+    switch_editor_pie_left: bpy.props.EnumProperty(name="左", items=_switch_editor_items, default=4)
+    switch_editor_pie_right: bpy.props.EnumProperty(name="右", items=_switch_editor_items, default=24)
+    switch_editor_pie_bottom: bpy.props.EnumProperty(name="下", items=_switch_editor_items, default=3)
+    switch_editor_pie_top: bpy.props.EnumProperty(name="上", items=_switch_editor_items, default=1)
+    switch_editor_pie_top_left: bpy.props.EnumProperty(name="左上", items=_switch_editor_items, default=3)
+    switch_editor_pie_top_right: bpy.props.EnumProperty(name="右上", items=_switch_editor_items, default=7)
+    switch_editor_pie_bottom_left: bpy.props.EnumProperty(name="左下", items=_switch_editor_items, default=6)
+    switch_editor_pie_bottom_right: bpy.props.EnumProperty(name="右下", items=_switch_editor_items, default=13)
+
     
     # --- Toggle Area ---
     activate_toggle_area: bpy.props.BoolProperty(name="启用区域切换 (T)", default=True, update=_on_prefs_update)
@@ -1728,6 +1785,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             ("GROUP", "打组", "Group Tool"),
             ("SMART_PIE", "智能饼菜单", "Smart Pie (1)"),
             ("TOGGLE_AREA", "区域切换", "Toggle Area (T)"),
+            ("SWITCH_EDITOR", "切换窗口", "Switch Editor Pie (F12)"),
             ("SCREENCAST", "按键显示", "Screencast"),
             ("OTHER", "其它设置", "Other Settings"),
             ("ABOUT", "关于", "About"),
@@ -2229,6 +2287,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "MIRROR": (_T("镜像工具"), _T("Shift+Alt+X，提供直观的轴向滑动选择镜像功能")),
             "SMART_PIE": (_T("智能饼菜单"), _T("编辑模式下 1/2/3 的智能建模操作合集（顶点/边/面/清理/路径等）")),
             "TOGGLE_AREA": (_T("区域切换"), _T("T 键切换 Toolbar/Sidebar 及 Asset Browser/Shelf")),
+            "SWITCH_EDITOR": ("切换窗口", "配置 F12 切换窗口饼菜单映射"),
+
             "SCREENCAST": (_T("按键显示"), _T("实时在视口显示键盘鼠标操作，支持自定义外观")),
             "OTHER": (_T("系统设置"), _T("包含备份设置、新建物体默认行为等全局选项")),
             "ABOUT": (_T("关于"), _T("关于 M8 工具箱")),
@@ -2253,6 +2313,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "GROUP": "EMPTY_AXIS",
             "SMART_PIE": "VIEW3D",
             "TOGGLE_AREA": "FULLSCREEN_ENTER",
+            "SWITCH_EDITOR": "WINDOW",
+
             "SCREENCAST": "WINDOW",
             "OTHER": "PREFERENCES",
             "ABOUT": "INFO",
@@ -2276,6 +2338,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         self._draw_sidebar_button(col_nav, "FILE_TICK", "保存 (Ctrl+S)", "SAVE")
         self._draw_sidebar_button(col_nav, "VIEW3D", "智能饼菜单 (1)", "SMART_PIE")
         self._draw_sidebar_button(col_nav, "FULLSCREEN_ENTER", "区域切换 (T)", "TOGGLE_AREA")
+        self._draw_sidebar_button(col_nav, "WINDOW", "切换窗口 (F12)", "SWITCH_EDITOR")
+
 
         col_nav.separator()
         col_nav.label(text=_T("实用工具"), icon="TOOL_SETTINGS")
@@ -2397,12 +2461,56 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 self.draw_smart_pie_settings(box)
             elif nav_tab == "TOGGLE_AREA":
                 self.draw_toggle_area_settings(box)
+            elif nav_tab == "SWITCH_EDITOR":
+                self.draw_switch_editor_settings(box)
             elif nav_tab == "SCREENCAST":
                 self.draw_screencast_settings(box)
             elif nav_tab == "OTHER":
                 self.draw_other_settings(box)
             elif nav_tab == "ABOUT":
                 self.draw_about_settings(box)
+
+    
+    def draw_switch_editor_settings(self, layout):
+        col = layout.column()
+        row = col.row(align=True)
+        if "activate_switch_editor_pie" in self.bl_rna.properties:
+            row.prop(self, "activate_switch_editor_pie", text="启用切换窗口饼菜单(F12)")
+        if "ui_show_switch_editor_keymap" in self.bl_rna.properties:
+            row.prop(self, "ui_show_switch_editor_keymap", text=_T("快捷键"))
+        
+        if getattr(self, "activate_switch_editor_pie", False):
+            if getattr(self, "ui_show_switch_editor_keymap", False):
+                sub_col = col.column()
+                try:
+                    import rna_keymap_ui
+                    items = _find_switch_editor_pie_keymap_items()
+                    if not items:
+                        sub_col.label(text=_T("未找到 F12 绑定"), icon="INFO")
+                    else:
+                        for kc, km, kmi in items:
+                            row = sub_col.row(align=True)
+                            row.label(text=km.name, icon=_ICON("DOT"))
+                            rna_keymap_ui.draw_kmi([], kc, km, kmi, row, 0)
+                except Exception:
+                    pass
+
+            box = col.box()
+            box.label(text="映射", icon="KEYINGSET")
+            
+            grid = box.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=False, align=True)
+            
+            col1 = grid.column()
+            col1.prop(self, "switch_editor_pie_left")
+            col1.prop(self, "switch_editor_pie_right")
+            col1.prop(self, "switch_editor_pie_bottom")
+            col1.prop(self, "switch_editor_pie_top")
+            
+            col2 = grid.column()
+            col2.prop(self, "switch_editor_pie_top_left")
+            col2.prop(self, "switch_editor_pie_top_right")
+            col2.prop(self, "switch_editor_pie_bottom_left")
+            col2.prop(self, "switch_editor_pie_bottom_right")
 
     def draw_switch_mode_settings(self, layout):
         col = layout.column()
