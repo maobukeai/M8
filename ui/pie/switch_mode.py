@@ -481,28 +481,44 @@ class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):
             data = obj.data
             is_object = context.mode == "OBJECT"
 
-            pie.operator("view3d.view_selected", text="聚焦", icon="VIEWZOOM")
+            # 1. Left (4)
+            pie.operator("view3d.view_selected", text="聚焦 4", icon="VIEWZOOM")
 
+            # 2. Right (6)
+            pie.operator(M8_OT_LatticeMakeRegular.bl_idname, text="重置形状 6", icon="MESH_GRID")
+
+            # 3. Bottom (2)
+            col = pie.column(align=True)
+            col.scale_y = 1.2
+            col.prop(data, "interpolation_type_u", text="U 插值")
+            col.prop(data, "interpolation_type_v", text="V 插值")
+            col.prop(data, "interpolation_type_w", text="W 插值")
+
+            # 4. Top (8)
+            ops = pie.operator(M8_OT_ModeSetRemember.bl_idname, text=("编辑模式 8" if is_object else "物体模式 8"), icon=("EDITMODE_HLT" if is_object else "OBJECT_DATAMODE"))
+            ops.mode = ("EDIT" if is_object else "OBJECT")
+
+            # 5. Top Left (7)
+            pie.operator("view3d.localview", text="局部视图", icon="HIDE_OFF")
+            
+            # 6. Top Right (9)
             if hasattr(data, "use_outside"):
-                op = pie.operator("wm.context_toggle", text="外部影响", depress=data.use_outside)
+                op = pie.operator("wm.context_toggle", text="外部影响", icon="MOD_LATTICE", depress=data.use_outside)
                 op.data_path = "object.data.use_outside"
             else:
                 pie.separator()
-
-            pie.operator(M8_OT_LatticeMakeRegular.bl_idname, text="重置形状", icon="MESH_GRID")
-
-            ops = pie.operator(M8_OT_ModeSetRemember.bl_idname, text=("编辑模式" if is_object else "物体模式"), icon=("EDITMODE_HLT" if is_object else "OBJECT_DATAMODE"))
-            ops.mode = ("EDIT" if is_object else "OBJECT")
-
-            pie.operator("view3d.localview", text="局部视图", icon="HIDE_OFF")
             
-            pie.separator()
-            
-            pie.prop(data, "points_u", text="分辨率 U")
-
+            # 7. Bottom Left (1)
             col = pie.column(align=True)
-            col.prop(data, "points_v", text="分辨率 V")
-            col.prop(data, "points_w", text="分辨率 W")
+            col.label(text="分辨率设置:")
+            row = col.row(align=True)
+            row.scale_y = 1.3
+            row.prop(data, "points_u", text="U")
+            row.prop(data, "points_v", text="V")
+            row.prop(data, "points_w", text="W")
+
+            # 8. Bottom Right (3)
+            pie.separator()
             return
 
         if obj.type == "FONT":
@@ -612,9 +628,15 @@ class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):
             return
 
         if obj.type == "ARMATURE":
-            draw_switch_bone_mode_operator(context, pie, pref, "left")
+            data = obj.data
+            om = obj.mode
+            is_pose = om == "POSE"
+            is_edit = om == "EDIT"
 
-            is_pose = context.mode == "POSE"
+            # 1. Left (4)
+            pie.operator("view3d.view_selected", text="聚焦 4", icon="VIEWZOOM")
+
+            # 2. Right (6)
             pie.operator(
                 M8_OT_SwitchBoneMode.bl_idname,
                 text=("物体模式 6" if is_pose else "姿态模式 6"),
@@ -622,10 +644,15 @@ class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):
                 depress=is_pose,
             )
 
-            draw_switch_bone_mode_operator(context, pie, pref, "down")
+            # 3. Bottom (2)
+            col = pie.column(align=True)
+            col.scale_y = 1.2
+            col.prop(data, "display_type", text="显示样式")
+            if is_pose or is_edit:
+                row = col.row(align=True)
+                row.prop(data, "show_bone_custom_shapes", text="自定义形状", icon="BONE_DATA")
 
-            om = obj.mode
-            is_edit = om == "EDIT"
+            # 4. Top (8)
             ops = pie.operator(
                 "object.mode_set",
                 text=("物体模式 8" if is_edit else "编辑模式 8"),
@@ -634,18 +661,33 @@ class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):
             ops.mode = ("OBJECT" if is_edit else "EDIT")
             ops.toggle = True
 
-            data = obj.data
-            row = pie.row(align=True)
-            row.scale_x = 1.3
-            row.scale_y = 1.3
-            row.prop(obj, "show_in_front", text="", icon="XRAY")
-            row.prop(data, "show_names", text="", icon="SORTALPHA")
-            row.prop(data, "show_axes", text="", icon="AXIS_SIDE")
-            row.prop(data, "display_type", text="")
+            # 5. Top Left (7)
+            pie.operator("view3d.localview", text="局部视图", icon="HIDE_OFF")
 
-            pie.separator()
-            pie.separator()
-            pie.separator()
+            # 6. Top Right (9)
+            is_rest = data.pose_position == "REST"
+            ops = pie.operator("wm.context_set_enum", text=("切换到姿态" if is_rest else "切换到静置"), icon=("POSE_HLT" if is_rest else "ARMATURE_DATA"))
+            ops.data_path = "object.data.pose_position"
+            ops.value = "POSE" if is_rest else "REST"
+
+            # 7. Bottom Left (1)
+            col = pie.column(align=True)
+            col.scale_y = 1.3
+            op = col.operator("wm.context_toggle", text="前台显示", icon="XRAY", depress=obj.show_in_front)
+            op.data_path = "object.show_in_front"
+            op = col.operator("wm.context_toggle", text="显示名称", icon="SORTALPHA", depress=data.show_names)
+            op.data_path = "object.data.show_names"
+            op = col.operator("wm.context_toggle", text="显示轴向", icon="AXIS_SIDE", depress=data.show_axes)
+            op.data_path = "object.data.show_axes"
+
+            # 8. Bottom Right (3)
+            col = pie.column(align=True)
+            col.scale_y = 1.3
+            if is_edit or is_pose:
+                col.prop(data, "use_mirror_x", text="X轴对称", icon="MOD_MIRROR")
+            else:
+                pie.separator()
+
             return
 
         if obj.type == "EMPTY":
@@ -703,50 +745,113 @@ class VIEW3D_MT_M8SwitchModePie(bpy.types.Menu):
         if obj.type in {"GPENCIL", "GREASEPENCIL"}:
             data = obj.data
             is_object = context.mode == "OBJECT"
-            is_edit = context.mode == "EDIT_GPENCIL" or context.mode == "EDIT_GREASEPENCIL"
-            is_sculpt = context.mode == "SCULPT_GPENCIL" or context.mode == "SCULPT_GREASEPENCIL"
-            is_draw = context.mode == "PAINT_GPENCIL" or context.mode == "PAINT_GREASEPENCIL"
-            is_weight = context.mode == "WEIGHT_GPENCIL" or context.mode == "WEIGHT_GREASEPENCIL"
-            is_vertex = context.mode == "VERTEX_GPENCIL" or context.mode == "VERTEX_GREASEPENCIL"
+            is_edit = context.mode in {"EDIT_GPENCIL", "EDIT_GREASEPENCIL"}
+            is_sculpt = context.mode in {"SCULPT_GPENCIL", "SCULPT_GREASEPENCIL"}
+            is_draw = context.mode in {"PAINT_GPENCIL", "PAINT_GREASEPENCIL"}
+            is_weight = context.mode in {"WEIGHT_GPENCIL", "WEIGHT_GREASEPENCIL"}
+            is_vertex = context.mode in {"VERTEX_GPENCIL", "VERTEX_GREASEPENCIL"}
 
-            # 1. Left (4): Draw Mode / Object Mode
+            # 1. Left (4)
             ops = pie.operator("object.mode_set", text=("绘制模式 4" if not is_draw else "物体模式 4"), icon=("GREASEPENCIL" if not is_draw else "OBJECT_DATAMODE"))
             ops.mode = ("PAINT_GPENCIL" if not is_draw else "OBJECT") if obj.type == "GPENCIL" else ("PAINT_GREASEPENCIL" if not is_draw else "OBJECT")
 
-            # 2. Right (6): Sculpt Mode / Object Mode
+            # 2. Right (6)
             ops = pie.operator("object.mode_set", text=("雕刻模式 6" if not is_sculpt else "物体模式 6"), icon=("SCULPTMODE_HLT" if not is_sculpt else "OBJECT_DATAMODE"))
             ops.mode = ("SCULPT_GPENCIL" if not is_sculpt else "OBJECT") if obj.type == "GPENCIL" else ("SCULPT_GREASEPENCIL" if not is_sculpt else "OBJECT")
 
-            # 3. Bottom (2): Weight Paint / Vertex Paint
-            # 这里可以放权重绘制或者顶点绘制，或者不做设置
-            # 暂时放权重绘制
-            ops = pie.operator("object.mode_set", text=("权重绘制 2" if not is_weight else "物体模式 2"), icon=("WPAINT_HLT" if not is_weight else "OBJECT_DATAMODE"))
+            # 3. Bottom (2)
+            col = pie.column(align=True)
+            col.scale_y = 1.2
+            ops = col.operator("object.mode_set", text=("顶点绘制" if not is_vertex else "物体模式"), icon=("VPAINT_HLT" if not is_vertex else "OBJECT_DATAMODE"))
+            ops.mode = ("VERTEX_GPENCIL" if not is_vertex else "OBJECT") if obj.type == "GPENCIL" else ("VERTEX_GREASEPENCIL" if not is_vertex else "OBJECT")
+            ops = col.operator("object.mode_set", text=("权重绘制" if not is_weight else "物体模式"), icon=("WPAINT_HLT" if not is_weight else "OBJECT_DATAMODE"))
             ops.mode = ("WEIGHT_GPENCIL" if not is_weight else "OBJECT") if obj.type == "GPENCIL" else ("WEIGHT_GREASEPENCIL" if not is_weight else "OBJECT")
 
-            # 4. Top (8): Edit Mode / Object Mode
+            # 4. Top (8)
             ops = pie.operator("object.mode_set", text=("编辑模式 8" if not is_edit else "物体模式 8"), icon=("EDITMODE_HLT" if not is_edit else "OBJECT_DATAMODE"))
             ops.mode = ("EDIT_GPENCIL" if not is_edit else "OBJECT") if obj.type == "GPENCIL" else ("EDIT_GREASEPENCIL" if not is_edit else "OBJECT")
 
-            # 5. Top Left: Local View
+            # 5. Top Left (7)
             pie.operator("view3d.localview", text="局部视图", icon="HIDE_OFF")
             
-            # 6. Top Right
-            pie.separator()
+            # 6. Top Right (9)
+            if hasattr(data, "use_autolock_layers"):
+                op = pie.operator("wm.context_toggle", text="自动锁定图层", icon="LOCKED", depress=data.use_autolock_layers)
+                op.data_path = "object.data.use_autolock_layers"
+            else:
+                pie.separator()
             
-            # 7. Bottom Left
-            # 常用属性：笔触深度顺序 (2D/3D)
-            if hasattr(data, "stroke_depth_order"):
-                pie.prop(data, "stroke_depth_order", text="")
+            # 7. Bottom Left (1)
+            has_depth = hasattr(data, "stroke_depth_order")
+            has_front = hasattr(obj, "show_in_front")
+            if has_depth or has_front:
+                col = pie.column(align=True)
+                col.scale_y = 1.3
+                if has_depth:
+                    col.prop(data, "stroke_depth_order", text="")
+                if has_front:
+                    col.prop(obj, "show_in_front", text="前台显示", icon="XRAY")
             else:
                 pie.separator()
 
-            # 8. Bottom Right
-            # 常用属性：洋葱皮
-            if hasattr(data, "use_onion_skinning"):
-                op = pie.operator("wm.context_toggle", text="洋葱皮", icon="ONIONSKIN_ON", depress=data.use_onion_skinning)
-                op.data_path = "object.data.use_onion_skinning"
+            # 8. Bottom Right (3)
+            has_onion = hasattr(data, "use_onion_skinning")
+            has_curve = hasattr(data, "use_stroke_edit_curve") and (is_edit or is_draw)
+            if has_onion or has_curve:
+                col = pie.column(align=True)
+                col.scale_y = 1.3
+                if has_onion:
+                    op = col.operator("wm.context_toggle", text="洋葱皮", icon="ONIONSKIN_ON", depress=data.use_onion_skinning)
+                    op.data_path = "object.data.use_onion_skinning"
+                if has_curve:
+                    op = col.operator("wm.context_toggle", text="多边形曲线", icon="CURVE_BEZCURVE", depress=data.use_stroke_edit_curve)
+                    op.data_path = "object.data.use_stroke_edit_curve"
             else:
                 pie.separator()
+
+            return
+
+        if obj.type == "POINTCLOUD":
+            is_object = context.mode == "OBJECT"
+
+            # 1. Left (4)
+            pie.operator("view3d.view_selected", text="聚焦 4", icon="VIEWZOOM")
+
+            # 2. Right (6)
+            pie.separator()
+
+            # 3. Bottom (2)
+            pie.separator()
+
+            # 4. Top (8)
+            ops = pie.operator("object.mode_set", text=("编辑模式 8" if is_object else "物体模式 8"), icon=("EDITMODE_HLT" if is_object else "OBJECT_DATAMODE"))
+            ops.mode = "EDIT" if is_object else "OBJECT"
+
+            # 5. Top Left (7)
+            pie.operator("view3d.localview", text="局部视图", icon="HIDE_OFF")
+            
+            # 6. Top Right (9)
+            if hasattr(obj, "show_in_front"):
+                op = pie.operator("wm.context_toggle", text="前台显示", icon="XRAY", depress=obj.show_in_front)
+                op.data_path = "object.show_in_front"
+            else:
+                pie.separator()
+            
+            # 7. Bottom Left (1)
+            has_name = hasattr(obj, "show_name")
+            has_bounds = hasattr(obj, "show_bounds")
+            if has_name or has_bounds:
+                col = pie.column(align=True)
+                col.scale_y = 1.3
+                if has_name:
+                    col.prop(obj, "show_name", text="显示名称", icon="SORTALPHA")
+                if has_bounds:
+                    col.prop(obj, "show_bounds", text="显示边界", icon="BBOX")
+            else:
+                pie.separator()
+
+            # 8. Bottom Right (3)
+            pie.separator()
 
             return
 

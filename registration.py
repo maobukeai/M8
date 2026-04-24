@@ -423,6 +423,7 @@ CLASSES.extend(baking_renaming_classes)
 
 _startup_timer_registered = False
 _startup_apply_runs = 0
+_startup_done = False          # True after the first successful full init
 _registration_errors = []
 
 def _get_addon_prefs():
@@ -431,22 +432,30 @@ def _get_addon_prefs():
     return addon.preferences if addon else None
 
 def _startup_apply():
-    global _startup_apply_runs
+    global _startup_apply_runs, _startup_done
     prefs = _get_addon_prefs()
     wm = bpy.context.window_manager if bpy.context else None
     if not prefs or not wm or not getattr(wm, "keyconfigs", None):
-        return 0.5
+        # Blender not ready yet, keep waiting (counts towards the 10-run limit)
+        _startup_apply_runs += 1
+        if _startup_apply_runs < 10:
+            return 0.5
+        return None
 
-    # Force register keymaps after startup to ensure they stick
-    # Sometimes addon prefs are not fully ready when _startup_apply first runs
+    # Force register keymaps after startup to ensure they stick.
+    # Sometimes addon prefs are not fully ready when _startup_apply first runs.
+    keymap_ok = False
     try:
         register_keymaps()
         if prefs:
             update_keymaps(prefs, bpy.context)
+        keymap_ok = True
     except Exception:
         pass
 
-    if _startup_apply_runs == 0:
+    if not _startup_done:
+        # --- First successful run: perform one-time init ---
+        exclusive_ok = True
         if getattr(prefs, "auto_exclusive_shift_s_on_startup", True):
             try:
                 bpy.ops.size_tool.exclusive_transform_pie_hotkey()
@@ -454,7 +463,7 @@ def _startup_apply():
                 bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
                 bpy.ops.size_tool.exclusive_save_pie_hotkey()
             except Exception:
-                pass
+                exclusive_ok = False  # ops not ready, must retry
 
         if getattr(prefs, "auto_new_object_origin_bottom", True):
             register_auto_origin()
@@ -470,7 +479,16 @@ def _startup_apply():
         except Exception:
             pass
 
+        if keymap_ok and exclusive_ok:
+            _startup_done = True  # all good, no need for further full inits
+
     _startup_apply_runs += 1
+
+    # Early exit: once init succeeded, keep at most 2 extra safety passes then stop.
+    if _startup_done and _startup_apply_runs >= 2:
+        return None
+
+    # Fallback: give up after 10 attempts regardless
     if _startup_apply_runs < 10:
         return 0.5
     return None
@@ -494,6 +512,7 @@ def _set_windows_console_utf8():
 def register():
     global _startup_timer_registered
     global _startup_apply_runs
+    global _startup_done
     global _registration_errors
     _registration_errors = []
     _set_windows_console_utf8()
@@ -577,6 +596,7 @@ def register():
 
     if (not bpy.app.background) and (not _startup_timer_registered):
         _startup_apply_runs = 0
+        _startup_done = False
         bpy.app.timers.register(_startup_apply, first_interval=0.1)
         _startup_timer_registered = True
 

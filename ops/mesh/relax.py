@@ -837,6 +837,15 @@ class Relax(bpy.types.Operator):
         self.bmesh = None
         self.mouse_x = None
         self.start_mouse_x = None
+        # 缓存：invoke 时计算一次，modal 中复用
+        self._cached_object = None
+        self._cached_loops = None
+        self._cached_knots = None
+        self._cached_points = None
+        self._cached_mapping = None
+        self._cached_derived = None
+        self._cached_bm_mod = None
+        self._last_iterations = None  # 上次实际执行时的迭代数
 
     @classmethod
     def poll(cls, context):
@@ -852,79 +861,174 @@ class Relax(bpy.types.Operator):
         col.row().prop(self, "iterations", expand=True)
         col.prop(self, "regular")
 
+    def _build_cache(self, context):
+        """在 invoke 时预先计算循环拓扑，避免 modal 中重复计算。"""
+        obj = context.object
+
+        # 若有 Mirror 修改器：提前同步一次（只做一次，不再每帧切模式）
+        if 'MIRROR' in [m.type for m in obj.modifiers if m.show_viewport]:
+            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set(mode='EDIT')
+
+        bm = bmesh.from_edit_mesh(obj.data)
+        bm.verts.ensure_lookup_table()
+        bm.edges.ensure_lookup_table()
+        bm.faces.ensure_lookup_table()
+
+        derived, bm_mod, loops = get_connected_input(obj, bm, False, self.input)
+        mapping = get_mapping(derived, bm, bm_mod, False, False, loops)
+        loops = check_loops(loops, mapping, bm_mod)
+        knots, points = relax_calculate_knots(loops)
+
+        self._cached_object = obj
+        self._cached_loops  = loops
+        self._cached_knots  = knots
+        self._cached_points = points
+        self._cached_mapping = mapping
+        self._cached_derived = derived
+        self._cached_bm_mod  = bm_mod
+
     def invoke(self, context, event):
         wm = context.window_manager
-        wm.modal_handler_add(self)
         self.bmesh = bmesh.from_edit_mesh(context.object.data).copy()
         self.iterations_enum_list = [i[0] for i in self.iterations_enum]
         self.start_mouse_x = event.mouse_x
         self.start_index = self.iterations_enum_list.index(self.iterations)
+        self._last_iterations = None
+
+        # 预先构建缓存（含可能的一次 mode_set）
+        try:
+            self._build_cache(context)
+        except Exception as e:
+            self.report({'WARNING'}, f"Relax: 初始化失败 {e}")
+            return {'CANCELLED'}
+
         bpy.context.window.cursor_set("MOVE_X")
+        wm.modal_handler_add(self)
         return {"RUNNING_MODAL"}
 
     def modal(self, context, event):
-        diff_x = event.mouse_x - self.start_mouse_x
-        i = self.start_index + int(diff_x / 100)
-        index = max(min(self.iterations_enum.__len__() - 1, i), 0)
-        value = self.iterations_enum_list[index]
-        self.iterations = value
-        bm = bmesh.from_edit_mesh(context.object.data)
-        for vert in self.bmesh.verts:
-            bm.verts[vert.index].co = vert.co
-        bmesh.update_edit_mesh(context.object.data)
-        if event.type == "RIGHTMOUSE" or event.type == "ESC":
+        # 取消
+        if event.type in {"RIGHTMOUSE", "ESC"}:
+            # 还原到原始位置
+            bm = bmesh.from_edit_mesh(context.object.data)
+            for vert in self.bmesh.verts:
+                if vert.index < len(bm.verts):
+                    bm.verts[vert.index].co = vert.co
+            bmesh.update_edit_mesh(context.object.data)
             bpy.context.area.header_text_set(None)
             bpy.context.window.cursor_set("DEFAULT")
+            if self._cached_derived and self._cached_bm_mod:
+                try:
+                    self._cached_bm_mod.free()
+                except Exception:
+                    pass
             return {"CANCELLED"}
 
-        self.execute(context)
+        # 计算当前迭代数
+        diff_x = event.mouse_x - self.start_mouse_x
+        i = self.start_index + int(diff_x / 100)
+        index = max(min(len(self.iterations_enum) - 1, i), 0)
+        value = self.iterations_enum_list[index]
 
+        # 只在迭代数变化时才重新计算（避免每帧都跑）
+        if value != self._last_iterations:
+            self.iterations = value
+            self._last_iterations = value
+
+            # 先还原到原始顶点位置
+            bm = bmesh.from_edit_mesh(context.object.data)
+            for vert in self.bmesh.verts:
+                if vert.index < len(bm.verts):
+                    bm.verts[vert.index].co = vert.co
+            bmesh.update_edit_mesh(context.object.data)
+
+            # 实时预览：限制最多 10 次迭代，防止卡顿
+            preview_iters = min(int(self.iterations), 10)
+            self._run_relax(context, preview_iters)
+
+        # 更新标题提示
         from bpy.app.translations import pgettext_iface
-        text = pgettext_iface("Relax") + ":    " + "   " + pgettext_iface("Iterations ") + self.iterations
+        hint = "←→ 调整" if value == self._last_iterations else ""
+        text = f"Relax:  迭代={self.iterations}  (左键确认 / 右键取消)  {hint}"
         bpy.context.area.header_text_set(text)
+
+        # 左键松开：用完整迭代数再跑一次最终结果
         if event.value == "RELEASE" and event.type == "LEFTMOUSE":
+            bm = bmesh.from_edit_mesh(context.object.data)
+            for vert in self.bmesh.verts:
+                if vert.index < len(bm.verts):
+                    bm.verts[vert.index].co = vert.co
+            bmesh.update_edit_mesh(context.object.data)
+            self._run_relax(context, int(self.iterations))
+
             bpy.context.area.header_text_set(None)
             bpy.context.window.cursor_set("DEFAULT")
+            if self._cached_derived and self._cached_bm_mod:
+                try:
+                    self._cached_bm_mod.free()
+                except Exception:
+                    pass
+            terminate()
             return {"FINISHED"}
 
         return {"RUNNING_MODAL"}
 
+    def _run_relax(self, context, iterations: int):
+        """用缓存数据运行指定次数的松弛，不重新计算拓扑。"""
+        if not self._cached_loops:
+            return
+        obj    = self._cached_object
+        bm_mod = self._cached_bm_mod
+        knots  = self._cached_knots
+        points = self._cached_points
+        mapping = self._cached_mapping
+
+        # 当没有 Mirror 修改器时 bm_mod IS bm（同一对象），直接用
+        bm = bmesh.from_edit_mesh(obj.data)
+
+        for _ in range(iterations):
+            # 必须先刷新 lookup table，否则 bm_mod.verts[idx] 访问旧数据
+            bm_mod.verts.ensure_lookup_table()
+            tknots, tpoints = relax_calculate_t(bm_mod, knots, points, self.regular)
+            splines = [
+                calculate_splines(self.interpolation, bm_mod, tknots[i], knots[i])
+                for i in range(len(knots))
+            ]
+            move = [relax_calculate_verts(bm_mod, self.interpolation,
+                                          tknots, knots, tpoints, points, splines)]
+            move_verts(obj, bm, mapping, move, False, -1)
+            # 每次迭代后刷新显示，确保下次迭代读到更新后的坐标
+            bmesh.update_edit_mesh(obj.data)
+
     def execute(self, context):
-        # initialise
+        """从 Redo 面板或脚本直接调用时走此路径。"""
         object, bm = initialise()
-        # settings_write(self)
-        # check cache to see if we can save time
-        cached, single_loops, loops, derived, mapping = cache_read("Relax",
-                                                                   object, bm, self.input, False)
+        cached, single_loops, loops, derived, mapping = cache_read(
+            "Relax", object, bm, self.input, False)
         if cached:
             derived, bm_mod = get_derived_bmesh(object, bm, False)
         else:
-            # find loops
             derived, bm_mod, loops = get_connected_input(object, bm, False, self.input)
             mapping = get_mapping(derived, bm, bm_mod, False, False, loops)
             loops = check_loops(loops, mapping, bm_mod)
         knots, points = relax_calculate_knots(loops)
 
-        # saving cache for faster execution next time
         if not cached:
-            cache_write("Relax", object, bm, self.input, False, False, loops,
-                        derived, mapping)
+            cache_write("Relax", object, bm, self.input, False, False,
+                        loops, derived, mapping)
 
-        for iteration in range(int(self.iterations)):
-            # calculate splines and new positions
-            tknots, tpoints = relax_calculate_t(bm_mod, knots, points,
-                                                self.regular)
-            splines = []
-            for i in range(len(knots)):
-                splines.append(calculate_splines(self.interpolation, bm_mod,
-                                                 tknots[i], knots[i]))
+        for _ in range(int(self.iterations)):
+            tknots, tpoints = relax_calculate_t(bm_mod, knots, points, self.regular)
+            splines = [
+                calculate_splines(self.interpolation, bm_mod, tknots[i], knots[i])
+                for i in range(len(knots))
+            ]
             move = [relax_calculate_verts(bm_mod, self.interpolation,
                                           tknots, knots, tpoints, points, splines)]
             move_verts(object, bm, mapping, move, False, -1)
 
-        # cleaning up
         if derived:
             bm_mod.free()
         terminate()
-
         return {'FINISHED'}

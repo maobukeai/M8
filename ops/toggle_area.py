@@ -60,72 +60,13 @@ class M8_OT_ToggleArea(bpy.types.Operator):
 
         def toggle_asset_shelf():
             if not toggle_shelf: return False
-            # If Blender version is < 5.0 (assuming 5.0 introduced proper shelf), just return False immediately to fallback.
-            # But wait, 4.0 introduced shelf.
-            # The user says 4.4 doesn't work.
-            
-            # Let's force check for context.space_data.show_region_asset_shelf
-            try:
-                space = context.space_data
-                if hasattr(space, "show_region_asset_shelf"):
-                    # If the property exists, try to toggle it.
-                    # But if it's already False, and we set to True, does it work?
-                    space.show_region_asset_shelf = not space.show_region_asset_shelf
-                    return True
-            except: pass
-
-            # If property access failed, try the operator?
-            # But user says "No reaction".
-            # Maybe the operator fails silently or does nothing.
-            
-            # CRITICAL: If we are here, and user says "still no reaction", it means:
-            # EITHER:
-            # 1. toggle_asset_shelf returned True (thinking it worked) but nothing happened visually.
-            # 2. toggle_asset_shelf returned False, and then toggle_asset_browser ALSO returned False.
-            
-            # Let's assume case 1: It THOUGHT it worked.
-            # If we rely on 'has_shelf' check:
-            # has_shelf = False
-            # for r in area.regions: if r.type == 'ASSET_SHELF': has_shelf = True
-            
-            # In 4.4, ASSET_SHELF region exists but maybe it's hidden or empty?
-            
-            # To be safe: If we want to support 4.4 where shelf might be broken:
-            # Let's just return False if we can't reliably toggle it.
-            
-            # Or better: let's modify the logic to prioritize Browser if Shelf toggle seems dubious?
-            # No, that's complex.
-            
-            # Let's try to make toggle_asset_shelf return False if it's 4.4 and we suspect it's broken?
-            # No, we don't know for sure.
-            
-            # Let's assume the previous code was:
-            # if has_shelf: ... return True
-            
-            # If it returns True, then the browser code (step 3) is skipped.
-            # So if nothing happens on screen, it means toggle_asset_shelf returned True but did nothing.
-            
-            # Let's verify if space.show_region_asset_shelf actually changes anything.
-            
-            # For now, let's make a bold change:
-            # If the user is on 4.4, and reports issues, maybe we should just DISABLE shelf toggle by default in code logic unless explicitly forced?
-            # Or better:
-            # Just return False here to force fallback to Browser for now, to see if Browser opens.
-            # But we can't break it for 5.0 users.
-            
-            # Let's look at the implementation again.
-            # I will modify it to ONLY return True if we are SURE it toggled.
-            
-            # Actually, I'll remove the 'has_shelf' check and just rely on property.
-            # If property doesn't exist, return False.
-            
             try:
                 space = context.space_data
                 if hasattr(space, "show_region_asset_shelf"):
                     space.show_region_asset_shelf = not space.show_region_asset_shelf
                     return True
-            except: pass
-            
+            except Exception:
+                pass
             return False
 
         def toggle_asset_browser(at_top, mode='TOGGLE'):
@@ -135,34 +76,27 @@ class M8_OT_ToggleArea(bpy.types.Operator):
             # 1. Check for existing Asset Browser to CLOSE
             for a in screen.areas:
                 if a == area: continue
-                
-                # Check for Asset Browser type
                 if a.ui_type != 'ASSETS':
                     continue
-
-                # Check alignment (width)
                 if abs(a.x - area.x) > tol or abs(a.width - area.width) > tol:
                     continue
                 
                 is_candidate = False
                 if at_top:
-                    # 'a' is above 'area'
                     if abs(a.y - (area.y + area.height)) < tol:
                         is_candidate = True
-                else: # at_bottom
-                    # 'a' is below 'area'
+                else:
                     if abs((a.y + a.height) - area.y) < tol:
                         is_candidate = True
                 
                 if is_candidate:
                     if mode != 'OPEN_ONLY':
-                        # Close it
                         try:
                             with context.temp_override(area=a):
                                 bpy.ops.screen.area_close()
                             return True
                         except Exception as e:
-                            print(f"Close failed: {e}")
+                            print(f"M8 ToggleArea: Close failed: {e}")
                             return False
                     else:
                         return False
@@ -171,11 +105,15 @@ class M8_OT_ToggleArea(bpy.types.Operator):
                 return False
 
             # 2. OPEN new Asset Browser
+            # HORIZONTAL split factor 是"下方区域"占整体的比例。
+            # at_top=True 时我们希望新建的上方区域占 split_factor（较小），
+            # 所以对原区域来说下方保留 1-split_factor，上方新区域为 split_factor。
+            # at_top=False 时新建区域在下方，factor=split_factor 直接对应。
+            effective_factor = (1.0 - split_factor) if at_top else split_factor
+
             old_areas = set(screen.areas)
-            
             try:
-                # Use split factor from prefs
-                bpy.ops.screen.area_split(direction='HORIZONTAL', factor=split_factor)
+                bpy.ops.screen.area_split(direction='HORIZONTAL', factor=effective_factor)
             except Exception as e:
                 self.report({'WARNING'}, f"分割区域失败: {e}")
                 return False
@@ -185,21 +123,12 @@ class M8_OT_ToggleArea(bpy.types.Operator):
             
             new_area = list(new_areas)[0]
             
-            # Identify Top and Bottom areas
             a1 = area
             a2 = new_area
-            
-            if a1.y > a2.y:
-                top_area = a1
-                bottom_area = a2
-            else:
-                top_area = a2
-                bottom_area = a1
+            top_area    = a1 if a1.y > a2.y else a2
+            bottom_area = a2 if a1.y > a2.y else a1
                 
-            if at_top:
-                target_area = top_area
-            else:
-                target_area = bottom_area
+            target_area = top_area if at_top else bottom_area
             
             try:
                 target_area.type = 'FILE_BROWSER'
@@ -213,6 +142,7 @@ class M8_OT_ToggleArea(bpy.types.Operator):
                 context.window.cursor_warp(int(cx), int(cy))
             
             return True
+
 
         # Logic Execution
         ops_queue = []

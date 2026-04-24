@@ -36,40 +36,20 @@ class Straighten(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        """需要选择3个或者3个以上顶点"""
-        is_mesh = context.mode == "EDIT_MESH"
-
-        if is_mesh:
-            bm = bmesh.from_edit_mesh(context.object.data)
-
-            for face in bm.faces:
-                if face.select:
-                    return False
-
-            count = 0
-            for h in bm.select_history:
-                if isinstance(h, bmesh.types.BMVert):
-                    count += 1
-                elif isinstance(h, bmesh.types.BMEdge):
-                    count += 2
-                elif isinstance(h, bmesh.types.BMFace):
-                    return False
-
-            if count >= 3:
-                bm.free()
-                return True
-            count = 0
-            for v in bm.verts:
-                if v.select:
-                    count += 1
-                    if count >= 3:
-                        bm.free()
-                        return True
-        return False
+        """编辑模式下选中 3 个或以上顶点即可使用"""
+        if context.mode != "EDIT_MESH":
+            return False
+        obj = context.object
+        if not obj or obj.type != 'MESH':
+            return False
+        try:
+            bm = bmesh.from_edit_mesh(obj.data)
+            count = sum(1 for v in bm.verts if v.select)
+            return count >= 3
+        except Exception:
+            return False
 
     def execute(self, context):
-        import bmesh
-
         obj = context.object
         matrix = obj.matrix_world
 
@@ -84,12 +64,12 @@ class Straighten(bpy.types.Operator):
 
         if pair is None:
             pair = get_furthest_two_vertices(selected_verts)
-            print("获取两个最远端顶点")
 
         hub = Hub3DItem()
 
         continuously_edges = get_continuously_edges_list(bm)
-        if continuously_edges and len(continuously_edges) > 1:  # 处理连续边的情况
+        # >= 1 条连续边链都处理（原来 > 1 会跳过单条链的情况）
+        if continuously_edges:
             for edges in continuously_edges:
                 verts = []
                 for e in edges:
@@ -97,8 +77,11 @@ class Straighten(bpy.types.Operator):
                         verts.append(e.verts[0])
                     if e.verts[1] not in verts:
                         verts.append(e.verts[1])
-                pair = get_furthest_two_vertices(verts)
-                straighten_single_strip(matrix, pair, verts, hub)
+                if len(verts) < 3:
+                    continue
+                strip_pair = get_furthest_two_vertices(verts)
+                if strip_pair:
+                    straighten_single_strip(matrix, strip_pair, verts, hub)
         elif pair:
             straighten_single_strip(matrix, pair, selected_verts, hub)
         else:

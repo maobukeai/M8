@@ -4,7 +4,9 @@ import bmesh.types
 def get_continuously_edges_list(bm: bmesh.types.BMesh) -> list[[bmesh.types.BMEdge]] | None:
     """获取连续的边列表
     """
-    if bm.select_mode != {"EDGE"}:
+    # Blender 5.x 中 bm.select_mode 返回 frozenset，不能直接与 set 做 != 比较
+    # 需要判断是否为"纯边"选择模式
+    if not ("EDGE" in bm.select_mode and len(bm.select_mode) == 1):
         return None
     selected_edges = [e for e in bm.edges if e.select]
     link_list = []
