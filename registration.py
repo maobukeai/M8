@@ -142,76 +142,34 @@ from .ops.custom_tools import (
     M8_OT_AlignOriginToNormal,
     VIEW3D_PT_M8_CustomTools,
     M8_CustomTools_Props,
-)
-from .ui.panel.cleaner import VIEW3D_PT_M8_CleanUp, VIEW3D_PT_M8_MeshCleaner
-from .ui import icons as m8_icons
-from .ops.file.save_pie_ops import (
-    M8_OT_OpenCurrentFolder,
-    M8_OT_OpenTempDir,
-    M8_OT_OpenAutoSave,
-    M8_OT_SwitchFile,
-    M8_OT_IncrementalSave,
-    M8_OT_ExportFBX,
-    M8_OT_ToggleUnityFBXPreset,
-    M8_OT_ResetUnityFBXPreset,
-    M8_OT_PackResources,
-    M8_OT_PurgeUnusedMaterials,
-    M8_OT_ShowSaveReport,
-    M8_OT_PlaceholderOp,
-    M8_OT_OpenPreferences,
-    M8_OT_ToggleScreencastKeys,
-    M8_OT_CreateAssetGroup,
-    M8_OT_OrphansPurgeKeepAssets,
-    M8_OT_CallOperatorWithAddon,
-)
-from .ops.file.auto_pack import register as register_auto_pack, unregister as unregister_auto_pack
-from .ops.file.image_save_preset import (
-    M8_ImageSavePresetProps,
-    M8_OT_AppendFilenameSuffix,
-    M8_OT_SetFilenamePrefix,
-    FILEBROWSER_PT_m8_image_save_presets,
-    FILEBROWSER_PT_m8_image_save_presets_extra,
-)
-from .ops.misc.screencast import M8_OT_InternalScreencast
-from .ops.restart_blender import RestartBlender, draw_restart_blender_top_bar
-from .ops.hotkey_wrappers import M8_OT_SmartPassThroughWrapper
-from .ops.mirror import Mirror
-from .ops.align.align_object import AlignObject
-from .ops.align.align_object_by_view import AlignObjectByView
-from .ops.align.align_mesh import AlignMesh
-from .ops.align.align_uv import AlignUV
-from .ops.mesh.relax import Relax
-from .ops.mesh.straighten import Straighten
-from .ops.origin.origin_to_bottom import OriginToBottom
-from .ops.origin.origin_to_cursor import OriginToCursor
-from .ops.origin.origin_to_active import OriginToActive
-from .ops.origin.cursor_to_select import CursorToSelect
-from .ui.pie.align_mesh import AlignMeshPie
-from .ui.pie.align_object import AlignObjectPie
-from .ui.pie.align_uv import AlignUVPie
-from .property.preferences import (
-    SIZE_TOOL_Preferences,
     M8_MP7_MockDrawProperty,
+    SIZE_TOOL_Preferences,
     SIZE_TOOL_OT_ResetTransformPieKeymap,
     SIZE_TOOL_OT_ForceTransformPiePriority,
     SIZE_TOOL_OT_ForceSwitchModePriority,
+    SIZE_TOOL_OT_ForceAlignPiePriority,
+    SIZE_TOOL_OT_ForceSavePiePriority,
+    SIZE_TOOL_OT_ForceEdgePropertyPiePriority,
+    SIZE_TOOL_OT_ForceMirrorPriority,
+    SIZE_TOOL_OT_ForceGroupToolPriority,
     SIZE_TOOL_OT_ExclusiveTransformPieHotkey,
     SIZE_TOOL_OT_RestoreShiftSConflicts,
-    SIZE_TOOL_OT_ForceAlignPiePriority,
     SIZE_TOOL_OT_ExclusiveAlignPieHotkey,
     SIZE_TOOL_OT_RestoreAltAConflicts,
-    SIZE_TOOL_OT_ForceSavePiePriority,
     SIZE_TOOL_OT_ExclusiveSavePieHotkey,
     SIZE_TOOL_OT_RestoreCtrlSConflicts,
-    SIZE_TOOL_OT_ForceEdgePropertyPiePriority,
     SIZE_TOOL_OT_ExclusiveEdgePropertyPieHotkey,
     SIZE_TOOL_OT_RestoreShiftEConflicts,
-    SIZE_TOOL_OT_ForceMirrorPriority,
     SIZE_TOOL_OT_ExclusiveMirrorHotkey,
     SIZE_TOOL_OT_RestoreShiftAltXConflicts,
-    SIZE_TOOL_OT_ForceGroupToolPriority,
     SIZE_TOOL_OT_ExclusiveGroupToolHotkey,
     SIZE_TOOL_OT_RestoreCtrlGConflicts,
+    SIZE_TOOL_OT_ForceDeletePiePriority,
+    SIZE_TOOL_OT_ForceRenamePriority,
+    SIZE_TOOL_OT_ForceShadingPiePriority,
+    SIZE_TOOL_OT_ForceSmartPiePriority,
+    SIZE_TOOL_OT_ForceSwitchEditorPriority,
+    SIZE_TOOL_OT_ForceToggleAreaPriority,
     SIZE_TOOL_OT_ExclusiveAllHotkeys,
     SIZE_TOOL_OT_RestoreAllConflicts,
     M8_OT_ResetSwitchModePrefs,
@@ -458,7 +416,7 @@ def _startup_apply():
     if not _startup_done:
         # --- First successful run: perform one-time init ---
         exclusive_ok = True
-        if getattr(prefs, "auto_exclusive_shift_s_on_startup", True):
+        if getattr(prefs, "auto_exclusive_shift_s_on_startup", False):
             try:
                 bpy.ops.size_tool.exclusive_transform_pie_hotkey()
                 bpy.ops.size_tool.exclusive_align_pie_hotkey()

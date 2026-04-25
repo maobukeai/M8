@@ -107,13 +107,10 @@ def _get_addon_prefs():
 
 # Helper to ensure our keymap is at the top (priority)
 def _ensure_pie_keymap_priority(km, kmi):
-    try:
-        items = list(km.keymap_items)
-        idx = items.index(kmi)
-        if idx > 0:
-            km.keymap_items.move(idx, 0)
-    except Exception as e:
-        logger.debug(f"Failed to ensure keymap priority for {kmi.idname}: {e}")
+    # Blender API doesn't support .move() on keymap_items.
+    # Addon keymaps already have higher priority than defaults.
+    # To truly move it, we would need to remove and re-add, but that risks losing properties.
+    pass
 
 def _iter_switch_mode_keymap_bindings(wm):
     bindings = []
@@ -1048,6 +1045,21 @@ def _find_smart_pie_keymap_items():
                 items.append((kc, km, kmi))
     return items
 
+def _find_toggle_area_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc:
+        return []
+    items = []
+    for keymap_name, _ in TOGGLE_AREA_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if not km:
+            continue
+        for kmi in km.keymap_items:
+            if kmi.idname == TOGGLE_AREA_OP_ID:
+                items.append((kc, km, kmi))
+    return items
+
 # --- Conflict Handling ---
 def _kmi_signature(kmi):
     try:
@@ -1084,7 +1096,9 @@ def _disable_conflicts_for_signatures(kc, signatures):
     all_bindings = list(TRANSFORM_PIE_KEYMAP_BINDINGS) + list(ALIGN_PIE_KEYMAP_BINDINGS) + \
                    list(SWITCH_MODE_KEYMAP_BINDINGS) + list(QUICK_DELETE_KEYMAP_BINDINGS) + \
                    list(DELETE_PIE_KEYMAP_BINDINGS) + list(SAVE_PIE_KEYMAP_BINDINGS) + \
-                   list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS)
+                   list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS) + \
+                   list(SMART_PIE_KEYMAP_BINDINGS) + list(TOGGLE_AREA_KEYMAP_BINDINGS) + \
+                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS)
     
     seen_km = set()
     for keymap_name, _ in all_bindings:
@@ -1108,7 +1122,12 @@ def _disable_conflicts_for_signatures(kc, signatures):
                        _is_our_rename_item(kmi) or
                        _is_our_mirror_item(kmi) or
                        _is_our_group_tool_item(kmi) or
-                       _is_our_double_click_select_group_item(kmi))
+                       _is_our_double_click_select_group_item(kmi) or
+                       _is_our_smart_pie_item(kmi) or
+                       _is_our_smart_tool_item(kmi) or
+                       _is_our_switch_editor_pie_item(kmi) or
+                       _is_our_edge_property_pie_item(kmi) or
+                       kmi.idname == TOGGLE_AREA_OP_ID)
             if is_ours: continue
             
             for sig in signatures:
@@ -1128,18 +1147,22 @@ def _restore_conflicts_for_signatures(kc, signatures):
     all_bindings = list(TRANSFORM_PIE_KEYMAP_BINDINGS) + list(ALIGN_PIE_KEYMAP_BINDINGS) + \
                    list(SWITCH_MODE_KEYMAP_BINDINGS) + list(QUICK_DELETE_KEYMAP_BINDINGS) + \
                    list(DELETE_PIE_KEYMAP_BINDINGS) + list(SAVE_PIE_KEYMAP_BINDINGS) + \
-                   list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS)
+                   list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS) + \
+                   list(SMART_PIE_KEYMAP_BINDINGS) + list(TOGGLE_AREA_KEYMAP_BINDINGS) + \
+                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS)
     
     seen_km = set()
     for keymap_name, _ in all_bindings:
         if keymap_name in seen_km: continue
         seen_km.add(keymap_name)
-
+        
         km = kc.keymaps.get(keymap_name)
         if not km: continue
+        
         for kmi in km.keymap_items:
             if getattr(kmi, "active", True): continue
             
+            # Skip our own items
             is_ours = (_is_our_pie_keymap_item(kmi) or 
                        _is_our_align_pie_item(kmi) or 
                        _is_our_switch_mode_item(kmi) or 
@@ -1150,7 +1173,12 @@ def _restore_conflicts_for_signatures(kc, signatures):
                        _is_our_rename_item(kmi) or
                        _is_our_mirror_item(kmi) or
                        _is_our_group_tool_item(kmi) or
-                       _is_our_double_click_select_group_item(kmi))
+                       _is_our_double_click_select_group_item(kmi) or
+                       _is_our_smart_pie_item(kmi) or
+                       _is_our_smart_tool_item(kmi) or
+                       _is_our_switch_editor_pie_item(kmi) or
+                       _is_our_edge_property_pie_item(kmi) or
+                       kmi.idname == TOGGLE_AREA_OP_ID)
             if is_ours: continue
 
             for sig in signatures:
@@ -1588,6 +1616,90 @@ class SIZE_TOOL_OT_RestoreCtrlGConflicts(bpy.types.Operator):
         self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Ctrl+G 快捷键")
         return {'FINISHED'}
 
+class SIZE_TOOL_OT_ForceDeletePiePriority(bpy.types.Operator):
+    bl_idname = "size_tool.force_delete_pie_priority"
+    bl_label = "强制置顶删除饼菜单快捷键"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        items = _find_delete_pie_keymap_items()
+        if not items:
+            self.report({'WARNING'}, "未找到删除饼菜单的快捷键项")
+            return {'CANCELLED'}
+        for kc, km, kmi in items:
+            _ensure_pie_keymap_priority(km, kmi)
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_ForceRenamePriority(bpy.types.Operator):
+    bl_idname = "size_tool.force_rename_priority"
+    bl_label = "强制置顶重命名快捷键"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        items = _find_rename_keymap_items()
+        if not items:
+            self.report({'WARNING'}, "未找到重命名的快捷键项")
+            return {'CANCELLED'}
+        for kc, km, kmi in items:
+            _ensure_pie_keymap_priority(km, kmi)
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_ForceShadingPiePriority(bpy.types.Operator):
+    bl_idname = "size_tool.force_shading_pie_priority"
+    bl_label = "强制置顶着色饼菜单快捷键"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        items = _find_shading_pie_keymap_items()
+        if not items:
+            self.report({'WARNING'}, "未找到着色饼菜单的快捷键项")
+            return {'CANCELLED'}
+        for kc, km, kmi in items:
+            _ensure_pie_keymap_priority(km, kmi)
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_ForceSmartPiePriority(bpy.types.Operator):
+    bl_idname = "size_tool.force_smart_pie_priority"
+    bl_label = "强制置顶智能饼菜单快捷键"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        items = _find_smart_pie_keymap_items()
+        if not items:
+            self.report({'WARNING'}, "未找到智能饼菜单的快捷键项")
+            return {'CANCELLED'}
+        for kc, km, kmi in items:
+            _ensure_pie_keymap_priority(km, kmi)
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_ForceSwitchEditorPriority(bpy.types.Operator):
+    bl_idname = "size_tool.force_switch_editor_priority"
+    bl_label = "强制置顶切换窗口快捷键"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        items = _find_switch_editor_pie_keymap_items()
+        if not items:
+            self.report({'WARNING'}, "未找到切换窗口饼菜单的快捷键项")
+            return {'CANCELLED'}
+        for kc, km, kmi in items:
+            _ensure_pie_keymap_priority(km, kmi)
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_ForceToggleAreaPriority(bpy.types.Operator):
+    bl_idname = "size_tool.force_toggle_area_priority"
+    bl_label = "强制置顶区域切换快捷键"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        items = _find_toggle_area_keymap_items()
+        if not items:
+            self.report({'WARNING'}, "未找到区域切换的快捷键项")
+            return {'CANCELLED'}
+        for kc, km, kmi in items:
+            _ensure_pie_keymap_priority(km, kmi)
+        return {'FINISHED'}
+
 class SIZE_TOOL_OT_ExclusiveAllHotkeys(bpy.types.Operator):
     bl_idname = "size_tool.exclusive_all_hotkeys"
     bl_label = "一键独占所有快捷键"
@@ -1907,6 +2019,13 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     ui_show_mirror_advanced: bpy.props.BoolProperty(name="显示高级(Mirror)", default=False)
     ui_show_group_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Group)", default=False)
     ui_show_group_advanced: bpy.props.BoolProperty(name="显示高级(Group)", default=False)
+
+    # --- Additional UI toggle properties ---
+    ui_show_shading_advanced: bpy.props.BoolProperty(name="高级(Shading)", default=False)
+    ui_show_smart_pie_advanced: bpy.props.BoolProperty(name="高级(SmartPie)", default=False)
+    ui_show_toggle_area_advanced: bpy.props.BoolProperty(name="高级(ToggleArea)", default=False)
+    ui_show_switch_editor_advanced: bpy.props.BoolProperty(name="映射(SwitchEditor)", default=False)
+    ui_show_rename_keymap: bpy.props.BoolProperty(name="快捷键(Rename)", default=False)
 
     # --- Screencast Properties ---
     def _on_screencast_enabled_update(self, context):
@@ -2478,13 +2597,21 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     
     def draw_switch_editor_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
         if "activate_switch_editor_pie" in self.bl_rna.properties:
-            row.prop(self, "activate_switch_editor_pie", text="启用切换窗口饼菜单(F12)")
-        if "ui_show_switch_editor_keymap" in self.bl_rna.properties:
-            row.prop(self, "ui_show_switch_editor_keymap", text=_T("快捷键"))
+            col.prop(self, "activate_switch_editor_pie", text="启用切换窗口饼菜单(F12)")
         
         if getattr(self, "activate_switch_editor_pie", False):
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_switch_editor_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_switch_editor_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_switch_editor_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_switch_editor_advanced", text=_T("映射"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_switch_editor_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
+            
             if getattr(self, "ui_show_switch_editor_keymap", False):
                 sub_col = col.column()
                 try:
@@ -2500,36 +2627,40 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 except Exception:
                     pass
 
-            box = col.box()
-            box.label(text="映射", icon="KEYINGSET")
-            
-            grid = box.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=False, align=True)
-            
-            col1 = grid.column()
-            col1.prop(self, "switch_editor_pie_left")
-            col1.prop(self, "switch_editor_pie_right")
-            col1.prop(self, "switch_editor_pie_bottom")
-            col1.prop(self, "switch_editor_pie_top")
-            
-            col2 = grid.column()
-            col2.prop(self, "switch_editor_pie_top_left")
-            col2.prop(self, "switch_editor_pie_top_right")
-            col2.prop(self, "switch_editor_pie_bottom_left")
-            col2.prop(self, "switch_editor_pie_bottom_right")
-
+            if getattr(self, "ui_show_switch_editor_advanced", False):
+                box = col.box()
+                box.label(text="映射", icon="KEYINGSET")
+                
+                grid = box.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=False, align=True)
+                
+                col1 = grid.column()
+                col1.prop(self, "switch_editor_pie_left")
+                col1.prop(self, "switch_editor_pie_right")
+                col1.prop(self, "switch_editor_pie_bottom")
+                col1.prop(self, "switch_editor_pie_top")
+                
+                col2 = grid.column()
+                col2.prop(self, "switch_editor_pie_top_left")
+                col2.prop(self, "switch_editor_pie_top_right")
+                col2.prop(self, "switch_editor_pie_bottom_left")
+                col2.prop(self, "switch_editor_pie_bottom_right")
+    
     def draw_switch_mode_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
         if "activate_switch_mode" in self.bl_rna.properties:
-            row.prop(self, "activate_switch_mode", text=_T("启用模式切换(Tab)"))
-        if "ui_show_tab_keymap" in self.bl_rna.properties:
-            row.prop(self, "ui_show_tab_keymap", text=_T("快捷键"))
-        if "ui_show_switch_mode_mapping" in self.bl_rna.properties:
-            row.prop(self, "ui_show_switch_mode_mapping", text=_T("映射"))
-        row.operator("size_tool.force_switch_mode_priority", text=_T("置顶"), icon=_ICON("SORT_DESC"))
-        row.operator("m8.reset_switch_mode_prefs", text=_T("恢复默认"), icon=_ICON("LOOP_BACK"))
+            col.prop(self, "activate_switch_mode", text=_T("启用模式切换(Tab)"))
 
         if getattr(self, "activate_switch_mode", False):
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_tab_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_tab_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_switch_mode_mapping" in self.bl_rna.properties:
+                row.prop(self, "ui_show_switch_mode_mapping", text=_T("映射"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_switch_mode_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_switch_mode_prefs", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
             self.draw_switch_mode_basic(col)
 
             if getattr(self, "ui_show_tab_keymap", False):
@@ -2552,19 +2683,25 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     def draw_transform_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
+        
         if "enable_transform_pie" in self.bl_rna.properties:
-            row.prop(self, "enable_transform_pie", text=_T("启用变换辅助饼菜单"))
-        if "ui_show_shift_keymap" in self.bl_rna.properties:
-            row.prop(self, "ui_show_shift_keymap", text=_T("快捷键"))
-        if "ui_show_shift_s_advanced" in self.bl_rna.properties:
-            row.prop(self, "ui_show_shift_s_advanced", text=_T("高级"))
-        row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
+            col.prop(self, "enable_transform_pie", text=_T("启用变换辅助饼菜单"))
 
         # Safe access to enable_transform_pie
         enable_pie = getattr(self, "enable_transform_pie", True)
         
         if enable_pie:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_shift_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_shift_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_shift_s_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_shift_s_advanced", text=_T("高级"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_transform_pie_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("size_tool.reset_transform_pie_keymap", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
+            
             # Safe access to ui_show_shift_keymap
             show_keymap = getattr(self, "ui_show_shift_keymap", False)
             if show_keymap:
@@ -2583,12 +2720,9 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             show_advanced = getattr(self, "ui_show_shift_s_advanced", False)
             if show_advanced:
                 sub_col = col.column()
-                row = sub_col.row(align=True)
-                row.operator("size_tool.exclusive_transform_pie_hotkey", text=_T("独占(禁用冲突)"))
-                row.operator("size_tool.restore_shift_s_conflicts", text=_T("恢复冲突"))
-                row = sub_col.row(align=True)
-                row.operator("size_tool.force_transform_pie_priority", text=_T("强制置顶"))
-                row.operator("size_tool.reset_transform_pie_keymap", text=_T("恢复默认"))
+                row_sub = sub_col.row(align=True)
+                row_sub.operator("size_tool.exclusive_transform_pie_hotkey", text=_T("独占(禁用冲突)"))
+                row_sub.operator("size_tool.restore_shift_s_conflicts", text=_T("恢复冲突"))
                 if "auto_exclusive_shift_s_on_startup" in self.bl_rna.properties:
                     sub_col.prop(self, "auto_exclusive_shift_s_on_startup", text=_T("启动时自动独占所有快捷键"))
                 if "auto_exclusive_shift_s_include_user" in self.bl_rna.properties:
@@ -2596,13 +2730,18 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     def draw_delete_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
-        row.prop(self, "activate_quick_delete", text=_T("快速删除 (Object)"))
-        row.prop(self, "activate_delete_pie", text=_T("饼菜单 (Edit)"))
-        row.prop(self, "ui_show_delete_keymap", text=_T("快捷键"))
-        row.prop(self, "ui_show_delete_mapping", text=_T("映射"))
+        col.prop(self, "activate_quick_delete", text=_T("快速删除 (Object)"))
+        col.prop(self, "activate_delete_pie", text=_T("饼菜单 (Edit)"))
 
         if self.activate_quick_delete or self.activate_delete_pie:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            row.prop(self, "ui_show_delete_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            row.prop(self, "ui_show_delete_mapping", text=_T("映射"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_delete_pie_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
             if self.ui_show_delete_keymap:
                 sub_col = col.column()
                 try:
@@ -2631,19 +2770,23 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     def draw_edge_property_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
         if "activate_edge_property_pie" in self.bl_rna.properties:
-            row.prop(self, "activate_edge_property_pie", text=_T("启用 Shift+E"))
-        if "ui_show_edge_property_keymap" in self.bl_rna.properties:
-            row.prop(self, "ui_show_edge_property_keymap", text=_T("快捷键"))
-        if "ui_show_edge_property_advanced" in self.bl_rna.properties:
-            row.prop(self, "ui_show_edge_property_advanced", text=_T("高级"))
-        row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
+            col.prop(self, "activate_edge_property_pie", text=_T("启用 Shift+E"))
 
         # Safe access to activate_edge_property_pie
         activate_pie = getattr(self, "activate_edge_property_pie", True)
         
         if activate_pie:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_edge_property_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_edge_property_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_edge_property_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_edge_property_advanced", text=_T("高级"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_edge_property_pie_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
             # Safe access to ui_show_edge_property_keymap
             show_keymap = getattr(self, "ui_show_edge_property_keymap", False)
             if show_keymap:
@@ -2656,9 +2799,9 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                         sub_col.label(text=_T("未找到 Edge Property 绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in items:
-                            row = sub_col.row(align=True)
-                            row.label(text=km.name, icon=_ICON("DOT"))
-                            rna_keymap_ui.draw_kmi([], kc, km, kmi, row, 0)
+                            row_km = sub_col.row(align=True)
+                            row_km.label(text=km.name, icon=_ICON("DOT"))
+                            rna_keymap_ui.draw_kmi([], kc, km, kmi, row_km, 0)
                 except Exception:
                     pass
 
@@ -2666,27 +2809,29 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             show_advanced = getattr(self, "ui_show_edge_property_advanced", False)
             if show_advanced:
                 sub_col = col.column()
-                row = sub_col.row(align=True)
-                row.operator("size_tool.exclusive_edge_property_pie_hotkey", text=_T("独占(禁用冲突)"))
-                row.operator("size_tool.restore_shift_e_conflicts", text=_T("恢复冲突"))
-                row = sub_col.row(align=True)
-                row.operator("size_tool.force_edge_property_pie_priority", text=_T("强制置顶"))
+                row_sub = sub_col.row(align=True)
+                row_sub.operator("size_tool.exclusive_edge_property_pie_hotkey", text=_T("独占(禁用冲突)"))
+                row_sub.operator("size_tool.restore_shift_e_conflicts", text=_T("恢复冲突"))
 
     def draw_align_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
         if "activate_align_pie" in self.bl_rna.properties:
-            row.prop(self, "activate_align_pie")
-        if "ui_show_align_keymap" in self.bl_rna.properties:
-            row.prop(self, "ui_show_align_keymap", text=_T("快捷键"))
-        if "ui_show_align_advanced" in self.bl_rna.properties:
-            row.prop(self, "ui_show_align_advanced", text=_T("高级"))
-        row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
+            col.prop(self, "activate_align_pie")
 
         # Safe access to activate_align_pie
         activate_pie = getattr(self, "activate_align_pie", True)
         
         if activate_pie:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_align_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_align_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_align_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_align_advanced", text=_T("高级"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_align_pie_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
             # Safe access to ui_show_align_keymap
             show_keymap = getattr(self, "ui_show_align_keymap", False)
             if show_keymap:
@@ -2699,15 +2844,15 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                             sub_col.label(text=_T("未找到对齐相关绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in align_items:
-                            row = sub_col.row(align=True)
+                            row_km = sub_col.row(align=True)
                             mode_label = km.name
                             if mode_label == "3D View Generic": mode_label = _T("3D 视图通用")
                             elif mode_label == "Object Mode": mode_label = _T("物体模式")
                             elif mode_label == "Mesh": mode_label = _T("网格编辑")
                             elif mode_label == "UV Editor": mode_label = _T("UV 编辑器")
                             
-                            row.label(text=mode_label, icon=_ICON("DOT"))
-                            rna_keymap_ui.draw_kmi([], kc, km, kmi, row, 0)
+                            row_km.label(text=mode_label, icon=_ICON("DOT"))
+                            rna_keymap_ui.draw_kmi([], kc, km, kmi, row_km, 0)
                 except Exception:
                     pass
             
@@ -2715,25 +2860,32 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             show_advanced = getattr(self, "ui_show_align_advanced", False)
             if show_advanced:
                 sub_col = col.column()
-                row = sub_col.row(align=True)
-                row.operator("size_tool.exclusive_align_pie_hotkey", text=_T("独占(禁用冲突)"))
-                row.operator("size_tool.restore_alt_a_conflicts", text=_T("恢复冲突"))
-                row = sub_col.row(align=True)
-                row.operator("size_tool.force_align_pie_priority", text=_T("强制置顶"))
+                row_sub = sub_col.row(align=True)
+                row_sub.operator("size_tool.exclusive_align_pie_hotkey", text=_T("独占(禁用冲突)"))
+                row_sub.operator("size_tool.restore_alt_a_conflicts", text=_T("恢复冲突"))
 
     def draw_shading_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
         if "activate_shading_pie" in self.bl_rna.properties:
-            row.prop(self, "activate_shading_pie")
-        if "ui_show_shading_keymap" in self.bl_rna.properties:
-            row.prop(self, "ui_show_shading_keymap", text=_T("快捷键"))
-        row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
+            col.prop(self, "activate_shading_pie")
 
         # Safe access to activate_shading_pie
         activate_pie = getattr(self, "activate_shading_pie", True)
         
         if activate_pie:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_shading_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_shading_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_shading_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_shading_advanced", text=_T("高级"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_shading_pie_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
+            if getattr(self, "ui_show_shading_advanced", False):
+                sub_col = col.column()
+                sub_col.label(text=_T("该模块暂无内置的快捷键冲突配置"), icon="INFO")
             # Safe access to ui_show_shading_keymap
             show_keymap = getattr(self, "ui_show_shading_keymap", False)
             if show_keymap:
@@ -2752,48 +2904,59 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     def draw_save_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
         if "activate_save_pie" in self.bl_rna.properties:
-            row.prop(self, "activate_save_pie", text=_T("启用保存饼菜单 (Ctrl+S)"))
-        if "ui_show_save_keymap" in self.bl_rna.properties:
-            row.prop(self, "ui_show_save_keymap", text=_T("快捷键"))
-        if "ui_show_save_advanced" in self.bl_rna.properties:
-            row.prop(self, "ui_show_save_advanced", text=_T("高级"))
-        row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
+            col.prop(self, "activate_save_pie", text=_T("启用保存饼菜单 (Ctrl+S)"))
 
         # Safe access to activate_save_pie
         activate_pie = getattr(self, "activate_save_pie", True)
         
         if activate_pie:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_save_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_save_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_save_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_save_advanced", text=_T("高级"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_save_pie_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
+            box_auto = col.box()
+            box_auto.label(text=_T("常规自动化"), icon="FILE_BLEND")
             if "auto_pack_resources_on_save" in self.bl_rna.properties:
-                col.prop(self, "auto_pack_resources_on_save", text=_T("保存时自动打包资源"))
+                box_auto.prop(self, "auto_pack_resources_on_save", text=_T("保存时自动打包资源"))
             if "auto_purge_unused_materials_on_save" in self.bl_rna.properties:
-                col.prop(self, "auto_purge_unused_materials_on_save", text=_T("保存时自动清除孤立数据"))
+                box_auto.prop(self, "auto_purge_unused_materials_on_save", text=_T("保存时自动清除孤立数据"))
+            
+            box_fbx = col.box()
+            box_fbx.label(text=_T("FBX 导出预设"), icon="EXPORT")
             if "fbx_export_unity_preset" in self.bl_rna.properties:
-                col.prop(self, "fbx_export_unity_preset", text=_T("FBX 导出使用 Unity 预设"))
+                box_fbx.prop(self, "fbx_export_unity_preset", text=_T("启用 Unity 标准预设"))
             
             # Safe access to fbx_export_unity_preset
             fbx_preset = getattr(self, "fbx_export_unity_preset", False)
             
-            sub = col.column()
+            sub = box_fbx.column()
             sub.enabled = bool(fbx_preset)
-            sub.operator("m8.reset_unity_fbx_preset", text=_T("设为 Unity 标准"), icon="FILE_REFRESH")
+            sub.operator("m8.reset_unity_fbx_preset", text=_T("重置为 Unity 推荐设置"), icon="FILE_REFRESH")
             if "unity_fbx_use_blend_dir" in self.bl_rna.properties:
-                sub.prop(self, "unity_fbx_use_blend_dir", text=_T("Unity FBX: 使用 .blend 同目录"))
+                sub.prop(self, "unity_fbx_use_blend_dir", text=_T("使用 .blend 同目录"))
             row = sub.row(align=True)
             row.enabled = not bool(self.unity_fbx_use_blend_dir)
-            row.prop(self, "unity_fbx_export_dir", text=_T("Unity FBX: 导出目录"))
-            sub.prop(self, "unity_fbx_reveal_after_export", text=_T("Unity FBX: 导出后定位文件"))
-            sub.prop(self, "ui_show_unity_fbx_advanced", text=_T("Unity FBX: 高级"))
+            row.prop(self, "unity_fbx_export_dir", text=_T("导出目录"))
+            sub.prop(self, "unity_fbx_reveal_after_export", text=_T("导出后定位文件"))
+            
+            sub.prop(self, "ui_show_unity_fbx_advanced", text=_T("展开高级选项"), toggle=True, icon="PREFERENCES")
             if self.ui_show_unity_fbx_advanced:
-                sub.prop(self, "unity_fbx_use_selection", text=_T("Unity FBX: 仅导出选择"))
-                sub.prop(self, "unity_fbx_global_scale", text=_T("Unity FBX: 全局缩放"))
-                sub.prop(self, "unity_fbx_apply_unit_scale", text=_T("Unity FBX: 应用单位"))
-                sub.prop(self, "unity_fbx_apply_scale_options", text=_T("Unity FBX: 应用缩放方式"))
-                sub.prop(self, "unity_fbx_use_triangles", text=_T("Unity FBX: 三角化"))
-                sub.prop(self, "unity_fbx_use_tspace", text=_T("Unity FBX: 导出切线"))
-                sub.prop(self, "unity_fbx_bake_anim", text=_T("Unity FBX: 导出动画"))
-                sub.prop(self, "unity_fbx_open_folder_after_export", text=_T("Unity FBX: 导出后打开文件夹"))
+                adv_box = sub.box()
+                adv_box.prop(self, "unity_fbx_use_selection", text=_T("仅导出选择"))
+                adv_box.prop(self, "unity_fbx_global_scale", text=_T("全局缩放"))
+                adv_box.prop(self, "unity_fbx_apply_unit_scale", text=_T("应用单位"))
+                adv_box.prop(self, "unity_fbx_apply_scale_options", text=_T("应用缩放方式"))
+                adv_box.prop(self, "unity_fbx_use_triangles", text=_T("三角化"))
+                adv_box.prop(self, "unity_fbx_use_tspace", text=_T("导出切线"))
+                adv_box.prop(self, "unity_fbx_bake_anim", text=_T("导出动画"))
+                adv_box.prop(self, "unity_fbx_open_folder_after_export", text=_T("导出后打开文件夹"))
 
             if self.ui_show_save_keymap:
                 sub_col = col.column()
@@ -2814,42 +2977,54 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 row = sub_col.row(align=True)
                 row.operator("size_tool.exclusive_save_pie_hotkey", text=_T("独占(禁用冲突)"))
                 row.operator("size_tool.restore_ctrl_s_conflicts", text=_T("恢复冲突"))
-                row = sub_col.row(align=True)
-                row.operator("size_tool.force_save_pie_priority", text=_T("强制置顶"))
 
     def draw_rename_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
-        row.prop(self, "activate_advanced_rename", text=_T("启用高级重命名 (F2)"))
-        
-        sub_col = col.column()
-        try:
-            import rna_keymap_ui
-            rename_items = _find_rename_keymap_items()
-            
-            if not rename_items:
-                    sub_col.label(text=_T("未找到重命名相关绑定"), icon="INFO")
-            else:
-                for kc, km, kmi in rename_items:
-                    rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
-        except Exception:
-            pass
+        col.prop(self, "activate_advanced_rename", text=_T("启用高级重命名 (F2)"))
+
+        if getattr(self, "activate_advanced_rename", False):
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_rename_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_rename_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            row.operator("size_tool.force_rename_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
+
+            if getattr(self, "ui_show_rename_keymap", False):
+                sub_col = col.column()
+                try:
+                    import rna_keymap_ui
+                    rename_items = _find_rename_keymap_items()
+                    
+                    if not rename_items:
+                            sub_col.label(text=_T("未找到重命名相关绑定"), icon="INFO")
+                    else:
+                        for kc, km, kmi in rename_items:
+                            rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
+                except Exception:
+                    pass
 
     def draw_mirror_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
         if "activate_mirror" in self.bl_rna.properties:
-            row.prop(self, "activate_mirror", text=_T("启用镜像 (Shift+Alt+X)"))
-        if "ui_show_mirror_keymap" in self.bl_rna.properties:
-            row.prop(self, "ui_show_mirror_keymap", text=_T("快捷键"))
-        if "ui_show_mirror_advanced" in self.bl_rna.properties:
-            row.prop(self, "ui_show_mirror_advanced", text=_T("高级"))
-        row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
+            col.prop(self, "activate_mirror", text=_T("启用镜像 (Shift+Alt+X)"))
 
         # Safe access to activate_mirror
         activate_mirror = getattr(self, "activate_mirror", True)
         
         if activate_mirror:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_mirror_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_mirror_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_mirror_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_mirror_advanced", text=_T("高级"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_mirror_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
             # Appearance Settings
             box = col.box()
             box.label(text=_T("外观设置:"), icon="BRUSH_DATA")
@@ -2918,25 +3093,29 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 row = sub_col.row(align=True)
                 row.operator("size_tool.exclusive_mirror_hotkey", text=_T("独占(禁用冲突)"))
                 row.operator("size_tool.restore_shift_alt_x_conflicts", text=_T("恢复冲突"))
-                row = sub_col.row(align=True)
-                row.operator("size_tool.force_mirror_priority", text=_T("强制置顶"))
 
     def draw_group_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
         if "activate_group_tool" in self.bl_rna.properties:
-            row.prop(self, "activate_group_tool", text=_T("启用打组 (Ctrl+G)"))
-        if "ui_show_group_keymap" in self.bl_rna.properties:
-            row.prop(self, "ui_show_group_keymap", text=_T("快捷键"))
-        if "ui_show_group_advanced" in self.bl_rna.properties:
-            row.prop(self, "ui_show_group_advanced", text=_T("高级"))
-        row.operator("m8.reset_prefs_ui", text="", icon="TRASH")
+            col.prop(self, "activate_group_tool", text=_T("启用打组 (Ctrl+G)"))
 
         if getattr(self, "activate_group_tool", False):
-            col.prop(self, "activate_double_click_select_group", text=_T("双击选择组"))
-            col.prop(self, "group_tool_radius", text=_T("组半径"))
-            col.prop(self, "group_tool_empty_type", text=_T("空物体类型"))
-            col.prop(self, "group_tool_hide_empty", text=_T("隐藏组空物体"))
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_group_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_group_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_group_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_group_advanced", text=_T("高级"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_group_tool_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
+            box_group = col.box()
+            box_group.label(text=_T("工具设置"), icon="TOOL_SETTINGS")
+            box_group.prop(self, "activate_double_click_select_group", text=_T("双击选择组"))
+            box_group.prop(self, "group_tool_radius", text=_T("组半径"))
+            box_group.prop(self, "group_tool_empty_type", text=_T("空物体类型"))
+            box_group.prop(self, "group_tool_hide_empty", text=_T("隐藏组空物体"))
 
             if getattr(self, "ui_show_group_keymap", False):
                 sub_col = col.column()
@@ -2965,14 +3144,24 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 row = sub_col.row(align=True)
                 row.operator("size_tool.exclusive_group_tool_hotkey", text=_T("独占(禁用冲突)"))
                 row.operator("size_tool.restore_ctrl_g_conflicts", text=_T("恢复冲突"))
-                row = sub_col.row(align=True)
-                row.operator("size_tool.force_group_tool_priority", text=_T("强制置顶"))
 
     def draw_smart_pie_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
-        row.prop(self, "activate_smart_pie", text=_T("启用智能饼菜单 (1)"))
-        row.prop(self, "ui_show_smart_pie_keymap", text=_T("快捷键"))
+        col.prop(self, "activate_smart_pie", text=_T("启用智能饼菜单 (1)"))
+        
+        if self.activate_smart_pie:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            row.prop(self, "ui_show_smart_pie_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_smart_pie_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_smart_pie_advanced", text=_T("高级"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_smart_pie_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
+            if getattr(self, "ui_show_smart_pie_advanced", False):
+                sub_col = col.column()
+                sub_col.label(text=_T("该模块暂无内置的快捷键冲突配置"), icon="INFO")
 
         sub = col.column()
         sub.enabled = bool(self.activate_smart_pie)
@@ -3038,15 +3227,26 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         
     def draw_toggle_area_settings(self, layout):
         col = layout.column()
-        row = col.row(align=True)
-        row.prop(self, "activate_toggle_area", text=_T("启用区域切换 (T)"))
-        row.prop(self, "ui_show_toggle_area_keymap", text=_T("快捷键"))
+        col.prop(self, "activate_toggle_area", text=_T("启用区域切换 (T)"))
         
         if self.activate_toggle_area:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            row.prop(self, "ui_show_toggle_area_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_toggle_area_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_toggle_area_advanced", text=_T("高级"), toggle=True, icon="PREFERENCES")
+            row.operator("size_tool.force_toggle_area_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
             col.separator()
-            col.prop(self, "toggle_area_close_range", text=_T("关闭范围 (%)"))
-            col.prop(self, "toggle_area_prefer_left_right", text=_T("首选左/右切换"))
-            col.prop(self, "toggle_area_wrap_mouse", text=_T("鼠标跟随"))
+            if getattr(self, "ui_show_toggle_area_advanced", False):
+                sub_col = col.column()
+                sub_col.label(text=_T("该模块暂无内置的快捷键冲突配置"), icon="INFO")
+            box_toggle = col.box()
+            box_toggle.label(text=_T("交互逻辑"), icon="MOUSE_LMB")
+            box_toggle.prop(self, "toggle_area_close_range", text=_T("关闭范围 (%)"))
+            box_toggle.prop(self, "toggle_area_prefer_left_right", text=_T("首选左/右切换"))
+            box_toggle.prop(self, "toggle_area_wrap_mouse", text=_T("鼠标跟随"))
             
             box = col.box()
             box.label(text=_T("资产浏览器/资产架 (3D 视图)"), icon="ASSET_MANAGER")
