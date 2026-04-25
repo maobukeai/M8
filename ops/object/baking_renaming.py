@@ -1,8 +1,12 @@
 import bpy
 import math
 import mathutils
+import difflib
 from bpy.props import BoolProperty, FloatProperty, StringProperty, EnumProperty, IntProperty
 from bpy.types import Panel, Operator
+from ...utils.logger import get_logger
+
+logger = get_logger()
 
 # --- 0. 本地化翻译字典 (Localization) ---
 
@@ -11,15 +15,15 @@ TRANSLATIONS = {
     "panel_title": {"CN": "拓扑智能重命名 Max", "EN": "Bake Smart Renamer Max"},
     "global_settings": {"CN": "全局设置", "EN": "Global Settings"},
     "selection": {"CN": "范围", "EN": "Scope"},
-    "tolerance": {"CN": "容差", "EN": "Tolerance"},
+    "tolerance": {"CN": "容差(高级)", "EN": "Tolerance(Adv)"},
     "prefix": {"CN": "前缀", "EN": "Prefix"},
     "start_index": {"CN": "序号", "EN": "Start ID"},
     "auto_collection": {"CN": "自动放入集合", "EN": "Auto Move to Collection"},
     "manual_tools": {"CN": "1. 手动命名工具", "EN": "1. Manual Naming"},
-    "smart_tools": {"CN": "2. 智能重构 (图论聚类)", "EN": "2. Smart Batch (Graph Cluster)"},
-    "smart_desc": {"CN": "位置聚类 -> 面数判定(智能拆分) -> 重命名", "EN": "Graph Cluster -> Face Check(Smart Split) -> Rename"},
+    "smart_tools": {"CN": "2. 智能重构 (多维特征聚类)", "EN": "2. Smart Batch (Multi-modal Cluster)"},
+    "smart_desc": {"CN": "体积相交 -> 智能拆分 -> 名称纠错", "EN": "AABB IoU -> Smart Split -> String Match"},
     "classic_tools": {"CN": "3. 传统匹配 (保留基准名)", "EN": "3. Classic Match (Keep Base)"},
-    "author": {"CN": "作者: 猫布可爱 | V2.2", "EN": "Author: MaobuKawaii | V2.2"},
+    "author": {"CN": "作者: 猫布可爱 | V3.0", "EN": "Author: MaobuKawaii | V3.0"},
     
     # --- Buttons ---
     "btn_set_low": {"CN": "设为 Low", "EN": "Set Low"},
@@ -41,70 +45,91 @@ TRANSLATIONS = {
 
 def T(context, key):
     """根据当前场景语言设置返回对应文本"""
-    lang = context.scene.Language_BakeMatcher
+    if not hasattr(context.scene, "m8") or not hasattr(context.scene.m8, "bake_renamer"):
+        return TRANSLATIONS.get(key, {}).get("CN", key)
+    lang = context.scene.m8.bake_renamer.language
     return TRANSLATIONS.get(key, {}).get(lang, key)
 
-# --- 核心算法工具 ---
+# --- 核心算法工具 (Smart Multi-modal Matching) ---
 
 def get_bbox_center(obj):
-    """获取物体世界坐标下的边界框几何中心"""
     if obj.type != 'MESH': return None
     mw = obj.matrix_world
     corners = [mw @ mathutils.Vector(corner) for corner in obj.bound_box]
     center = sum(corners, mathutils.Vector()) / 8.0
     return center
 
+def get_aabb(obj):
+    """获取世界坐标下的轴对齐包围盒 (AABB) 的 Min 和 Max"""
+    mw = obj.matrix_world
+    corners = [mw @ mathutils.Vector(corner) for corner in obj.bound_box]
+    min_vec = mathutils.Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
+    max_vec = mathutils.Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
+    return min_vec, max_vec
+
+def get_aabb_volume(min_v, max_v):
+    dim = max_v - min_v
+    return max(1e-8, dim.x * dim.y * dim.z)
+
+def aabb_intersection_volume(min1, max1, min2, max2):
+    """计算两个 AABB 的相交体积"""
+    min_inter = mathutils.Vector((max(min1.x, min2.x), max(min1.y, min2.y), max(min1.z, min2.z)))
+    max_inter = mathutils.Vector((min(max1.x, max2.x), min(max1.y, max2.y), min(max1.z, max2.z)))
+    dim = max_inter - min_inter
+    if dim.x <= 0 or dim.y <= 0 or dim.z <= 0:
+        return 0.0
+    return dim.x * dim.y * dim.z
+
+def calculate_iou(min1, max1, min2, max2):
+    """计算 Intersection over Union (IoU) 相交比例"""
+    v1 = get_aabb_volume(min1, max1)
+    v2 = get_aabb_volume(min2, max2)
+    inter = aabb_intersection_volume(min1, max1, min2, max2)
+    union = v1 + v2 - inter
+    return inter / max(1e-8, union)
+
 def get_face_count(obj):
-    """获取面数 (Polygons)，用于精准判断高低模"""
     if not hasattr(obj.data, "polygons"): return 0
     return len(obj.data.polygons)
 
-def _safe_axis_ratio(a, b):
-    aa = max(1e-8, float(a))
-    bb = max(1e-8, float(b))
-    r1 = aa / bb
-    r2 = bb / aa
-    return max(r1, r2)
+def get_name_similarity(name1, name2):
+    """计算两个名字的文本相似度 (去除后缀后)"""
+    clean1 = name1.lower().replace("_low", "").replace("_high", "").replace("_hp", "").replace("_lp", "")
+    clean2 = name2.lower().replace("_low", "").replace("_high", "").replace("_hp", "").replace("_lp", "")
+    # Remove numbers to match base names like Gun_Barrel_001
+    clean1 = ''.join([i for i in clean1 if not i.isdigit()]).strip('_')
+    clean2 = ''.join([i for i in clean2 if not i.isdigit()]).strip('_')
+    if not clean1 or not clean2:
+        return 0.0
+    return difflib.SequenceMatcher(None, clean1, clean2).ratio()
 
-def pair_score(low, high, threshold):
+def pair_score(low, high):
+    """
+    融合：距离惩罚 + 尺寸差异惩罚 + 面数惩罚 - 名字相似度奖励 (越小越好)
+    """
+    obj_size = max(1e-8, low['dims'].length)
     pos_dist = (low['center'] - high['center']).length
-    low_diag = max(1e-8, low['dims'].length)
-    size_delta = (low['dims'] - high['dims']).length / low_diag
+    dist_penalty = (pos_dist / obj_size) * 5.0
+
+    size_delta = (low['dims'] - high['dims']).length / obj_size
+    
     face_ratio = max(1.0, high['faces'] / max(1, low['faces']))
-    return (pos_dist / max(1e-8, threshold)) + size_delta * 2.0 + abs(math.log(face_ratio)) * 0.15
+    face_penalty = abs(math.log(face_ratio)) * 0.1
 
-def is_strict_pair(low, high, threshold):
-    pos_dist = (low['center'] - high['center']).length
-    if pos_dist > threshold * 1.5:
-        return False
-    x_ratio = _safe_axis_ratio(low['dims'].x, high['dims'].x)
-    y_ratio = _safe_axis_ratio(low['dims'].y, high['dims'].y)
-    z_ratio = _safe_axis_ratio(low['dims'].z, high['dims'].z)
-    if max(x_ratio, y_ratio, z_ratio) > 1.35:
-        return False
-    low_vol = max(1e-8, low['dims'].x * low['dims'].y * low['dims'].z)
-    high_vol = max(1e-8, high['dims'].x * high['dims'].y * high['dims'].z)
-    vol_ratio = max(low_vol / high_vol, high_vol / low_vol)
-    if vol_ratio > 1.6:
-        return False
-    if high['faces'] < low['faces']:
-        return False
-    return True
+    name_bonus = get_name_similarity(low['obj'].name, high['obj'].name) * 5.0
+
+    return dist_penalty + (size_delta * 2.0) + face_penalty - name_bonus
 
 def move_to_collection(obj, coll_name):
-    """将物体移动到指定名称的集合，若不存在则创建"""
-    # 获取或创建集合
     if coll_name in bpy.data.collections:
         target_coll = bpy.data.collections[coll_name]
     else:
         target_coll = bpy.data.collections.new(coll_name)
         bpy.context.scene.collection.children.link(target_coll)
     
-    # 如果已经在目标集合中，不需要再次link，但仍需清理其他集合
     if obj.name not in target_coll.objects:
         target_coll.objects.link(obj)
     
-    # 从旧集合移除（只保留在新集合中）
     for coll in obj.users_collection:
         if coll != target_coll:
             coll.objects.unlink(obj)
@@ -113,17 +138,17 @@ def move_to_collection(obj, coll_name):
 
 class BM_OT_SetLow(Operator):
     bl_idname = "bakematcher.set_low"
-    bl_label = "Set Low (_low)" # 内部名称保持英文通用
-    bl_description = "Manually rename selected objects to _low / 手动设为 _low"
+    bl_label = "Set Low (_low)"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         objs = context.selected_objects
         if not objs: return {'FINISHED'}
         
-        prefix = context.scene.Name_BakeMatcher
-        idx = context.scene.NameStartIndex_BakeMatcher
-        auto_coll = context.scene.AutoCollection_BakeMatcher
+        props = context.scene.m8.bake_renamer
+        prefix = props.prefix
+        idx = props.start_index
+        auto_coll = props.auto_collection
         
         for o in objs:
             o.name = f"{prefix}_{str(idx).zfill(3)}_low"
@@ -131,22 +156,23 @@ class BM_OT_SetLow(Operator):
                 move_to_collection(o, f"{prefix}_Low")
             idx += 1
         
-        self.report({"INFO"}, "Set to Low / 已设为 Low")
+        props.start_index = idx
+        self.report({"INFO"}, "Set to Low")
         return {'FINISHED'}
 
 class BM_OT_SetHigh(Operator):
     bl_idname = "bakematcher.set_high"
     bl_label = "Set High (_high)"
-    bl_description = "Manually rename selected objects to _high / 手动设为 _high"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         objs = context.selected_objects
         if not objs: return {'FINISHED'}
         
-        prefix = context.scene.Name_BakeMatcher
-        idx = context.scene.NameStartIndex_BakeMatcher
-        auto_coll = context.scene.AutoCollection_BakeMatcher
+        props = context.scene.m8.bake_renamer
+        prefix = props.prefix
+        idx = props.start_index
+        auto_coll = props.auto_collection
         
         for o in objs:
             o.name = f"{prefix}_{str(idx).zfill(3)}_high"
@@ -154,52 +180,56 @@ class BM_OT_SetHigh(Operator):
                 move_to_collection(o, f"{prefix}_High")
             idx += 1
         
-        self.report({"INFO"}, "Set to High / 已设为 High")
+        props.start_index = idx
+        self.report({"INFO"}, "Set to High")
         return {'FINISHED'}
 
 # --- 2. 智能重构 ---
 
 class BM_OT_BatchRenumber(Operator):
     bl_idname = "bakematcher.batch_renumber"
-    bl_label = "Smart Match (Face Count)"
-    bl_description = "Group by location -> Check faces -> Rename / 按位置分组并按面数重命名"
+    bl_label = "Smart Match (AABB & String)"
+    bl_description = "AABB Clustering -> Face Ratio & String Match -> Rename"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        scn = context.scene
-        threshold = scn.Distance_BakeMatcher
-        prefix = scn.Name_BakeMatcher
-        start_index = scn.NameStartIndex_BakeMatcher
-        auto_coll = scn.AutoCollection_BakeMatcher
+        props = context.scene.m8.bake_renamer
+        threshold = props.distance
+        prefix = props.prefix
+        start_index = props.start_index
+        auto_coll = props.auto_collection
 
-        if scn.Selection_BakeMatcher == 'VISIBLE':
+        if props.selection_scope == 'VISIBLE':
             objs = [o for o in context.view_layer.objects if o.visible_get() and o.type == 'MESH']
         else:
             objs = [o for o in context.selected_objects if o.type == 'MESH']
 
         if len(objs) < 2:
-            self.report({"ERROR"}, "Too few objects / 物体太少")
+            self.report({"ERROR"}, "Too few objects")
             return {'FINISHED'}
 
         data_pool = []
         for o in objs:
-            center = get_bbox_center(o)
-            if center:
-                data_pool.append({
-                    'obj': o,
-                    'center': center,
-                    'dims': o.dimensions.copy(),
-                    'faces': get_face_count(o),
-                    'processed': False
-                })
+            min_v, max_v = get_aabb(o)
+            center = (min_v + max_v) / 2.0
+            data_pool.append({
+                'obj': o,
+                'center': center,
+                'min': min_v,
+                'max': max_v,
+                'dims': o.dimensions.copy(),
+                'faces': get_face_count(o),
+            })
 
-        # 1. 构建邻接表 (Adjacency List)
+        # 1. 构建邻接表 (IoU > 0.05 or Distance < threshold)
         n = len(data_pool)
         adj = [[] for _ in range(n)]
         for i in range(n):
             for j in range(i + 1, n):
+                iou = calculate_iou(data_pool[i]['min'], data_pool[i]['max'], data_pool[j]['min'], data_pool[j]['max'])
                 dist = (data_pool[i]['center'] - data_pool[j]['center']).length
-                if dist <= threshold:
+                # Highly overlapping or very close
+                if iou > 0.05 or dist <= threshold:
                     adj[i].append(j)
                     adj[j].append(i)
         
@@ -222,89 +252,70 @@ class BM_OT_BatchRenumber(Operator):
 
         groups = []
         
-        # 3. 处理每个分组 (拆分与配对)
+        # 3. 处理每个分组 (K-Means 1D / 断层拆分)
         for group in raw_groups:
             if len(group) < 2:
                 groups.append(group)
                 continue
                 
-            # 按面数排序
             group.sort(key=lambda x: x['faces'])
             
-            # 寻找最大面数断层
-            max_ratio = 0
+            # Find largest gap in faces, biased by string similarity
+            max_split_score = -9999
             split_idx = 1
             for k in range(len(group) - 1):
                 f1 = max(1, group[k]['faces'])
                 f2 = max(1, group[k+1]['faces'])
                 ratio = f2 / f1
-                if ratio > max_ratio:
-                    max_ratio = ratio
+                
+                # Check string similarity between components across the split
+                name_sim = get_name_similarity(group[k]['obj'].name, group[k+1]['obj'].name)
+                
+                # If they share names heavily, they probably ARE a pair, so this split is good
+                split_score = ratio + name_sim * 2.0
+                if split_score > max_split_score:
+                    max_split_score = split_score
                     split_idx = k + 1
             
-            if max_ratio > 1.5:
-                lows = group[:split_idx]
-                highs = group[split_idx:]
+            # Even a small ratio is acceptable if string similarity is high
+            lows = group[:split_idx]
+            highs = group[split_idx:]
 
-                candidates = []
-                for low in lows:
-                    for high in highs:
-                        if is_strict_pair(low, high, threshold):
-                            candidates.append((pair_score(low, high, threshold), low, high))
-
-                candidates.sort(key=lambda x: x[0])
-                used_lows = set()
-                used_highs = set()
-
-                for score, low, high in candidates:
-                    low_id = id(low['obj'])
-                    high_id = id(high['obj'])
-                    if low_id in used_lows or high_id in used_highs:
-                        continue
-                    used_lows.add(low_id)
-                    used_highs.add(high_id)
-                    groups.append([low, high])
-
-                for low in lows:
-                    if id(low['obj']) not in used_lows:
-                        groups.append([low])
+            candidates = []
+            for low in lows:
                 for high in highs:
-                    if id(high['obj']) not in used_highs:
-                        groups.append([high])
-            else:
-                groups.append(group)
+                    score = pair_score(low, high)
+                    # Relax strict pairing to allow smart matching to correct BBox shifts
+                    if score < 5.0: # Arbitrary high threshold
+                        candidates.append((score, low, high))
 
-        strict_groups = []
-        for group in groups:
-            if len(group) <= 2:
-                strict_groups.append(group)
-                continue
-            group.sort(key=lambda x: x['faces'])
-            low = group[0]
-            highs = group[1:]
-            valid = []
-            for h in highs:
-                if is_strict_pair(low, h, threshold):
-                    valid.append((pair_score(low, h, threshold), h))
-                else:
-                    strict_groups.append([h])
-            if valid:
-                valid.sort(key=lambda x: x[0])
-                strict_groups.append([low, valid[0][1]])
-                for _, h in valid[1:]:
-                    strict_groups.append([h])
-            else:
-                strict_groups.append([low])
-                for h in highs:
-                    strict_groups.append([h])
-        groups = strict_groups
+            candidates.sort(key=lambda x: x[0])
+            used_lows = set()
+            used_highs = set()
 
+            for score, low, high in candidates:
+                low_id = id(low['obj'])
+                high_id = id(high['obj'])
+                if low_id in used_lows or high_id in used_highs:
+                    continue
+                used_lows.add(low_id)
+                used_highs.add(high_id)
+                groups.append([low, high])
+
+            for low in lows:
+                if id(low['obj']) not in used_lows:
+                    groups.append([low])
+            for high in highs:
+                if id(high['obj']) not in used_highs:
+                    groups.append([high])
+
+        # Renaming Process
         import time
         timestamp = int(time.time())
         temp_count = 0
         
         for group in groups:
-            if len(group) < 2: continue # 跳过无效组
+            if len(group) < 2: continue
             for item in group:
                 item['obj'].name = f"__M8_TEMP_{timestamp}_{temp_count}__"
                 temp_count += 1
@@ -313,23 +324,17 @@ class BM_OT_BatchRenumber(Operator):
         
         for group in groups:
             if len(group) < 2:
-                print(f"Skipped isolated: {group[0]['obj'].name}")
                 continue
 
             group.sort(key=lambda x: x['faces'])
             low_data = group[0]
             high_datas = group[1:]
 
-            # 3. 寻找可用的 start_index (自动避让场景中已存在的物体)
             while True:
                 base_name_check = f"{prefix}_{str(start_index).zfill(3)}"
-                low_name_check = f"{base_name_check}_low"
-                high_name_check = f"{base_name_check}_high"
-                
-                # 检查是否冲突 (因为待处理物体都已经改了临时名，所以只要存在就是外人)
                 conflict = False
-                if low_name_check in bpy.data.objects: conflict = True
-                if high_name_check in bpy.data.objects: conflict = True
+                if f"{base_name_check}_low" in bpy.data.objects or f"{base_name_check}_high" in bpy.data.objects:
+                    conflict = True
                 
                 if not conflict:
                     break
@@ -337,45 +342,37 @@ class BM_OT_BatchRenumber(Operator):
 
             base_name = f"{prefix}_{str(start_index).zfill(3)}"
             low_data['obj'].name = f"{base_name}_low"
-            if auto_coll:
-                move_to_collection(low_data['obj'], f"{prefix}_Low")
+            if auto_coll: move_to_collection(low_data['obj'], f"{prefix}_Low")
             
-            if len(high_datas) == 1:
-                high_datas[0]['obj'].name = f"{base_name}_high"
-                if auto_coll:
-                    move_to_collection(high_datas[0]['obj'], f"{prefix}_High")
-            else:
-                for idx, h_data in enumerate(high_datas):
-                    suffix = "" if idx == 0 else f".{str(idx).zfill(3)}"
-                    h_data['obj'].name = f"{base_name}_high{suffix}"
-                    if auto_coll:
-                        move_to_collection(h_data['obj'], f"{prefix}_High")
+            for idx, h_data in enumerate(high_datas):
+                suffix = "" if idx == 0 else f".{str(idx).zfill(3)}"
+                h_data['obj'].name = f"{base_name}_high{suffix}"
+                if auto_coll: move_to_collection(h_data['obj'], f"{prefix}_High")
             
             start_index += 1
             renamed_pairs += 1
 
-        self.report({"INFO"}, f"Done! Processed {renamed_pairs} pairs. / 完成！处理了 {renamed_pairs} 组")
+        props.start_index = start_index
+        self.report({"INFO"}, f"Done! Processed {renamed_pairs} pairs.")
         return {'FINISHED'}
-
 
 # --- 3. 传统匹配 ---
 
 class BM_OT_ClassicMatch(Operator):
     bl_idname = "bakematcher.classic_match"
     bl_label = "Classic Match"
-    bl_description = "Match nearby objects based on existing names / 根据现有名字匹配附近物体"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        scn = context.scene
-        threshold = scn.Distance_BakeMatcher
+        props = context.scene.m8.bake_renamer
+        threshold = props.distance
         
-        if scn.Selection_BakeMatcher == 'VISIBLE':
+        if props.selection_scope == 'VISIBLE':
             all_objs = [o for o in context.view_layer.objects if o.visible_get() and o.type == 'MESH']
         else:
             all_objs = [o for o in context.selected_objects if o.type == 'MESH']
 
-        if scn.Order_BakeMatcher == 'LOW':
+        if props.match_order == 'LOW':
             src_suffix, tgt_suffix = "_low", "_high"
         else:
             src_suffix, tgt_suffix = "_high", "_low"
@@ -386,7 +383,6 @@ class BM_OT_ClassicMatch(Operator):
         count = 0
         for src in sources:
             src_center = get_bbox_center(src)
-            best_dist = threshold
             candidates = []
             
             for tgt in targets:
@@ -407,7 +403,7 @@ class BM_OT_ClassicMatch(Operator):
                     t.name = f"{base_name}{tgt_suffix}{suffix}"
                 count += 1
 
-        self.report({"INFO"}, f"Classic match updated {count} pairs. / 传统匹配更新了 {count} 组")
+        self.report({"INFO"}, f"Classic match updated {count} pairs.")
         return {'FINISHED'}
 
 # --- 辅助工具 ---
@@ -417,7 +413,7 @@ class BM_OT_DetectConflicts(Operator):
     bl_label = "Detect Conflicts"
     bl_options = {'REGISTER', 'UNDO'}
     def execute(self, context):
-        threshold = context.scene.Distance_BakeMatcher
+        threshold = context.scene.m8.bake_renamer.distance
         objs = context.selected_objects
         centers = [(o, get_bbox_center(o)) for o in objs if o.type == 'MESH']
         conflicts = set()
@@ -429,9 +425,9 @@ class BM_OT_DetectConflicts(Operator):
         if conflicts:
             bpy.ops.object.select_all(action='DESELECT')
             for o in conflicts: o.select_set(True)
-            self.report({"WARNING"}, f"Found {len(conflicts)} overlaps / 发现 {len(conflicts)} 个重叠")
+            self.report({"WARNING"}, f"Found {len(conflicts)} overlaps")
         else:
-            self.report({"INFO"}, "No overlaps found / 无重叠")
+            self.report({"INFO"}, "No overlaps found")
         return {'FINISHED'}
 
 class BM_OT_OriginToBounds(Operator):
@@ -448,7 +444,8 @@ class BM_OT_ResetNames(Operator):
     bl_label = "Reset Names"
     bl_options = {'REGISTER', 'UNDO'}
     def execute(self, context):
-        prefix = context.scene.Name_BakeMatcher
+        props = context.scene.m8.bake_renamer
+        prefix = props.prefix
         idx = 1
         for o in context.selected_objects:
             o.name = f"{prefix}_{str(idx).zfill(3)}"
@@ -459,66 +456,63 @@ class BM_OT_ResetNames(Operator):
 
 class BAKEMATCHER_PT_Main(Panel):
     bl_idname = "BAKEMATCHER_PT_Main"
-    bl_label = "智能烘焙重命名" # 静态标题，中英双语
+    bl_label = "智能烘焙重命名"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "m8" # 整合到 m8 标签页
-    bl_order = 20 # 设置顺序
+    bl_category = "m8"
+    bl_order = 20
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout = self.layout
-        scn = context.scene
+        if not hasattr(context.scene, "m8") or not hasattr(context.scene.m8, "bake_renamer"):
+            layout.label(text="Loading settings...")
+            return
+            
+        props = context.scene.m8.bake_renamer
 
-        # --- 语言切换 ---
         row = layout.row()
-        row.prop(scn, "Language_BakeMatcher", expand=True)
+        row.prop(props, "language", expand=True)
         layout.separator()
 
-        # 全局参数
         box = layout.box()
         box.label(text=T(context, "global_settings"), icon="PREFERENCES")
         col = box.column(align=True)
-        col.prop(scn, 'Selection_BakeMatcher', text=T(context, "selection"))
-        col.prop(scn, 'Distance_BakeMatcher', text=T(context, "tolerance"))
+        col.prop(props, 'selection_scope', text=T(context, "selection"))
         
         row = box.row()
-        row.prop(scn, 'Name_BakeMatcher', text=T(context, "prefix"))
-        row.prop(scn, 'NameStartIndex_BakeMatcher', text=T(context, "start_index"))
+        row.prop(props, 'prefix', text=T(context, "prefix"))
+        row.prop(props, 'start_index', text=T(context, "start_index"))
         
         row = box.row()
-        row.prop(scn, 'AutoCollection_BakeMatcher', text=T(context, "auto_collection"))
+        row.prop(props, 'auto_collection', text=T(context, "auto_collection"))
 
-        # 区域 1: 手动工具
         box_manual = layout.box()
         box_manual.label(text=T(context, "manual_tools"), icon="BRUSH_DATA")
         row = box_manual.row(align=True)
         row.scale_y = 1.2
-        # 注意：这里使用 text=T(...) 来动态覆盖 Operator 的默认 label
         row.operator(BM_OT_SetLow.bl_idname, text=T(context, "btn_set_low"), icon="MESH_CUBE")
         row.operator(BM_OT_SetHigh.bl_idname, text=T(context, "btn_set_high"), icon="META_CUBE")
 
-        # 区域 2: 智能重构
         box_auto = layout.box()
         col = box_auto.column()
         col.label(text=T(context, "smart_tools"), icon="MODIFIER")
         col.label(text=T(context, "smart_desc"), icon="INFO")
         
-        # 大按钮
         row = col.row()
         row.scale_y = 2.0
         icon_name = "LIGHTPROBE_SPHERE" if hasattr(bpy.types, "LightProbe") else "MESH_ICOSPHERE"
         row.operator(BM_OT_BatchRenumber.bl_idname, text=T(context, "btn_smart_match"), icon=icon_name)
 
-        # 区域 3: 传统工具
         box_old = layout.box()
         col = box_old.column()
         col.label(text=T(context, "classic_tools"), icon="LINKED")
         row = col.row(align=True)
-        row.prop(scn, 'Order_BakeMatcher', expand=True)
+        row.prop(props, 'match_order', expand=True)
+        # Put tolerance in classic match section since it strictly uses distance
+        col.prop(props, 'distance', text=T(context, "tolerance"))
         col.operator(BM_OT_ClassicMatch.bl_idname, text=T(context, "btn_classic_match"), icon="LINK_BLEND")
         
-        # 辅助
         box_tool = layout.box()
         row = box_tool.row(align=True)
         row.operator(BM_OT_DetectConflicts.bl_idname, text=T(context, "btn_conflict"), icon="ERROR")
@@ -541,50 +535,9 @@ classes = (
 )
 
 def register():
-    # 语言属性
-    bpy.types.Scene.Language_BakeMatcher = EnumProperty(
-        items=[('CN', '中文', ''), ('EN', 'English', '')],
-        default='CN',
-        description="Switch Interface Language"
-    )
-
-    # 动态更新 EnumProperty 的 items 实现翻译
-    # 这里我们使用一个稍微投机取巧的方法：在 draw 里面动态传参
-    # 所以这里的定义保留英文key，UI显示时由 text=T(...) 覆盖，
-    # 但 EnumProperty 自身的 items 需要在这里定义
-    
-    bpy.types.Scene.Selection_BakeMatcher = EnumProperty(
-        items=[('SELECTED', 'Selected', ''), ('VISIBLE', 'Visible', '')],
-        default='SELECTED',
-        # 注意：为了让下拉菜单也能翻译，我们可以在 update 或者 draw 时处理，
-        # 但最简单的方法是保持简单的英文或双语，这里我选择简单的英文Key，
-        # 实际上 Panel draw 里的 text=T(...) 无法直接覆盖 Prop 的下拉选项。
-        # 如果需要下拉菜单也完全汉化，需要定义两个 Enum 或动态回调，比较复杂。
-        # 为了代码稳定性，这里保留英文 ID，但 Label 已经在 Panel 里汉化。
-        name="Selection Scope"
-    )
-    
-    bpy.types.Scene.Order_BakeMatcher = EnumProperty(
-        items=[('LOW', 'Low -> High', ''), ('HIGH', 'High -> Low', '')],
-        default='LOW',
-        name="Match Order"
-    )
-    
-    bpy.types.Scene.Name_BakeMatcher = StringProperty(default="Bake")
-    bpy.types.Scene.NameStartIndex_BakeMatcher = IntProperty(default=1, min=1)
-    bpy.types.Scene.AutoCollection_BakeMatcher = BoolProperty(
-        default=True,
-        name="Auto Move to Collection",
-        description="Automatically move objects to _Low/_High collections"
-    )
-    bpy.types.Scene.Distance_BakeMatcher = FloatProperty(
-        default=0.01, min=0.0001, precision=4, description="Tolerance distance")
+    # Removed global Scene properties, they are now encapsulated in M8_BakeRenamer_Props 
+    # which is registered inside property/state.py
+    pass
 
 def unregister():
-    del bpy.types.Scene.Language_BakeMatcher
-    del bpy.types.Scene.Selection_BakeMatcher
-    del bpy.types.Scene.Order_BakeMatcher
-    del bpy.types.Scene.Name_BakeMatcher
-    del bpy.types.Scene.NameStartIndex_BakeMatcher
-    del bpy.types.Scene.AutoCollection_BakeMatcher
-    del bpy.types.Scene.Distance_BakeMatcher
+    pass

@@ -124,7 +124,7 @@ class OBJECT_OT_CreateCage(bpy.types.Operator):
 
         min_c = Vector((min(c.x for c in all_coords), min(c.y for c in all_coords), min(c.z for c in all_coords)))
         max_c = Vector((max(c.x for c in all_coords), max(c.y for c in all_coords), max(c.z for c in all_coords)))
-        pad = float(getattr(context.scene, "size_tool_padding", 0.0) or 0.0)
+        pad = float(getattr(context.scene.m8, "size_tool_padding", 0.0) or 0.0)
         if pad > 0:
             p = Vector((pad, pad, pad))
             min_c -= p
@@ -222,7 +222,7 @@ class OBJECT_OT_UpdateSnapshot(bpy.types.Operator):
             if all_coords:
                 min_c = Vector((min(c.x for c in all_coords), min(c.y for c in all_coords), min(c.z for c in all_coords)))
                 max_c = Vector((max(c.x for c in all_coords), max(c.y for c in all_coords), max(c.z for c in all_coords)))
-                pad = float(getattr(context.scene, "size_tool_padding", 0.0) or 0.0)
+                pad = float(getattr(context.scene.m8, "size_tool_padding", 0.0) or 0.0)
                 if pad > 0:
                     p = Vector((pad, pad, pad))
                     min_c -= p

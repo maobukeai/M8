@@ -29,11 +29,11 @@ class VIEW3D_PT_M8_CleanUp(bpy.types.Panel):
             layout.label(text=_T("Please enter Edit Mode"), icon='INFO')
             layout.enabled = False
 
-        if not hasattr(context.scene, 'm8_clean_props'):
+        if not hasattr(context.scene, "m8"):
             layout.label(text=_T("Properties not registered"), icon='ERROR')
             return
 
-        props = context.scene.m8_clean_props
+        props = context.scene.m8.clean
         prefs = _get_addon_prefs(context)
 
         # Initialization logic moved out of draw to prevent "Writing to ID classes" error
@@ -151,8 +151,8 @@ class VIEW3D_PT_M8_MeshCleaner(bpy.types.Panel):
             layout.enabled = False
         
         # Use our new property group if available, otherwise fallback might be needed but we expect it to be registered
-        if hasattr(context.scene, 'm8_clean_props'):
-            props = context.scene.m8_clean_props
+        if hasattr(context.scene, "m8"):
+            props = context.scene.m8.clean
         else:
             layout.label(text=_T("Properties not registered"), icon='ERROR')
             return

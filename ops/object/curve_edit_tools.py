@@ -54,7 +54,7 @@ class M8_OT_CurveHandleTypeRemember(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            context.window_manager.m8_last_curve_handle_type = self.handle_type
+            context.window_manager.m8.last_curve_handle_type = self.handle_type
         except Exception:
             pass
             
@@ -102,7 +102,7 @@ class M8_OT_CurveSwitchDirectionRemember(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            context.window_manager.m8_last_curve_edit_action = "SWITCH_DIRECTION"
+            context.window_manager.m8.last_curve_edit_action = "SWITCH_DIRECTION"
         except Exception:
             pass
             
@@ -133,7 +133,7 @@ class M8_OT_CurveSubdivideRemember(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            context.window_manager.m8_last_curve_edit_action = "SUBDIVIDE"
+            context.window_manager.m8.last_curve_edit_action = "SUBDIVIDE"
         except Exception:
             pass
             
@@ -162,7 +162,7 @@ class M8_OT_CurveSmoothRemember(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            context.window_manager.m8_last_curve_edit_action = "SMOOTH"
+            context.window_manager.m8.last_curve_edit_action = "SMOOTH"
         except Exception:
             pass
             

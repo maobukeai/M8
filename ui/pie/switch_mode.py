@@ -897,8 +897,8 @@ class VIEW3D_MT_M8CurveEditPie(bpy.types.Menu):
     def draw(self, context):
         pie = self.layout.menu_pie()
         wm = context.window_manager
-        last_handle = getattr(wm, "m8_last_curve_handle_type", "AUTOMATIC")
-        last_action = getattr(wm, "m8_last_curve_edit_action", "")
+        last_handle = getattr(wm.m8, "last_curve_handle_type", "AUTOMATIC")
+        last_action = getattr(wm.m8, "last_curve_edit_action", "")
 
         ops = pie.operator(M8_OT_CurveHandleTypeRemember.bl_idname, text="手柄:Auto", icon="HANDLE_AUTO", depress=(last_handle == "AUTOMATIC"))
         ops.handle_type = "AUTOMATIC"

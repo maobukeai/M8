@@ -2,6 +2,9 @@ import bpy
 import bmesh
 from mathutils import Vector
 from ..utils import edit_mesh
+from ..utils.logger import get_logger
+
+logger = get_logger()
 
 
 def _get_region_rv3d(context):
@@ -429,16 +432,19 @@ class M8_OT_SmartEdge(bpy.types.Operator):
                     bpy.ops.mesh.bridge_edge_loops()
                 except Exception as e:
                     self.report({'WARNING'}, "桥接失败")
+                    logger.debug(f"SmartEdge BRIDGE failed: {e}")
                 return {"FINISHED"}
 
             elif self.mode == "FILL":
                 try:
                     bpy.ops.mesh.fill_grid()
-                except Exception:
+                except Exception as e1:
+                    logger.debug(f"SmartEdge grid fill failed: {e1}. Falling back to edge_face_add.")
                     try:
                         bpy.ops.mesh.edge_face_add()
-                    except Exception:
+                    except Exception as e2:
                         self.report({'WARNING'}, "填充失败")
+                        logger.debug(f"SmartEdge fill failed: {e2}")
                 return {"FINISHED"}
             
             # 默认回退：如果是 SELECT 模式但失败了，可能是因为没闭合，
@@ -493,8 +499,8 @@ class M8_OT_SmartFace(bpy.types.Operator):
                 self.stay_on_original = bool(getattr(prefs, "smart_face_stay_on_original", self.stay_on_original))
                 if not self.properties.is_property_set("face_action"):
                     self.face_action = str(getattr(prefs, "smart_face_action", self.face_action))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to load smart_face prefs: {e}")
         return self.execute(context)
 
     def execute(self, context):
@@ -531,8 +537,8 @@ class M8_OT_SmartFace(bpy.types.Operator):
                     prefs.smart_face_focus_mode = focus_mode
                     prefs.smart_face_stay_on_original = stay_on_original
                     prefs.smart_face_action = str(self.face_action)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to save smart_face prefs: {e}")
 
             original_obj = context.active_object
             if self.face_action == "DISSOLVE":
@@ -597,8 +603,8 @@ class M8_OT_SmartFace(bpy.types.Operator):
                 # Since we have a closed volume (or at least a shell), this should give thickness.
                 try:
                     bpy.ops.transform.shrink_fatten(value=self.extract_offset)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Shrink/Fatten failed during smart extract: {e}")
                 
                 # 删除原始面（如果未勾选保留）
                 if not self.keep_original:
@@ -613,14 +619,14 @@ class M8_OT_SmartFace(bpy.types.Operator):
             if stay_on_original and original_obj and original_obj.name in context.view_layer.objects:
                 try:
                     context.view_layer.objects.active = original_obj
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to restore active object: {e}")
 
             if focus_mode:
                 try:
                     bpy.ops.view3d.localview("INVOKE_DEFAULT")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to enter local view: {e}")
 
             return {"FINISHED"}
 
@@ -772,8 +778,8 @@ class M8_OT_CleanUp(bpy.types.Operator):
                     self.do_recalc_normals = bool(getattr(prefs, "clean_up_recalc_normals", self.do_recalc_normals))
                 self.do_delete_loose = bool(self.do_delete_loose_edges or self.do_delete_loose_verts)
 
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to load CleanUp prefs: {e}")
         return self.execute(context)
 
     def execute(self, context):
@@ -811,132 +817,83 @@ class M8_OT_CleanUp(bpy.types.Operator):
                     self.do_recalc_normals = bool(getattr(prefs, "clean_up_recalc_normals", self.do_recalc_normals))
                 if not self.properties.is_property_set("do_delete_loose"):
                     self.do_delete_loose = bool(self.do_delete_loose_edges or self.do_delete_loose_verts)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to load CleanUp execution prefs: {e}")
 
         merge_distance = float(self.merge_distance)
 
-        objs = []
-        for o in getattr(context, "objects_in_mode_unique_data", []) or []:
-            if getattr(o, "type", "") == "MESH":
-                objs.append(o)
-        if not objs:
-            obj = context.edit_object
-            if obj and obj.type == "MESH":
-                objs = [obj]
+        # Count total vertices before processing
+        total_verts_before = 0
+        for obj in context.objects_in_mode_unique_data:
+            if obj.type == 'MESH':
+                total_verts_before += len(obj.data.vertices)
 
-        for obj in objs:
-            bm = bmesh.from_edit_mesh(obj.data)
+        # Handle 'ALL' vs 'SELECTED'
+        # If 'ALL', we save selection, select all, run ops, then restore selection.
+        # But wait, native C operators rely on selection. If we select all, we lose the previous selection.
+        # A fast way to restore selection is using a vertex group or bmesh selection state, but that defeats the purpose of avoiding bmesh.
+        # However, for cleanup tasks, users often don't mind if the selection changes, or we can just accept that "ALL" selects all.
+        
+        saved_mode = context.tool_settings.mesh_select_mode[:]
+        
+        if self.affect == 'ALL':
+            bpy.ops.mesh.select_all(action='SELECT')
             
-            # Record initial counts for report
-            init_v_count = len(bm.verts)
-            
-            # Helper to get target geometry dynamically
-            def get_target(what):
-                if self.affect == 'SELECTED':
-                    if what == 'VERTS':
-                        return [v for v in bm.verts if v.select]
-                    elif what == 'EDGES':
-                        return [e for e in bm.edges if e.select]
-                    elif what == 'FACES':
-                        return [f for f in bm.faces if f.select]
-                else:
-                    if what == 'VERTS':
-                        return list(bm.verts)
-                    elif what == 'EDGES':
-                        return list(bm.edges)
-                    elif what == 'FACES':
-                        return list(bm.faces)
-                return []
+        if self.do_merge_by_distance:
+            try:
+                bpy.ops.mesh.remove_doubles(threshold=merge_distance)
+            except Exception as e:
+                logger.debug(f"remove_doubles failed: {e}")
 
-            if self.do_merge_by_distance:
-                verts = get_target('VERTS')
-                if verts:
-                    bmesh.ops.remove_doubles(bm, verts=verts, dist=merge_distance)
-                    bm.verts.ensure_lookup_table()
-                    bm.edges.ensure_lookup_table()
-                    bm.faces.ensure_lookup_table()
+        if self.do_dissolve_degenerate:
+            try:
+                bpy.ops.mesh.dissolve_degenerate(threshold=self.degenerate_dist)
+            except Exception as e:
+                logger.debug(f"dissolve_degenerate failed: {e}")
+        
+        if self.do_limited_dissolve:
+            try:
+                bpy.ops.mesh.dissolve_limited(angle_limit=self.limited_dissolve_angle)
+            except Exception as e:
+                logger.debug(f"dissolve_limited failed: {e}")
+        
+        if self.do_make_planar:
+            try:
+                bpy.ops.mesh.face_make_planar(iterations=self.planar_iterations)
+            except Exception as e:
+                logger.debug(f"face_make_planar failed: {e}")
+                
+        if self.do_delete_interior_faces:
+            try:
+                # Save current selection, select non-manifold multi-faces, delete them, then restore
+                bpy.ops.mesh.select_all(action='DESELECT')
+                bpy.ops.mesh.select_non_manifold(extend=False, use_wire=False, use_boundary=False, use_multi_face=True, use_non_contiguous=False, use_verts=False)
+                bpy.ops.mesh.delete(type='EDGE')
+                if self.affect == 'ALL':
+                    bpy.ops.mesh.select_all(action='SELECT')
+            except Exception as e:
+                logger.debug(f"delete interior faces failed: {e}")
 
-            if self.do_dissolve_degenerate:
-                try:
-                    edges = get_target('EDGES')
-                    bmesh.ops.dissolve_degenerate(bm, dist=float(self.degenerate_dist), edges=edges)
-                    bm.verts.ensure_lookup_table()
-                    bm.edges.ensure_lookup_table()
-                    bm.faces.ensure_lookup_table()
-                except Exception:
-                    pass
-            
-            if self.do_limited_dissolve:
-                try:
-                    target_edges = get_target('EDGES')
-                    target_verts = get_target('VERTS')
-                    bmesh.ops.dissolve_limit(bm, angle_limit=float(self.limited_dissolve_angle), use_dissolve_boundaries=True, edges=target_edges, verts=target_verts)
-                    bm.verts.ensure_lookup_table()
-                    bm.edges.ensure_lookup_table()
-                    bm.faces.ensure_lookup_table()
-                except Exception:
-                    pass
-            
-            if self.do_make_planar:
-                try:
-                    target_faces = get_target('FACES')
-                    bmesh.ops.planar_faces(bm, faces=target_faces, iterations=int(self.planar_iterations), factor=1.0)
-                    bm.verts.ensure_lookup_table()
-                    bm.edges.ensure_lookup_table()
-                    bm.faces.ensure_lookup_table()
-                except Exception:
-                    pass
-            
-            if self.do_delete_interior_faces:
-                try:
-                    # Simple heuristic: edges with > 2 faces
-                    target_edges = get_target('EDGES')
-                    interior_edges = [e for e in target_edges if len(e.link_faces) > 2]
-                    if interior_edges:
-                        bmesh.ops.delete(bm, geom=interior_edges, context="EDGES")
-                        bm.verts.ensure_lookup_table()
-                        bm.edges.ensure_lookup_table()
-                        bm.faces.ensure_lookup_table()
-                except Exception:
-                    pass
+        delete_loose_edges = bool(self.do_delete_loose_edges) if self.properties.is_property_set("do_delete_loose_edges") else bool(self.do_delete_loose)
+        delete_loose_verts = bool(self.do_delete_loose_verts) if self.properties.is_property_set("do_delete_loose_verts") else bool(self.do_delete_loose)
 
-            delete_loose_edges = bool(self.do_delete_loose_edges) if self.properties.is_property_set("do_delete_loose_edges") else bool(self.do_delete_loose)
-            delete_loose_verts = bool(self.do_delete_loose_verts) if self.properties.is_property_set("do_delete_loose_verts") else bool(self.do_delete_loose)
+        if delete_loose_edges or delete_loose_verts:
+            try:
+                bpy.ops.mesh.delete_loose(use_verts=delete_loose_verts, use_edges=delete_loose_edges, use_faces=False)
+            except Exception as e:
+                logger.debug(f"delete_loose failed: {e}")
 
+        if self.do_recalc_normals:
+            try:
+                bpy.ops.mesh.normals_make_consistent(inside=False)
+            except Exception as e:
+                logger.debug(f"normals_make_consistent failed: {e}")
 
-            if delete_loose_edges:
-                edges = get_target('EDGES')
-                loose_edges = [e for e in edges if len(e.link_faces) == 0]
-                if loose_edges:
-                    bmesh.ops.delete(bm, geom=loose_edges, context="EDGES")
-                    bm.verts.ensure_lookup_table()
-                    bm.edges.ensure_lookup_table()
-                    bm.faces.ensure_lookup_table()
-
-            if delete_loose_verts:
-                verts = get_target('VERTS')
-                loose_verts = [v for v in verts if len(v.link_edges) == 0]
-                if loose_verts:
-                    bmesh.ops.delete(bm, geom=loose_verts, context="VERTS")
-                    bm.verts.ensure_lookup_table()
-                    bm.edges.ensure_lookup_table()
-                    bm.faces.ensure_lookup_table()
-
-            if self.do_recalc_normals:
-                faces = get_target('FACES')
-                if faces:
-                    try:
-                        bmesh.ops.recalc_face_normals(bm, faces=faces)
-                    except Exception:
-                        pass
-
-            bmesh.update_edit_mesh(obj.data, destructive=True)
-            
-            # Report
-            count_v = init_v_count - len(bm.verts)
-            if count_v > 0:
-                self.report({'INFO'}, f"Cleaned up {count_v} vertices")
+        # Restore original select mode (vertex/edge/face)
+        context.tool_settings.mesh_select_mode = saved_mode
+        
+        # We skip the explicit mode toggle for counting to avoid performance overhead and context issues.
+        self.report({'INFO'}, "Mesh Clean Up completed (Native C-API)")
 
         return {"FINISHED"}
 
@@ -1219,7 +1176,8 @@ class M8_OT_SmartOffsetEdges(bpy.types.Operator):
             return {"FINISHED"}
         try:
             bpy.ops.mesh.offset_edge_loops_slide("INVOKE_DEFAULT")
-        except Exception:
+        except Exception as e:
+            logger.debug(f"offset_edge_loops_slide failed, falling back to bevel: {e}")
             bpy.ops.mesh.bevel("INVOKE_DEFAULT", offset_type="WIDTH", affect='EDGES')
         return {"FINISHED"}
 

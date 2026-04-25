@@ -18,8 +18,8 @@ class M8_OT_ModeSetRemember(bpy.types.Operator):
         obj = context.active_object
         if obj:
             try:
-                wm.m8_last_obj_type = obj.type
-                wm.m8_last_object_mode = self.mode
+                obj.m8.last_object_mode = obj.type
+                obj.m8.last_object_mode = self.mode
             except Exception:
                 pass
 

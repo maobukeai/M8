@@ -174,6 +174,7 @@ from .ops.file.image_save_preset import (
 )
 from .ops.misc.screencast import M8_OT_InternalScreencast
 from .ops.restart_blender import RestartBlender, draw_restart_blender_top_bar
+from .ops.hotkey_wrappers import M8_OT_SmartPassThroughWrapper
 from .ops.mirror import Mirror
 from .ops.align.align_object import AlignObject
 from .ops.align.align_object_by_view import AlignObjectByView
@@ -374,6 +375,7 @@ CLASSES = [
     FILEBROWSER_PT_m8_image_save_presets_extra,
     M8_OT_InternalScreencast,
     RestartBlender,
+    M8_OT_SmartPassThroughWrapper,
     Mirror,
     AlignObject,
     AlignObjectByView,
@@ -514,13 +516,15 @@ def register():
     global _startup_apply_runs
     global _startup_done
     global _registration_errors
+    from .utils.logger import get_logger
+    logger = get_logger()
+    
     _registration_errors = []
     _set_windows_console_utf8()
     try:
         m8_icons.register()
-    except Exception:
-        import traceback
-        traceback.print_exc()
+    except Exception as e:
+        logger.error(f"Failed to register m8_icons: {e}", exc_info=True)
 
     for cls in CLASSES:
         try:
@@ -529,28 +533,24 @@ def register():
             try:
                 bpy.utils.unregister_class(cls)
                 bpy.utils.register_class(cls)
-            except Exception:
+            except Exception as e:
                 _registration_errors.append(cls)
-                import traceback
-                traceback.print_exc()
-        except Exception:
+                logger.error(f"Failed to re-register class {cls.__name__}: {e}", exc_info=True)
+        except Exception as e:
             _registration_errors.append(cls)
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Failed to register class {cls.__name__}: {e}", exc_info=True)
     
     prefs = _get_addon_prefs()
     if not prefs or getattr(prefs, "auto_new_object_origin_bottom", True):
         register_auto_origin()
     try:
         mp7_icons.register()
-    except Exception:
-        import traceback
-        traceback.print_exc()
+    except Exception as e:
+        logger.error(f"Failed to register mp7_icons: {e}", exc_info=True)
     try:
         mp7_translate.register()
-    except Exception:
-        import traceback
-        traceback.print_exc()
+    except Exception as e:
+        logger.error(f"Failed to register mp7_translate: {e}", exc_info=True)
     register_keymaps()
     if hasattr(bpy.types, "TOPBAR_MT_editor_menus"):
         bpy.types.TOPBAR_MT_editor_menus.append(draw_restart_blender_top_bar)
@@ -574,25 +574,9 @@ def register():
                     prefs.unity_fbx_global_scale = 100.0
         except Exception:
             pass
-    
-    bpy.types.Scene.size_tool_padding = bpy.props.FloatProperty(
-        name="间距",
-        description="创建调节盒时的外扩间距",
-        default=0.0,
-        min=0.0,
-        soft_max=1.0,
-        unit='LENGTH'
-    )
-
-    bpy.types.Scene.m8_clean_props = bpy.props.PointerProperty(type=M8_Clean_Props)
-    bpy.types.Scene.m8_custom_tools = bpy.props.PointerProperty(type=M8_CustomTools_Props)
-    bpy.types.Scene.m8_image_save_preset_props = bpy.props.PointerProperty(type=M8_ImageSavePresetProps)
-
-    bpy.types.WindowManager.m8_last_obj_type = bpy.props.StringProperty(default="")
-    bpy.types.WindowManager.m8_last_object_mode = bpy.props.StringProperty(default="")
-    bpy.types.WindowManager.m8_last_curve_handle_type = bpy.props.StringProperty(default="AUTOMATIC")
-    bpy.types.WindowManager.m8_last_curve_edit_action = bpy.props.StringProperty(default="")
-    bpy.types.WindowManager.m8_cursor_z_axis = bpy.props.FloatVectorProperty(size=3, default=(0.0, 0.0, 0.0))
+            
+    from .property import state
+    state.register()
 
     if (not bpy.app.background) and (not _startup_timer_registered):
         _startup_apply_runs = 0
@@ -608,65 +592,54 @@ def register():
 
 def unregister():
     global _startup_timer_registered
+    from .utils.logger import get_logger
+    logger = get_logger()
 
     unregister_keymaps()
     try:
         mp7_translate.unregister()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Failed to unregister mp7_translate: {e}", exc_info=True)
     try:
         mp7_icons.unregister()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Failed to unregister mp7_icons: {e}", exc_info=True)
     if hasattr(bpy.types, "TOPBAR_MT_editor_menus"):
         bpy.types.TOPBAR_MT_editor_menus.remove(draw_restart_blender_top_bar)
     
     # Unregister Group Tool Context Menu
     try:
         bpy.types.VIEW3D_MT_object_context_menu.remove(draw_group_context_menu)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Failed to unregister group context menu: {e}", exc_info=True)
 
     try:
         unregister_auto_origin()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to unregister auto origin: {e}")
     try:
         unregister_baking_renaming()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to unregister baking renaming: {e}")
     try:
         unregister_auto_pack()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to unregister auto pack: {e}")
     _startup_timer_registered = False
 
-    if hasattr(bpy.types.WindowManager, "m8_last_obj_type"):
-        del bpy.types.WindowManager.m8_last_obj_type
-    if hasattr(bpy.types.WindowManager, "m8_last_object_mode"):
-        del bpy.types.WindowManager.m8_last_object_mode
-    if hasattr(bpy.types.WindowManager, "m8_last_curve_handle_type"):
-        del bpy.types.WindowManager.m8_last_curve_handle_type
-    if hasattr(bpy.types.WindowManager, "m8_last_curve_edit_action"):
-        del bpy.types.WindowManager.m8_last_curve_edit_action
-    if hasattr(bpy.types.WindowManager, "m8_cursor_z_axis"):
-        del bpy.types.WindowManager.m8_cursor_z_axis
+    from .property import state
+    try:
+        state.unregister()
+    except Exception as e:
+        logger.debug(f"Failed to unregister state properties: {e}")
 
     for cls in reversed(CLASSES):
         try:
             bpy.utils.unregister_class(cls)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Class {cls.__name__} was not unregistered properly: {e}")
     
-    if hasattr(bpy.types.Scene, "size_tool_padding"):
-        del bpy.types.Scene.size_tool_padding
-    if hasattr(bpy.types.Scene, "m8_clean_props"):
-        del bpy.types.Scene.m8_clean_props
-    if hasattr(bpy.types.Scene, "m8_custom_tools"):
-        del bpy.types.Scene.m8_custom_tools
-    if hasattr(bpy.types.Scene, "m8_image_save_preset_props"):
-        del bpy.types.Scene.m8_image_save_preset_props
     try:
         m8_icons.unregister()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to unregister m8_icons: {e}")

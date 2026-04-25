@@ -230,7 +230,7 @@ class FILEBROWSER_PT_m8_image_save_presets(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        props = scene.m8_image_save_preset_props
+        props = scene.m8.image_save_preset
         
         # 引擎切换
         row = layout.row()
@@ -305,7 +305,7 @@ class FILEBROWSER_PT_m8_image_save_presets_extra(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
-        props = scene.m8_image_save_preset_props
+        props = scene.m8.image_save_preset
         
         col = layout.column(align=True)
         grid = col.grid_flow(row_major=True, columns=3, even_columns=True, align=True)

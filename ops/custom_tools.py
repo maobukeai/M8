@@ -32,8 +32,8 @@ class M8_OT_SortMaterials(bpy.types.Operator):
 
     def invoke(self, context, event):
         # 如果从面板点击，尝试同步 Scene 属性到 Operator
-        if hasattr(context.scene, "m8_custom_tools"):
-            props = context.scene.m8_custom_tools
+        if hasattr(context.scene, "m8"):
+            props = context.scene.m8.custom_tools
             self.sort_mode = props.sort_mode
             self.remove_unused = props.remove_unused
         return self.execute(context)
@@ -146,8 +146,8 @@ class M8_OT_MergeNearbyObjects(bpy.types.Operator):
 
     def invoke(self, context, event):
         # 如果从面板点击，尝试同步 Scene 属性到 Operator
-        if hasattr(context.scene, "m8_custom_tools"):
-            props = context.scene.m8_custom_tools
+        if hasattr(context.scene, "m8"):
+            props = context.scene.m8.custom_tools
             self.threshold = props.merge_threshold
             self.unit = props.merge_unit
         return self.execute(context)
@@ -234,8 +234,8 @@ class M8_OT_BatchCopyAlign(bpy.types.Operator):
 
     def invoke(self, context, event):
         # 如果从面板点击，尝试同步 Scene 属性到 Operator
-        if hasattr(context.scene, "m8_custom_tools"):
-            props = context.scene.m8_custom_tools
+        if hasattr(context.scene, "m8"):
+            props = context.scene.m8.custom_tools
             mode = props.copy_align_mode
             
             if mode == 'REMOVE':
@@ -427,8 +427,8 @@ class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
         col = layout.column(align=True)
         col.label(text="材质工具", icon='MATERIAL')
         
-        if hasattr(context.scene, "m8_custom_tools"):
-            props = context.scene.m8_custom_tools
+        if hasattr(context.scene, "m8"):
+            props = context.scene.m8.custom_tools
             col.prop(props, "sort_mode", text="")
             col.prop(props, "remove_unused")
         
@@ -437,8 +437,8 @@ class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
         col.separator()
         col.label(text="物体合并", icon='GROUP')
         
-        if hasattr(context.scene, "m8_custom_tools"):
-            props = context.scene.m8_custom_tools
+        if hasattr(context.scene, "m8"):
+            props = context.scene.m8.custom_tools
             row = col.row(align=True)
             row.prop(props, "merge_threshold")
             row.prop(props, "merge_unit", text="")
@@ -448,8 +448,8 @@ class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
         col.separator()
         col.label(text="复制与对齐", icon='DUPLICATE')
         
-        if hasattr(context.scene, "m8_custom_tools"):
-            props = context.scene.m8_custom_tools
+        if hasattr(context.scene, "m8"):
+            props = context.scene.m8.custom_tools
             col.prop(props, "copy_align_mode", text="")
 
         col.operator("m8.batch_copy_align", icon='COPYDOWN', text="批量复制")

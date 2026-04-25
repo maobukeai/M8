@@ -22,5 +22,5 @@ class SCENE_OT_ResetSizeToolPadding(bpy.types.Operator):
         root_pkg = (__package__ or "").split(".")[0]
         prefs = context.preferences.addons.get(root_pkg).preferences if context.preferences.addons.get(root_pkg) else None
         default_padding = float(getattr(prefs, "default_padding", 0.0)) if prefs else 0.0
-        context.scene.size_tool_padding = max(0.0, default_padding)
+        context.scene.m8.size_tool_padding = max(0.0, default_padding)
         return {'FINISHED'}

@@ -1,4 +1,7 @@
 import bpy
+from ..utils.logger import get_logger
+
+logger = get_logger()
 
 PIE_MENU_ID = "VIEW3D_MT_size_tool_transform_pie"
 SWITCH_MODE_PIE_ID = "VIEW3D_MT_m8_switch_mode_pie"
@@ -109,8 +112,8 @@ def _ensure_pie_keymap_priority(km, kmi):
         idx = items.index(kmi)
         if idx > 0:
             km.keymap_items.move(idx, 0)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to ensure keymap priority for {kmi.idname}: {e}")
 
 def _iter_switch_mode_keymap_bindings(wm):
     bindings = []
@@ -1113,8 +1116,9 @@ def _disable_conflicts_for_signatures(kc, signatures):
                     try:
                         kmi.active = False
                         disabled += 1
-                    except Exception:
-                        pass
+                        logger.info(f"Disabled conflicting hotkey: {kmi.name} ({kmi.idname}) in {keymap_name}")
+                    except Exception as e:
+                        logger.error(f"Failed to disable conflict {kmi.idname}: {e}")
                     break
     return disabled
 
@@ -1154,8 +1158,9 @@ def _restore_conflicts_for_signatures(kc, signatures):
                     try:
                         kmi.active = True
                         restored += 1
-                    except Exception:
-                        pass
+                        logger.info(f"Restored conflicting hotkey: {kmi.name} ({kmi.idname}) in {keymap_name}")
+                    except Exception as e:
+                        logger.error(f"Failed to restore conflict {kmi.idname}: {e}")
                     break
     return restored
 
