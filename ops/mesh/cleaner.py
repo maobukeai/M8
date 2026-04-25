@@ -46,7 +46,8 @@ class M8_Clean_Props(bpy.types.PropertyGroup):
         default=0.0005,
         min=0.0,
         max=1.0,
-        precision=6
+        precision=6,
+        step=0.1
     )
     
     mark_sharp_similar: bpy.props.BoolProperty(
@@ -79,10 +80,10 @@ class M8_Clean_Props(bpy.types.PropertyGroup):
         ],
         default="ALL",
     )
-    cleanup_merge_distance: bpy.props.FloatProperty(name="合并距离", default=0.0001, min=0.0)
+    cleanup_merge_distance: bpy.props.FloatProperty(name="合并距离", default=0.0001, min=0.0, step=0.1, precision=5)
     cleanup_do_merge_by_distance: bpy.props.BoolProperty(name="重复", default=True)
     cleanup_do_dissolve_degenerate: bpy.props.BoolProperty(name="退化", default=True)
-    cleanup_degenerate_dist: bpy.props.FloatProperty(name="退化阈值", default=0.00001, min=0.0)
+    cleanup_degenerate_dist: bpy.props.FloatProperty(name="退化阈值", default=0.00001, min=0.0, step=0.01, precision=6)
     cleanup_do_delete_loose: bpy.props.BoolProperty(name="松散", default=True)
     cleanup_do_limited_dissolve: bpy.props.BoolProperty(name="冗余", default=False)
     cleanup_limited_dissolve_angle: bpy.props.FloatProperty(name="角度", default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
@@ -734,6 +735,75 @@ class MESH_OT_checker_deselect(bpy.types.Operator):
 # Unbevel Operators
 # -------------------------------------------------------------------
 
+def get_safe_unbevel_pos(edge, b_edges_ids):
+    """Safely calculates the unbevel intersection point, gracefully degrading to midpoint on failure"""
+    import math
+    import mathutils
+    from mathutils import Vector, Matrix
+    
+    verts = edge.verts
+    pos_between = verts[0].co.lerp(verts[1].co, 0.5)
+    
+    # Safe boundary & non-manifold check
+    if len(edge.link_faces) != 2:
+        return pos_between
+        
+    try:
+        # Check if adjoining edges are selected to guess the corner normal
+        linked_edges_0 = sum(1 for e in edge.link_faces[0].edges if e.index in b_edges_ids)
+        linked_edges_1 = sum(1 for e in edge.link_faces[1].edges if e.index in b_edges_ids)
+        
+        if len(edge.link_faces[0].verts) > 4 or linked_edges_0 < 2:
+            ed_normal = edge.link_faces[1].normal
+        elif len(edge.link_faces[1].verts) > 4 or linked_edges_1 < 2:
+            ed_normal = edge.link_faces[0].normal
+        else:
+            ed_normal = edge.link_faces[0].normal.lerp(edge.link_faces[1].normal, 0.5)
+        
+        fix_dir = ed_normal.cross((verts[0].co - verts[1].co).normalized())
+        if fix_dir.length < 1e-6:
+            return pos_between
+            
+        v0_nor = mathutils.geometry.intersect_line_plane(verts[0].normal + (fix_dir * 2), verts[0].normal - (fix_dir * 2), Vector((0,0,0)), fix_dir)
+        v1_nor = mathutils.geometry.intersect_line_plane(verts[1].normal + (fix_dir * 2), verts[1].normal - (fix_dir * 2), Vector((0,0,0)), fix_dir)
+        
+        if not v0_nor or not v1_nor:
+            v0_nor = verts[0].normal
+            v1_nor = verts[1].normal
+        else:
+            v0_nor = v0_nor.normalized()
+            v1_nor = v1_nor.normalized()
+            
+        nor_dir = v0_nor.lerp(v1_nor, 0.5)
+        if nor_dir.length < 1e-6:
+            return pos_between
+        nor_dir.normalize()
+        
+        side_dir_2 = (verts[0].co - verts[1].co).normalized()
+        side_dir_2.negate()
+        side_dir_1 = nor_dir.cross(side_dir_2).normalized()
+        
+        angle_between_1 = v0_nor.angle(nor_dir)
+        degree_90 = 1.57079632679
+        
+        rot_mat = Matrix.Rotation((-angle_between_1 * 2) - degree_90, 3, side_dir_1)
+        rot_mat_2 = Matrix.Rotation((angle_between_1 * 2) + (degree_90 * 2), 3, side_dir_1)
+        
+        dir_1 = ((rot_mat @ nor_dir).normalized() * 10000) + verts[0].co
+        dir_2 = (rot_mat_2 @ nor_dir).normalized()
+        
+        scale_pos = mathutils.geometry.intersect_line_plane(verts[0].co, dir_1, verts[1].co, dir_2)
+        
+        if scale_pos is None:
+            return pos_between
+            
+        return scale_pos
+        
+    except Exception:
+        # Graceful fallback to midpoint on mathematical singularity
+        return pos_between
+
+
 class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
     """Select similar edges and unbevel them completely"""
     bl_idname = "mesh.m8_auto_unbevel_similar"
@@ -747,7 +817,8 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
         default=0.0005, 
         min=0.0, 
         max=1.0,
-        precision=6
+        precision=6,
+        step=0.1  # 降低滑动敏感度
     )
     
     mark_sharp: bpy.props.BoolProperty(
@@ -851,53 +922,9 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
         b_edges_ids = [edge.index for edge in b_edges]
         
         for edge in b_edges:
-            verts = edge.verts
-            
-            # fix normals
-            if len(edge.link_faces) > 1:
-                linked_edges_0 = 0
-                linked_edges_1 = 0
-                
-                for edge2 in edge.link_faces[0].edges:
-                    if edge2.index in b_edges_ids:
-                        linked_edges_0 += 1
-                
-                for edge2 in edge.link_faces[1].edges:
-                    if edge2.index in b_edges_ids:
-                        linked_edges_1 += 1
-                
-                if len(edge.link_faces[0].verts) > 4 or linked_edges_0 < 2:
-                    ed_normal = edge.link_faces[1].normal
-                elif len(edge.link_faces[1].verts) > 4 or linked_edges_1 < 2:
-                    ed_normal = edge.link_faces[0].normal
-                else:
-                    ed_normal = edge.link_faces[0].normal.lerp(edge.link_faces[1].normal, 0.5)
-                
-                fix_dir = ed_normal.cross((verts[0].co - verts[1].co).normalized())
-                v0_nor = mathutils.geometry.intersect_line_plane(verts[0].normal + (fix_dir * 2), verts[0].normal - (fix_dir * 2), Vector((0,0,0)), fix_dir).normalized()
-                v1_nor = mathutils.geometry.intersect_line_plane(verts[1].normal + (fix_dir * 2), verts[1].normal - (fix_dir * 2), Vector((0,0,0)), fix_dir).normalized()
-            else:
-                v0_nor = verts[0].normal
-                v1_nor = verts[1].normal
-            
-            # base math
-            nor_dir = v0_nor.lerp(v1_nor, 0.5).normalized()
-            side_dir_2 = (verts[0].co - verts[1].co).normalized()
-            side_dir_2.negate()
-            side_dir_1 = nor_dir.cross(side_dir_2).normalized()
-            
-            pos_between = verts[0].co.lerp(verts[1].co, 0.5)
-            angle_between_1 = v0_nor.angle(nor_dir)
-            angle_between_2 = v1_nor.angle(nor_dir)
-            
-            rot_mat = Matrix.Rotation((-angle_between_1 * 2) - degree_90, 3, side_dir_1)
-            rot_mat_2 = Matrix.Rotation((angle_between_1 * 2) + (degree_90 * 2), 3, side_dir_1)
-            dir_1 = ((rot_mat @ nor_dir).normalized() * 10000) + verts[0].co
-            dir_2 = (rot_mat_2 @ nor_dir).normalized()
-            
-            scale_pos = mathutils.geometry.intersect_line_plane(verts[0].co, dir_1, verts[1].co, dir_2)
-            b_edges_pos.append((verts[0], scale_pos))
-            b_edges_pos.append((verts[1], scale_pos))
+            scale_pos = get_safe_unbevel_pos(edge, b_edges_ids)
+            b_edges_pos.append((edge.verts[0], scale_pos))
+            b_edges_pos.append((edge.verts[1], scale_pos))
         
         for v_data in b_edges_pos:
             v_data[0].co = v_data[1].lerp(v_data[0].co, unbevel_value)
@@ -951,7 +978,8 @@ class MESH_OT_select_short_edges(bpy.types.Operator):
         default=0.0005, 
         min=0.0, 
         max=1.0,
-        precision=6
+        precision=6,
+        step=0.05  # 极大幅度降低鼠标拖动时的滑动敏感度，方便微调
     )
 
     def execute(self, context):
@@ -1071,53 +1099,9 @@ class MESH_OT_unbevel_selected(bpy.types.Operator):
         b_edges_ids = [edge.index for edge in b_edges]
         
         for edge in b_edges:
-            verts = edge.verts
-            
-            # fix normals
-            if len(edge.link_faces) > 1:
-                linked_edges_0 = 0
-                linked_edges_1 = 0
-                
-                for edge2 in edge.link_faces[0].edges:
-                    if edge2.index in b_edges_ids:
-                        linked_edges_0 += 1
-                
-                for edge2 in edge.link_faces[1].edges:
-                    if edge2.index in b_edges_ids:
-                        linked_edges_1 += 1
-                
-                if len(edge.link_faces[0].verts) > 4 or linked_edges_0 < 2:
-                    ed_normal = edge.link_faces[1].normal
-                elif len(edge.link_faces[1].verts) > 4 or linked_edges_1 < 2:
-                    ed_normal = edge.link_faces[0].normal
-                else:
-                    ed_normal = edge.link_faces[0].normal.lerp(edge.link_faces[1].normal, 0.5)
-                
-                fix_dir = ed_normal.cross((verts[0].co - verts[1].co).normalized())
-                v0_nor = mathutils.geometry.intersect_line_plane(verts[0].normal + (fix_dir * 2), verts[0].normal - (fix_dir * 2), Vector((0,0,0)), fix_dir).normalized()
-                v1_nor = mathutils.geometry.intersect_line_plane(verts[1].normal + (fix_dir * 2), verts[1].normal - (fix_dir * 2), Vector((0,0,0)), fix_dir).normalized()
-            else:
-                v0_nor = verts[0].normal
-                v1_nor = verts[1].normal
-            
-            # base math
-            nor_dir = v0_nor.lerp(v1_nor, 0.5).normalized()
-            side_dir_2 = (verts[0].co - verts[1].co).normalized()
-            side_dir_2.negate()
-            side_dir_1 = nor_dir.cross(side_dir_2).normalized()
-            
-            pos_between = verts[0].co.lerp(verts[1].co, 0.5)
-            angle_between_1 = v0_nor.angle(nor_dir)
-            angle_between_2 = v1_nor.angle(nor_dir)
-            
-            rot_mat = Matrix.Rotation((-angle_between_1 * 2) - degree_90, 3, side_dir_1)
-            rot_mat_2 = Matrix.Rotation((angle_between_1 * 2) + (degree_90 * 2), 3, side_dir_1)
-            dir_1 = ((rot_mat @ nor_dir).normalized() * 10000) + verts[0].co
-            dir_2 = (rot_mat_2 @ nor_dir).normalized()
-            
-            scale_pos = mathutils.geometry.intersect_line_plane(verts[0].co, dir_1, verts[1].co, dir_2)
-            b_edges_pos.append((verts[0], scale_pos))
-            b_edges_pos.append((verts[1], scale_pos))
+            scale_pos = get_safe_unbevel_pos(edge, b_edges_ids)
+            b_edges_pos.append((edge.verts[0], scale_pos))
+            b_edges_pos.append((edge.verts[1], scale_pos))
         
         for v_data in b_edges_pos:
             v_data[0].co = v_data[1].lerp(v_data[0].co, unbevel_value)
@@ -1517,6 +1501,8 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
 
     def calculate_plane(self, bm, loop, method="best_fit", object=None):
         """Calculate a best-fit plane to the given vertices"""
+        import mathutils
+        
         # Get vertex locations
         verts = [bm.verts[v] for v in loop if v < len(bm.verts)]
         if len(verts) < 3:
@@ -1525,78 +1511,35 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
         locs = [v.co.copy() for v in verts]
 
         # Calculate center of mass
-        com = mathutils.Vector()
-        for loc in locs:
-            com += loc
-        com /= len(locs)
-        x, y, z = com
+        com = sum(locs, mathutils.Vector()) / len(locs)
 
         if method == 'best_fit':
-            # Create covariance matrix
-            mat = mathutils.Matrix(((0.0, 0.0, 0.0),
-                                    (0.0, 0.0, 0.0),
-                                    (0.0, 0.0, 0.0)))
-            for loc in locs:
-                mat[0][0] += (loc[0] - x) ** 2
-                mat[1][0] += (loc[0] - x) * (loc[1] - y)
-                mat[2][0] += (loc[0] - x) * (loc[2] - z)
-                mat[0][1] += (loc[1] - y) * (loc[0] - x)
-                mat[1][1] += (loc[1] - y) ** 2
-                mat[2][1] += (loc[1] - y) * (loc[2] - z)
-                mat[0][2] += (loc[2] - z) * (loc[0] - x)
-                mat[1][2] += (loc[2] - z) * (loc[1] - y)
-                mat[2][2] += (loc[2] - z) ** 2
-
-            # Calculate normal to the plane
-            normal = False
-            try:
-                mat.invert()
-            except:
-                # Handle degenerate cases
-                ax = 2
-                if abs(sum(mat[0])) < abs(sum(mat[1])):
-                    if abs(sum(mat[0])) < abs(sum(mat[2])):
-                        ax = 0
-                elif abs(sum(mat[1])) < abs(sum(mat[2])):
-                    ax = 1
-                if ax == 0:
-                    normal = mathutils.Vector((1.0, 0.0, 0.0))
-                elif ax == 1:
-                    normal = mathutils.Vector((0.0, 1.0, 0.0))
-                else:
-                    normal = mathutils.Vector((0.0, 0.0, 1.0))
-
-            if not normal:
-                # Power iteration method to find eigenvector
-                itermax = 500
-                vec2 = mathutils.Vector((1.0, 1.0, 1.0))
-                for i in range(itermax):
-                    vec = vec2
-                    vec2 = mat @ vec
-                    # Calculate length with double precision
-                    vec2_length = math.sqrt(vec2[0] ** 2 + vec2[1] ** 2 + vec2[2] ** 2)
-                    if vec2_length != 0:
-                        vec2 /= vec2_length
-                    if vec2 == vec:
-                        break
-                if vec2.length == 0:
-                    vec2 = mathutils.Vector((1.0, 1.0, 1.0))
-                normal = vec2
+            # Use Blender's native C-API for polygon normal calculation (Newell's method)
+            # This is lightning fast, mathematically robust, and replaces 50 lines of covariance math
+            normal = mathutils.geometry.normal(locs)
+            
+            # Fallback if vertices are completely degenerate
+            if normal.length == 0:
+                normal = mathutils.Vector((0.0, 0.0, 1.0))
 
         elif method == 'normal':
             # Average vertex normals
-            normal = mathutils.Vector()
-            for v in verts:
-                normal += v.normal
-            normal /= len(verts)
-            normal.normalize()
+            normal = sum([v.normal for v in verts], mathutils.Vector())
+            if normal.length > 0:
+                normal.normalize()
+            else:
+                normal = mathutils.Vector((0.0, 0.0, 1.0))
 
         elif method == 'view':
             # Calculate view normal
-            rotation = bpy.context.space_data.region_3d.view_matrix.to_3x3().inverted()
-            normal = rotation @ mathutils.Vector((0.0, 0.0, 1.0))
-            if object:
-                normal = object.matrix_world.inverted().to_euler().to_matrix() @ normal
+            import bpy
+            if bpy.context.space_data.type == 'VIEW_3D':
+                rotation = bpy.context.space_data.region_3d.view_matrix.to_3x3().inverted()
+                normal = rotation @ mathutils.Vector((0.0, 0.0, 1.0))
+                if object:
+                    normal = object.matrix_world.inverted().to_euler().to_matrix() @ normal
+            else:
+                normal = mathutils.Vector((0.0, 0.0, 1.0))
 
         return com, normal
 

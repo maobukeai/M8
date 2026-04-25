@@ -638,7 +638,7 @@ class M8_OT_CleanUp(bpy.types.Operator):
     bl_label = "M8 清理 (Clean Up)"
     bl_options = {"REGISTER", "UNDO"}
 
-    merge_distance: bpy.props.FloatProperty(name="合并距离", default=0.0001, min=0.0)
+    merge_distance: bpy.props.FloatProperty(name="合并距离", default=0.0001, min=0.0, step=0.1, precision=5)
     affect: bpy.props.EnumProperty(
         name="影响范围",
         items=[
@@ -649,7 +649,7 @@ class M8_OT_CleanUp(bpy.types.Operator):
     )
     do_merge_by_distance: bpy.props.BoolProperty(name="合并重复点", default=True)
     do_dissolve_degenerate: bpy.props.BoolProperty(name="溶解退化几何", default=True)
-    degenerate_dist: bpy.props.FloatProperty(name="退化阈值", default=0.00001, min=0.0)
+    degenerate_dist: bpy.props.FloatProperty(name="退化阈值", default=0.00001, min=0.0, step=0.01, precision=6)
     do_delete_loose: bpy.props.BoolProperty(name="删除松散几何", default=True)
     do_delete_loose_edges: bpy.props.BoolProperty(name="删除孤立边", default=True)
     do_delete_loose_verts: bpy.props.BoolProperty(name="删除孤立点", default=True)
