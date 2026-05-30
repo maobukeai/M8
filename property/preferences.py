@@ -871,6 +871,9 @@ def _is_our_group_tool_item(kmi):
 def _is_our_double_click_select_group_item(kmi):
     return getattr(kmi, "idname", "") == 'm8.select_group'
 
+def _is_our_double_click_edit_switch_item(kmi):
+    return getattr(kmi, "idname", "") == 'm8.double_click_edit_switch'
+
 def _find_pie_keymap_item():
     # Helper to find the transform pie item for the UI/Operators
     wm = bpy.context.window_manager if bpy.context else None
@@ -1123,6 +1126,7 @@ def _disable_conflicts_for_signatures(kc, signatures):
                        _is_our_mirror_item(kmi) or
                        _is_our_group_tool_item(kmi) or
                        _is_our_double_click_select_group_item(kmi) or
+                       _is_our_double_click_edit_switch_item(kmi) or
                        _is_our_smart_pie_item(kmi) or
                        _is_our_smart_tool_item(kmi) or
                        _is_our_switch_editor_pie_item(kmi) or
@@ -1247,7 +1251,9 @@ class SIZE_TOOL_OT_ExclusiveTransformPieHotkey(bpy.types.Operator):
         prefs = _get_addon_prefs()
         include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
 
-        signatures = _our_shortcut_signatures() or [("S", "PRESS", False, True, False, False, False, 'NONE')]
+        kc2, km2, kmi2 = _find_pie_keymap_item()
+        sig = _kmi_signature(kmi2) if kmi2 else None
+        signatures = [sig] if sig else [("S", "PRESS", False, True, False, False, False, 'NONE')]
         disabled = _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
         if include_user:
             disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
@@ -1277,7 +1283,9 @@ class SIZE_TOOL_OT_RestoreShiftSConflicts(bpy.types.Operator):
         prefs = _get_addon_prefs()
         include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
 
-        signatures = _our_shortcut_signatures() or [("S", "PRESS", False, True, False, False, False, 'NONE')]
+        kc2, km2, kmi2 = _find_pie_keymap_item()
+        sig = _kmi_signature(kmi2) if kmi2 else None
+        signatures = [sig] if sig else [("S", "PRESS", False, True, False, False, False, 'NONE')]
         restored = _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
         if include_user:
             restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)

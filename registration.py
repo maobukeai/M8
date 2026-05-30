@@ -142,6 +142,8 @@ from .ops.custom_tools import (
     M8_OT_AlignOriginToNormal,
     VIEW3D_PT_M8_CustomTools,
     M8_CustomTools_Props,
+)
+from .property.preferences import (
     M8_MP7_MockDrawProperty,
     SIZE_TOOL_Preferences,
     SIZE_TOOL_OT_ResetTransformPieKeymap,
@@ -179,6 +181,39 @@ from .ops.custom_tools import (
     update_keymaps
 )
 
+from .ops.file.save_pie_ops import (
+    M8_OT_OpenCurrentFolder, M8_OT_OpenTempDir, M8_OT_OpenAutoSave,
+    M8_OT_SwitchFile, M8_OT_IncrementalSave, M8_OT_ExportFBX,
+    M8_OT_ToggleUnityFBXPreset, M8_OT_ResetUnityFBXPreset, M8_OT_PackResources,
+    M8_OT_PurgeUnusedMaterials, M8_OT_ShowSaveReport, M8_OT_PlaceholderOp,
+    M8_OT_OpenPreferences, M8_OT_ToggleScreencastKeys, M8_OT_CreateAssetGroup,
+    M8_OT_OrphansPurgeKeepAssets, M8_OT_CallOperatorWithAddon
+)
+from .ops.file.image_save_preset import (
+    M8_ImageSavePresetProps, M8_OT_AppendFilenameSuffix, M8_OT_SetFilenamePrefix,
+    FILEBROWSER_PT_m8_image_save_presets, FILEBROWSER_PT_m8_image_save_presets_extra
+)
+from .ops.file.auto_pack import register as register_auto_pack, unregister as unregister_auto_pack
+from .ops.misc.screencast import M8_OT_InternalScreencast
+from .ops.restart_blender import RestartBlender, draw_restart_blender_top_bar
+from .ops.hotkey_wrappers import M8_OT_SmartPassThroughWrapper
+from .ops.mirror import Mirror
+from .ops.align.align_object import AlignObject
+from .ops.align.align_object_by_view import AlignObjectByView
+from .ops.align.align_mesh import AlignMesh
+from .ops.align.align_uv import AlignUV
+from .ops.mesh.relax import Relax
+from .ops.mesh.straighten import Straighten
+from .ops.origin.origin_to_bottom import OriginToBottom
+from .ops.origin.origin_to_cursor import OriginToCursor
+from .ops.origin.origin_to_active import OriginToActive
+from .ops.origin.cursor_to_select import CursorToSelect
+from .ui.pie.align_mesh import AlignMeshPie
+from .ui.pie.align_object import AlignObjectPie
+from .ui.pie.align_uv import AlignUVPie
+from .ui.panel.cleaner import VIEW3D_PT_M8_CleanUp, VIEW3D_PT_M8_MeshCleaner
+from .ui import icons as m8_icons
+
 CLASSES = [
     M8_OT_SortMaterials,
     M8_OT_MergeNearbyObjects,
@@ -212,6 +247,12 @@ CLASSES = [
     SIZE_TOOL_OT_RestoreAllConflicts,
     M8_OT_ResetSwitchModePrefs,
     M8_OT_ResetPrefsUI,
+    SIZE_TOOL_OT_ForceDeletePiePriority,
+    SIZE_TOOL_OT_ForceRenamePriority,
+    SIZE_TOOL_OT_ForceShadingPiePriority,
+    SIZE_TOOL_OT_ForceSmartPiePriority,
+    SIZE_TOOL_OT_ForceSwitchEditorPriority,
+    SIZE_TOOL_OT_ForceToggleAreaPriority,
     MESH_OT_SelectRandomIslands,
     MESH_OT_LeavesToPlanes,
     MESH_OT_ScaleFromBottomUV,
