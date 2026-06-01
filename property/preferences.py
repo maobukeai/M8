@@ -97,6 +97,11 @@ TOGGLE_AREA_KEYMAP_BINDINGS = (
     ("Image", "IMAGE_EDITOR"),
 )
 
+SUBDIVISION_KEYMAP_BINDINGS = (
+    ("Object Mode", "EMPTY"),
+    ("Object Non-modal", "EMPTY"),
+)
+
 # Global list to store registered keymap items: list of (km, kmi)
 addon_keymaps = []
 
@@ -401,6 +406,47 @@ def register_keymaps(force_default=False):
     _ensure_pie_keymap_priority(km, kmi)
     addon_keymaps.append((km, kmi))
 
+    # 15. Subdivision Level Shortcuts (Ctrl+0..4)
+    active = get_pref("activate_subdivision_shortcuts", True)
+    for keymap_name, space_type in SUBDIVISION_KEYMAP_BINDINGS:
+        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
+        
+        # Ctrl + 0
+        kmi = km.keymap_items.new('m8.subdivision_set', 'ZERO', 'PRESS', ctrl=True)
+        kmi.properties.level = 0
+        kmi.active = active
+        _ensure_pie_keymap_priority(km, kmi)
+        addon_keymaps.append((km, kmi))
+
+        # Ctrl + 1
+        kmi = km.keymap_items.new('m8.subdivision_set', 'ONE', 'PRESS', ctrl=True)
+        kmi.properties.level = 1
+        kmi.active = active
+        _ensure_pie_keymap_priority(km, kmi)
+        addon_keymaps.append((km, kmi))
+
+        # Ctrl + 2
+        kmi = km.keymap_items.new('m8.subdivision_set', 'TWO', 'PRESS', ctrl=True)
+        kmi.properties.level = 2
+        kmi.active = active
+        _ensure_pie_keymap_priority(km, kmi)
+        addon_keymaps.append((km, kmi))
+
+        # Ctrl + 3
+        kmi = km.keymap_items.new('m8.subdivision_set', 'THREE', 'PRESS', ctrl=True)
+        kmi.properties.level = 3
+        kmi.active = active
+        _ensure_pie_keymap_priority(km, kmi)
+        addon_keymaps.append((km, kmi))
+
+        # Ctrl + 4
+        kmi = km.keymap_items.new('m8.subdivision_set', 'FOUR', 'PRESS', ctrl=True)
+        kmi.properties.level = 4
+        kmi.active = active
+        _ensure_pie_keymap_priority(km, kmi)
+        addon_keymaps.append((km, kmi))
+
+
 def unregister_keymaps():
     global addon_keymaps
     for km, kmi in addon_keymaps:
@@ -481,6 +527,9 @@ def update_keymaps(self, context):
     def is_toggle_area(kmi):
         return kmi.idname == TOGGLE_AREA_OP_ID
 
+    def is_subdivision_shortcut(kmi):
+        return kmi.idname == 'm8.subdivision_set'
+
     # Get pref values
     # Note: 'self' is the preferences instance
     p_transform = getattr(self, "enable_transform_pie", True)
@@ -499,6 +548,7 @@ def update_keymaps(self, context):
     p_smart_pie = getattr(self, "activate_smart_pie", True)
     p_toggle_area = getattr(self, "activate_toggle_area", True)
     p_switch_editor = getattr(self, "activate_switch_editor_pie", True)
+    p_subdivision = getattr(self, "activate_subdivision_shortcuts", True)
 
     for km, kmi in addon_keymaps:
         try:
@@ -519,8 +569,35 @@ def update_keymaps(self, context):
             elif is_smart_tools(kmi): kmi.active = p_smart_pie
             elif is_toggle_area(kmi): kmi.active = p_toggle_area
             elif is_switch_editor_pie(kmi): kmi.active = p_switch_editor
+            elif is_subdivision_shortcut(kmi): kmi.active = p_subdivision
         except Exception:
             pass
+
+    # Automatically manage subdivision hotkey exclusivity when toggled or updated
+    if p_subdivision:
+        try:
+            bpy.ops.size_tool.exclusive_subdivision_hotkey()
+        except Exception:
+            pass
+    else:
+        try:
+            bpy.ops.size_tool.restore_subdivision_conflicts()
+        except Exception:
+            pass
+
+    # Automatically manage toggle area hotkey exclusivity when toggled or updated
+    if p_toggle_area:
+        try:
+            bpy.ops.size_tool.exclusive_toggle_area_hotkey()
+        except Exception:
+            pass
+    else:
+        try:
+            bpy.ops.size_tool.restore_toggle_area_conflicts()
+        except Exception:
+            pass
+
+
 
 def _on_prefs_update(self, context):
     update_keymaps(self, context)
@@ -874,6 +951,21 @@ def _is_our_double_click_select_group_item(kmi):
 def _is_our_double_click_edit_switch_item(kmi):
     return getattr(kmi, "idname", "") == 'm8.double_click_edit_switch'
 
+def _is_our_subdivision_item(kmi):
+    return getattr(kmi, "idname", "") == 'm8.subdivision_set'
+
+def _find_subdivision_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in SUBDIVISION_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_subdivision_item(kmi): items.append((kc, km, kmi))
+    return items
+
 def _find_pie_keymap_item():
     # Helper to find the transform pie item for the UI/Operators
     wm = bpy.context.window_manager if bpy.context else None
@@ -1101,7 +1193,8 @@ def _disable_conflicts_for_signatures(kc, signatures):
                    list(DELETE_PIE_KEYMAP_BINDINGS) + list(SAVE_PIE_KEYMAP_BINDINGS) + \
                    list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS) + \
                    list(SMART_PIE_KEYMAP_BINDINGS) + list(TOGGLE_AREA_KEYMAP_BINDINGS) + \
-                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS)
+                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS) + \
+                   list(SUBDIVISION_KEYMAP_BINDINGS)
     
     seen_km = set()
     for keymap_name, _ in all_bindings:
@@ -1131,6 +1224,7 @@ def _disable_conflicts_for_signatures(kc, signatures):
                        _is_our_smart_tool_item(kmi) or
                        _is_our_switch_editor_pie_item(kmi) or
                        _is_our_edge_property_pie_item(kmi) or
+                       _is_our_subdivision_item(kmi) or
                        kmi.idname == TOGGLE_AREA_OP_ID)
             if is_ours: continue
             
@@ -1153,7 +1247,8 @@ def _restore_conflicts_for_signatures(kc, signatures):
                    list(DELETE_PIE_KEYMAP_BINDINGS) + list(SAVE_PIE_KEYMAP_BINDINGS) + \
                    list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS) + \
                    list(SMART_PIE_KEYMAP_BINDINGS) + list(TOGGLE_AREA_KEYMAP_BINDINGS) + \
-                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS)
+                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS) + \
+                   list(SUBDIVISION_KEYMAP_BINDINGS)
     
     seen_km = set()
     for keymap_name, _ in all_bindings:
@@ -1182,6 +1277,7 @@ def _restore_conflicts_for_signatures(kc, signatures):
                        _is_our_smart_tool_item(kmi) or
                        _is_our_switch_editor_pie_item(kmi) or
                        _is_our_edge_property_pie_item(kmi) or
+                       _is_our_subdivision_item(kmi) or
                        kmi.idname == TOGGLE_AREA_OP_ID)
             if is_ours: continue
 
@@ -1624,6 +1720,133 @@ class SIZE_TOOL_OT_RestoreCtrlGConflicts(bpy.types.Operator):
         self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Ctrl+G 快捷键")
         return {'FINISHED'}
 
+class SIZE_TOOL_OT_ExclusiveSubdivisionHotkey(bpy.types.Operator):
+    bl_idname = "size_tool.exclusive_subdivision_hotkey"
+    bl_label = "独占细分快捷键"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        wm = bpy.context.window_manager if bpy.context else None
+        if not wm or not wm.keyconfigs:
+            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
+            return {'CANCELLED'}
+
+        prefs = _get_addon_prefs()
+        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
+
+        signatures = [
+            ("ZERO", "PRESS", False, False, True, False, False, 'NONE'),
+            ("ONE", "PRESS", False, False, True, False, False, 'NONE'),
+            ("TWO", "PRESS", False, False, True, False, False, 'NONE'),
+            ("THREE", "PRESS", False, False, True, False, False, 'NONE'),
+            ("FOUR", "PRESS", False, False, True, False, False, 'NONE'),
+        ]
+        
+        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures)
+        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
+        if include_user:
+            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
+
+        # Ensure ours is at top
+        items = _find_subdivision_keymap_items()
+        for kc2, km2, kmi2 in items:
+            _ensure_pie_keymap_priority(km2, kmi2)
+
+        if disabled:
+            self.report({'INFO'}, f"已禁用 {disabled} 个插件或系统的细分冲突快捷键")
+        else:
+            self.report({'INFO'}, "未发现任何细分冲突快捷键")
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_RestoreSubdivisionConflicts(bpy.types.Operator):
+    bl_idname = "size_tool.restore_subdivision_conflicts"
+    bl_label = "恢复被禁用的细分快捷键"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        wm = bpy.context.window_manager if bpy.context else None
+        if not wm or not wm.keyconfigs:
+            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
+            return {'CANCELLED'}
+
+        prefs = _get_addon_prefs()
+        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
+
+        signatures = [
+            ("ZERO", "PRESS", False, False, True, False, False, 'NONE'),
+            ("ONE", "PRESS", False, False, True, False, False, 'NONE'),
+            ("TWO", "PRESS", False, False, True, False, False, 'NONE'),
+            ("THREE", "PRESS", False, False, True, False, False, 'NONE'),
+            ("FOUR", "PRESS", False, False, True, False, False, 'NONE'),
+        ]
+        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures)
+        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
+        if include_user:
+            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
+
+        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的细分快捷键")
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_ExclusiveToggleAreaHotkey(bpy.types.Operator):
+    bl_idname = "size_tool.exclusive_toggle_area_hotkey"
+    bl_label = "独占区域切换快捷键"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        wm = bpy.context.window_manager if bpy.context else None
+        if not wm or not wm.keyconfigs:
+            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
+            return {'CANCELLED'}
+
+        prefs = _get_addon_prefs()
+        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
+
+        signatures = [
+            ("T", "PRESS", False, False, False, False, False, 'NONE'),
+        ]
+        
+        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures)
+        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
+        if include_user:
+            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
+
+        # Ensure ours is at top
+        items = _find_toggle_area_keymap_items()
+        for kc2, km2, kmi2 in items:
+            _ensure_pie_keymap_priority(km2, kmi2)
+
+        if disabled:
+            self.report({'INFO'}, f"已禁用 {disabled} 个系统或其它插件冲突的 T 键快捷键")
+        else:
+            self.report({'INFO'}, "未发现任何 T 键冲突快捷键")
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_RestoreToggleAreaConflicts(bpy.types.Operator):
+    bl_idname = "size_tool.restore_toggle_area_conflicts"
+    bl_label = "恢复被禁用的区域切换快捷键"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        wm = bpy.context.window_manager if bpy.context else None
+        if not wm or not wm.keyconfigs:
+            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
+            return {'CANCELLED'}
+
+        prefs = _get_addon_prefs()
+        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
+
+        signatures = [
+            ("T", "PRESS", False, False, False, False, False, 'NONE'),
+        ]
+        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures)
+        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
+        if include_user:
+            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
+
+        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 T 键快捷键")
+        return {'FINISHED'}
+
+
 class SIZE_TOOL_OT_ForceDeletePiePriority(bpy.types.Operator):
     bl_idname = "size_tool.force_delete_pie_priority"
     bl_label = "强制置顶删除饼菜单快捷键"
@@ -1721,6 +1944,8 @@ class SIZE_TOOL_OT_ExclusiveAllHotkeys(bpy.types.Operator):
             bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
             bpy.ops.size_tool.exclusive_save_pie_hotkey()
             bpy.ops.size_tool.exclusive_mirror_hotkey()
+            bpy.ops.size_tool.exclusive_subdivision_hotkey()
+            bpy.ops.size_tool.exclusive_toggle_area_hotkey()
             self.report({'INFO'}, "已执行所有独占操作")
         except Exception as e:
             self.report({'WARNING'}, f"部分操作失败: {e}")
@@ -1739,6 +1964,8 @@ class SIZE_TOOL_OT_RestoreAllConflicts(bpy.types.Operator):
             bpy.ops.size_tool.restore_shift_e_conflicts()
             bpy.ops.size_tool.restore_ctrl_s_conflicts()
             bpy.ops.size_tool.restore_shift_alt_x_conflicts()
+            bpy.ops.size_tool.restore_subdivision_conflicts()
+            bpy.ops.size_tool.restore_toggle_area_conflicts()
             self.report({'INFO'}, "已执行所有恢复操作")
         except Exception as e:
             self.report({'WARNING'}, f"部分操作失败: {e}")
@@ -1828,6 +2055,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     activate_switch_editor_pie: bpy.props.BoolProperty(name="启用切换窗口饼菜单 (F12)", default=True, update=_on_prefs_update)
     ui_show_switch_editor_keymap: bpy.props.BoolProperty(name="显示快捷键详情(切换窗口)", default=False)
+    activate_subdivision_shortcuts: bpy.props.BoolProperty(name="启用细分快捷键 (Ctrl+0..4)", default=True, update=_on_prefs_update)
+    ui_show_subdivision_keymap: bpy.props.BoolProperty(name="显示快捷键详情(细分级别)", default=False)
     switch_editor_pie_left: bpy.props.EnumProperty(name="左", items=_switch_editor_items, default=4)
     switch_editor_pie_right: bpy.props.EnumProperty(name="右", items=_switch_editor_items, default=24)
     switch_editor_pie_bottom: bpy.props.EnumProperty(name="下", items=_switch_editor_items, default=3)
@@ -1911,6 +2140,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             ("SMART_PIE", "智能饼菜单", "Smart Pie (1)"),
             ("TOGGLE_AREA", "区域切换", "Toggle Area (T)"),
             ("SWITCH_EDITOR", "切换窗口", "Switch Editor Pie (F12)"),
+            ("SUBDIVISION", "细分级别", "Subdivision Set"),
             ("SCREENCAST", "按键显示", "Screencast"),
             ("OTHER", "其它设置", "Other Settings"),
             ("ABOUT", "关于", "About"),
@@ -2033,6 +2263,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     ui_show_smart_pie_advanced: bpy.props.BoolProperty(name="高级(SmartPie)", default=False)
     ui_show_toggle_area_advanced: bpy.props.BoolProperty(name="高级(ToggleArea)", default=False)
     ui_show_switch_editor_advanced: bpy.props.BoolProperty(name="映射(SwitchEditor)", default=False)
+    ui_show_subdivision_advanced: bpy.props.BoolProperty(name="高级(Subdivision)", default=False)
     ui_show_rename_keymap: bpy.props.BoolProperty(name="快捷键(Rename)", default=False)
 
     # --- Screencast Properties ---
@@ -2420,6 +2651,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "SMART_PIE": (_T("智能饼菜单"), _T("编辑模式下 1/2/3 的智能建模操作合集（顶点/边/面/清理/路径等）")),
             "TOGGLE_AREA": (_T("区域切换"), _T("T 键切换 Toolbar/Sidebar 及 Asset Browser/Shelf")),
             "SWITCH_EDITOR": ("切换窗口", "配置 F12 切换窗口饼菜单映射"),
+            "SUBDIVISION": (_T("细分级别"), _T("物体模式下 Ctrl+1/2/3/4 设置细分级别，Ctrl+0 清零细分级别")),
 
             "SCREENCAST": (_T("按键显示"), _T("实时在视口显示键盘鼠标操作，支持自定义外观")),
             "OTHER": (_T("系统设置"), _T("包含备份设置、新建物体默认行为等全局选项")),
@@ -2446,6 +2678,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "SMART_PIE": "VIEW3D",
             "TOGGLE_AREA": "FULLSCREEN_ENTER",
             "SWITCH_EDITOR": "WINDOW",
+            "SUBDIVISION": "MOD_SUBSURF",
 
             "SCREENCAST": "WINDOW",
             "OTHER": "PREFERENCES",
@@ -2471,6 +2704,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         self._draw_sidebar_button(col_nav, "VIEW3D", "智能饼菜单 (1)", "SMART_PIE")
         self._draw_sidebar_button(col_nav, "FULLSCREEN_ENTER", "区域切换 (T)", "TOGGLE_AREA")
         self._draw_sidebar_button(col_nav, "WINDOW", "切换窗口 (F12)", "SWITCH_EDITOR")
+        self._draw_sidebar_button(col_nav, "MOD_SUBSURF", "细分级别 (Ctrl+0..4)", "SUBDIVISION")
 
 
         col_nav.separator()
@@ -2528,6 +2762,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 "GROUP",
                 "SMART_PIE",
                 "TOGGLE_AREA",
+                "SWITCH_EDITOR",
+                "SUBDIVISION",
                 "SCREENCAST",
                 "OTHER",
                 "ABOUT",
@@ -2561,6 +2797,10 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     self.draw_smart_pie_settings(sub)
                 elif key == "TOGGLE_AREA":
                     self.draw_toggle_area_settings(sub)
+                elif key == "SWITCH_EDITOR":
+                    self.draw_switch_editor_settings(sub)
+                elif key == "SUBDIVISION":
+                    self.draw_subdivision_settings(sub)
                 elif key == "SCREENCAST":
                     self.draw_screencast_settings(sub)
                 elif key == "OTHER":
@@ -2595,6 +2835,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 self.draw_toggle_area_settings(box)
             elif nav_tab == "SWITCH_EDITOR":
                 self.draw_switch_editor_settings(box)
+            elif nav_tab == "SUBDIVISION":
+                self.draw_subdivision_settings(box)
             elif nav_tab == "SCREENCAST":
                 self.draw_screencast_settings(box)
             elif nav_tab == "OTHER":
@@ -2653,6 +2895,47 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 col2.prop(self, "switch_editor_pie_bottom_left")
                 col2.prop(self, "switch_editor_pie_bottom_right")
     
+    def draw_subdivision_settings(self, layout):
+        col = layout.column()
+        if "activate_subdivision_shortcuts" in self.bl_rna.properties:
+            col.prop(self, "activate_subdivision_shortcuts")
+
+        # Safe access to activate_subdivision_shortcuts
+        activate_shortcuts = getattr(self, "activate_subdivision_shortcuts", True)
+        
+        if activate_shortcuts:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_subdivision_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_subdivision_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if "ui_show_subdivision_advanced" in self.bl_rna.properties:
+                row.prop(self, "ui_show_subdivision_advanced", text=_T("高级"), toggle=True, icon="PREFERENCES")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
+            
+            if getattr(self, "ui_show_subdivision_advanced", False):
+                sub_col = col.column()
+                row_sub = sub_col.row(align=True)
+                row_sub.operator("size_tool.exclusive_subdivision_hotkey", text=_T("独占(禁用冲突)"))
+                row_sub.operator("size_tool.restore_subdivision_conflicts", text=_T("恢复冲突"))
+
+            # Safe access to ui_show_subdivision_keymap
+            show_keymap = getattr(self, "ui_show_subdivision_keymap", False)
+            if show_keymap:
+                sub_col = col.column()
+                try:
+                    import rna_keymap_ui
+                    subdiv_items = _find_subdivision_keymap_items()
+                    
+                    if not subdiv_items:
+                        sub_col.label(text=_T("未找到细分级别绑定"), icon="INFO")
+                    else:
+                        for kc, km, kmi in subdiv_items:
+                            rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
+                except Exception:
+                    pass
+
     def draw_switch_mode_settings(self, layout):
         col = layout.column()
         if "activate_switch_mode" in self.bl_rna.properties:
@@ -3249,8 +3532,11 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             col.separator()
             if getattr(self, "ui_show_toggle_area_advanced", False):
                 sub_col = col.column()
-                sub_col.label(text=_T("该模块暂无内置的快捷键冲突配置"), icon="INFO")
+                row_sub = sub_col.row(align=True)
+                row_sub.operator("size_tool.exclusive_toggle_area_hotkey", text=_T("独占(禁用冲突)"))
+                row_sub.operator("size_tool.restore_toggle_area_conflicts", text=_T("恢复冲突"))
             box_toggle = col.box()
+
             box_toggle.label(text=_T("交互逻辑"), icon="MOUSE_LMB")
             box_toggle.prop(self, "toggle_area_close_range", text=_T("关闭范围 (%)"))
             box_toggle.prop(self, "toggle_area_prefer_left_right", text=_T("首选左/右切换"))

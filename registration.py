@@ -50,6 +50,7 @@ from .ops.object.curve_edit_tools import (
 from .ops.object.lattice_tools import M8_OT_LatticeMakeRegular
 from .ops.object.quick_delete import M8_OT_QuickDelete
 from .ops.object.rename import M8_OT_AdvancedRename
+from .ops.object.subdivision_set import M8_OT_SubdivisionSet
 from .ops.object.baking_renaming import classes as baking_renaming_classes, register as register_baking_renaming, unregister as unregister_baking_renaming
 from .ops.object.switch_mode import OBJECT_OT_SwitchMode, M8_OT_SwitchBoneMode
 from .ops.object.double_click_edit_switch import M8_OT_DoubleClickEditSwitch
@@ -174,7 +175,12 @@ from .property.preferences import (
     SIZE_TOOL_OT_ForceToggleAreaPriority,
     SIZE_TOOL_OT_ExclusiveAllHotkeys,
     SIZE_TOOL_OT_RestoreAllConflicts,
+    SIZE_TOOL_OT_ExclusiveSubdivisionHotkey,
+    SIZE_TOOL_OT_RestoreSubdivisionConflicts,
+    SIZE_TOOL_OT_ExclusiveToggleAreaHotkey,
+    SIZE_TOOL_OT_RestoreToggleAreaConflicts,
     M8_OT_ResetSwitchModePrefs,
+
     M8_OT_ResetPrefsUI,
     register_keymaps,
     unregister_keymaps,
@@ -245,7 +251,12 @@ CLASSES = [
     SIZE_TOOL_OT_RestoreCtrlGConflicts,
     SIZE_TOOL_OT_ExclusiveAllHotkeys,
     SIZE_TOOL_OT_RestoreAllConflicts,
+    SIZE_TOOL_OT_ExclusiveSubdivisionHotkey,
+    SIZE_TOOL_OT_RestoreSubdivisionConflicts,
+    SIZE_TOOL_OT_ExclusiveToggleAreaHotkey,
+    SIZE_TOOL_OT_RestoreToggleAreaConflicts,
     M8_OT_ResetSwitchModePrefs,
+
     M8_OT_ResetPrefsUI,
     SIZE_TOOL_OT_ForceDeletePiePriority,
     SIZE_TOOL_OT_ForceRenamePriority,
@@ -321,6 +332,7 @@ CLASSES = [
     M8_OT_LatticeMakeRegular,
     M8_OT_QuickDelete,
     M8_OT_AdvancedRename,
+    M8_OT_SubdivisionSet,
     OBJECT_OT_CreateCage,
     OBJECT_OT_UpdateSnapshot,
     OBJECT_OT_FinishDetach,
@@ -459,12 +471,33 @@ def _startup_apply():
         exclusive_ok = True
         if getattr(prefs, "auto_exclusive_shift_s_on_startup", False):
             try:
-                bpy.ops.size_tool.exclusive_transform_pie_hotkey()
-                bpy.ops.size_tool.exclusive_align_pie_hotkey()
-                bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
-                bpy.ops.size_tool.exclusive_save_pie_hotkey()
+                res1 = bpy.ops.size_tool.exclusive_transform_pie_hotkey()
+                res2 = bpy.ops.size_tool.exclusive_align_pie_hotkey()
+                res3 = bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
+                res4 = bpy.ops.size_tool.exclusive_save_pie_hotkey()
+                if 'FINISHED' not in res1 or 'FINISHED' not in res2 or 'FINISHED' not in res3 or 'FINISHED' not in res4:
+                    exclusive_ok = False
             except Exception:
                 exclusive_ok = False  # ops not ready, must retry
+
+        # Proactively run exclusive overrides for subdivision shortcuts to ensure they work out of the box
+        if getattr(prefs, "activate_subdivision_shortcuts", True):
+            try:
+                res = bpy.ops.size_tool.exclusive_subdivision_hotkey()
+                if 'FINISHED' not in res:
+                    exclusive_ok = False
+            except Exception:
+                exclusive_ok = False
+
+        # Proactively run exclusive overrides for Toggle Area to ensure they work out of the box
+        if getattr(prefs, "activate_toggle_area", True):
+            try:
+                res = bpy.ops.size_tool.exclusive_toggle_area_hotkey()
+                if 'FINISHED' not in res:
+                    exclusive_ok = False
+            except Exception:
+                exclusive_ok = False
+
 
         if getattr(prefs, "auto_new_object_origin_bottom", True):
             register_auto_origin()
@@ -482,6 +515,7 @@ def _startup_apply():
 
         if keymap_ok and exclusive_ok:
             _startup_done = True  # all good, no need for further full inits
+
 
     _startup_apply_runs += 1
 
@@ -551,7 +585,19 @@ def register():
     except Exception as e:
         logger.error(f"Failed to register mp7_translate: {e}", exc_info=True)
     register_keymaps()
+    try:
+        if prefs and getattr(prefs, "activate_subdivision_shortcuts", True):
+            bpy.ops.size_tool.exclusive_subdivision_hotkey()
+    except Exception:
+        pass
+    try:
+        if prefs and getattr(prefs, "activate_toggle_area", True):
+            bpy.ops.size_tool.exclusive_toggle_area_hotkey()
+    except Exception:
+        pass
     if hasattr(bpy.types, "TOPBAR_MT_editor_menus"):
+
+
         bpy.types.TOPBAR_MT_editor_menus.append(draw_restart_blender_top_bar)
     
     # Register Group Tool Context Menu

@@ -399,6 +399,17 @@ ZH_TO_EN = {
     "到底部": "To Bottom",
     "冻结所有变换": "Freeze All Transforms",
     "到游标 (偏移)": "To Cursor (Offset)",
+    "细分级别": "Subdivision Level",
+    "细分级别 (Ctrl+0..4)": "Subdivision Level (Ctrl+0..4)",
+    "物体模式下 Ctrl+1/2/3/4 设置细分级别，Ctrl+0 清零细分级别": "Set subdivision level with Ctrl+1/2/3/4, reset to 0 with Ctrl+0 in Object Mode",
+    "启用细分快捷键 (Ctrl+0..4)": "Enable Subdivision Shortcuts (Ctrl+0..4)",
+    "显示快捷键详情(细分级别)": "Show Keymap (Subdivision)",
+    "未找到细分级别绑定": "Subdivision binding not found",
+    "恢复冲突": "Restore Conflicts",
+    "独占(禁用冲突)": "Exclusive (Disable Conflicts)",
+    "高级(Subdivision)": "Advanced (Subdivision)",
+    "独占细分快捷键": "Exclusive Subdivision Shortcuts",
+    "恢复被禁用的细分快捷键": "Restore Subdivision Conflicts",
 }
 
 def _T(text):
