@@ -1,0 +1,722 @@
+import bpy
+from ..utils.logger import get_logger
+from ..utils.i18n import _T
+from ..utils.adapter import get_adapter_blender_icon as _ICON
+from .keymap_constants import *
+
+logger = get_logger()
+
+# Global list to store registered keymap items: list of (km, kmi)
+addon_keymaps = []
+
+def _get_addon_prefs():
+    root_pkg = (__package__ or "").split(".")[0]
+    addon = bpy.context.preferences.addons.get(root_pkg) if bpy.context and bpy.context.preferences else None
+    return addon.preferences if addon else None
+
+# Helper to ensure our keymap is at the top (priority)
+def _ensure_pie_keymap_priority(km, kmi):
+    # Blender API doesn't support .move() on keymap_items.
+    # Addon keymaps already have higher priority than defaults.
+    pass
+
+def _iter_switch_mode_keymap_bindings(wm):
+    bindings = []
+    seen = set()
+    for item in SWITCH_MODE_KEYMAP_BINDINGS:
+        if item not in seen:
+            bindings.append(item)
+            seen.add(item)
+    try:
+        for km in wm.keyconfigs.active.keymaps:
+            name = getattr(km, "name", "")
+            if not name:
+                continue
+            if "Grease Pencil" not in name and "GPencil" not in name:
+                continue
+            space_type = getattr(km, "space_type", "EMPTY") or "EMPTY"
+            item = (name, space_type)
+            if item in seen:
+                continue
+            bindings.append(item)
+            seen.add(item)
+    except Exception:
+        pass
+    return bindings
+
+def _on_prefs_update(self, context):
+    from .keymap_manager import update_keymaps
+    update_keymaps(self, context)
+
+def _on_autoorigin_update(self, context):
+    try:
+        from ..ops.origin.auto_origin import register as reg_auto, unregister as unreg_auto
+        if getattr(self, "auto_new_object_origin_bottom", False):
+            reg_auto()
+        else:
+            unreg_auto()
+    except Exception:
+        pass
+
+def _on_autopack_update(self, context):
+    try:
+        from ..ops.file.auto_pack import register as reg_auto, unregister as unreg_auto
+        enabled = bool(getattr(self, "auto_pack_resources_on_save", False)) or bool(getattr(self, "auto_purge_unused_materials_on_save", False))
+        if enabled:
+            reg_auto()
+        else:
+            unreg_auto()
+    except Exception:
+        pass
+
+def _switch_editor_items(self, context):
+    from ..ui.pie.switch_editor_pie import EDITOR_TYPES
+    items = []
+    for val, name_en, name_zh, icon, _ in EDITOR_TYPES:
+        name = name_en if getattr(self, "addon_language", "ZH") == "EN" else name_zh
+        items.append((val, name, "", icon, _))
+    return items
+
+def _active_tab_items(self, context):
+    return [
+        ("GENERAL", _T("常规设置"), ""),
+        ("ABOUT", _T("关于"), ""),
+    ]
+
+def _smart_face_action_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("SEPARATE", "Separate", ""),
+            ("DUPLICATE", "Duplicate & Separate", ""),
+            ("DISSOLVE", "Dissolve", ""),
+            ("EXTRACT", "Extract & Separate", ""),
+        ]
+    return [
+        ("SEPARATE", "分离", ""),
+        ("DUPLICATE", "复制后分离", ""),
+        ("DISSOLVE", "溶解", ""),
+        ("EXTRACT", "提取后分离", ""),
+    ]
+
+def _clean_up_affect_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("ALL", "All", ""),
+            ("SELECTED", "Selected", ""),
+        ]
+    return [
+        ("ALL", "全部", ""),
+        ("SELECTED", "仅选中", ""),
+    ]
+
+def _switch_mode_tab_behavior_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("INSTANT", "Instant (Compatible)", "Press Tab to switch immediately"),
+            ("TAP_HOLD", "Tap Switch / Hold Menu", "Tap for default action, hold for the switch menu"),
+        ]
+    return [
+        ("INSTANT", "立即执行(兼容)", "按下 Tab 立即执行（与 Blender 默认更接近）"),
+        ("TAP_HOLD", "轻按切换 / 长按菜单", "轻按执行默认行为，长按弹出模式切换饼菜单"),
+    ]
+
+def _screencast_align_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("LEFT", "Left", ""),
+            ("CENTER", "Center", ""),
+            ("RIGHT", "Right", ""),
+        ]
+    return [
+        ("LEFT", "左", ""),
+        ("CENTER", "中", ""),
+        ("RIGHT", "右", ""),
+    ]
+
+def _screencast_style_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("KEYCAPS", "Keycaps", ""),
+            ("BOX", "Box", ""),
+        ]
+    return [
+        ("KEYCAPS", "键帽", ""),
+        ("BOX", "文本框", ""),
+    ]
+
+def _screencast_operator_label_mode_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("ZH", "Chinese First", ""),
+            ("EN", "English", ""),
+            ("BOTH", "Chinese/English", ""),
+        ]
+    return [
+        ("ZH", "中文优先", ""),
+        ("EN", "英文", ""),
+        ("BOTH", "中文/英文", ""),
+    ]
+
+def _screencast_stack_direction_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("UP", "Bottom-Up", "New entries appear above"),
+            ("DOWN", "Top-Down", "New entries appear below"),
+        ]
+    return [
+        ("UP", "向上 (Bottom-Up)", "新消息在上方"),
+        ("DOWN", "向下 (Top-Down)", "新消息在下方"),
+    ]
+
+def _addon_language_items(self, context):
+    return [
+        ("ZH", "中文", ""),
+        ("EN", "English", ""),
+    ]
+
+def _smart_edge_mode_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("SELECT", "Select Region", "Convert a closed edge loop to face selection"),
+            ("SHARPS", "Sharps", "Mark or clear sharp edges"),
+            ("BRIDGE", "Bridge", "Bridge two edge loops"),
+            ("FILL", "Fill", "Fill a closed region"),
+        ]
+    return [
+        ("SELECT", "选择区域", "将闭合边环转换为面选择"),
+        ("SHARPS", "锐边", "标记或清除锐边"),
+        ("BRIDGE", "桥接", "桥接两个边环"),
+        ("FILL", "填充", "填充闭合区域"),
+    ]
+
+def _group_tool_empty_type_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("PLAIN_AXES", "Plain Axes", ""),
+            ("ARROWS", "Arrows", ""),
+            ("SINGLE_ARROW", "Single Arrow", ""),
+            ("CIRCLE", "Circle", ""),
+            ("CUBE", "Cube", ""),
+            ("SPHERE", "Sphere", ""),
+            ("CONE", "Cone", ""),
+            ("IMAGE", "Image", ""),
+        ]
+    return [
+        ("PLAIN_AXES", "十字", ""),
+        ("ARROWS", "坐标轴", ""),
+        ("SINGLE_ARROW", "单箭头", ""),
+        ("CIRCLE", "圆环", ""),
+        ("CUBE", "方块", ""),
+        ("SPHERE", "球体", ""),
+        ("CONE", "锥体", ""),
+        ("IMAGE", "图片", ""),
+    ]
+
+def _switch_mode_target_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("VERT", "Vertex", ""),
+            ("EDGE", "Edge", ""),
+            ("FACE", "Face", ""),
+            ("SWITCH_MODE", "Switch Mode", ""),
+        ]
+    return [
+        ("VERT", "点", ""),
+        ("EDGE", "边", ""),
+        ("FACE", "面", ""),
+        ("SWITCH_MODE", "模式切换", ""),
+    ]
+
+def _switch_bone_mode_target_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("EDIT_OR_OBJECT", "Edit/Object", ""),
+            ("BONE_POSITION", "Bone Position", ""),
+            ("POSE", "Pose", ""),
+            ("EDIT", "Edit (Only Pose)", "Only show in pose mode"),
+            ("VIEW_SELECTED", "View Selected", ""),
+            ("TOGGLE_XRAY", "Toggle X-Ray", ""),
+            ("TOGGLE_NAMES", "Toggle Names", ""),
+            ("TOGGLE_AXES", "Toggle Axes", ""),
+        ]
+    return [
+        ("EDIT_OR_OBJECT", "编辑/物体", ""),
+        ("BONE_POSITION", "骨骼位置", ""),
+        ("POSE", "姿态", ""),
+        ("EDIT", "编辑(仅姿态)", "仅在姿态模式显示"),
+        ("VIEW_SELECTED", "视图聚焦选中", ""),
+        ("TOGGLE_XRAY", "切换透视(X-Ray)", ""),
+        ("TOGGLE_NAMES", "切换名称显示", ""),
+        ("TOGGLE_AXES", "切换轴显示", ""),
+    ]
+
+def _delete_pie_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("DELETE_VERT", "Delete Vertices", "", "VERTEXSEL", 1),
+            ("DELETE_EDGE", "Delete Edges", "", "EDGESEL", 2),
+            ("DELETE_FACE", "Delete Faces", "", "FACESEL", 3),
+            ("DISSOLVE_VERT", "Dissolve Vertices", "", "VERTEXSEL", 4),
+            ("DISSOLVE_EDGE", "Dissolve Edges", "", "MOD_WIREFRAME", 5),
+            ("DISSOLVE_FACE", "Dissolve Faces", "", "FACESEL", 6),
+            ("LIMITED_DISSOLVE", "Limited Dissolve", "", "MESH_DATA", 7),
+            ("EDGE_LOOP", "Delete Edge Loops", "", "MOD_EDGESPLIT", 8),
+            ("EDGE_COLLAPSE", "Collapse Edges", "", "UV_EDGESEL", 9),
+            ("ONLY_EDGE_FACE", "Only Edges & Faces", "", "EDGESEL", 10),
+            ("ONLY_FACE", "Only Faces", "", "FACESEL", 11),
+            ("DISSOLVE_ALL", "Dissolve (Smart)", "", "MOD_WIREFRAME", 12),
+            ("NONE", "None", "", "X", 0),
+        ]
+    return [
+        ("DELETE_VERT", "删除顶点", "", "VERTEXSEL", 1),
+        ("DELETE_EDGE", "删除边", "", "EDGESEL", 2),
+        ("DELETE_FACE", "删除面", "", "FACESEL", 3),
+        ("DISSOLVE_VERT", "融并顶点", "", "VERTEXSEL", 4),
+        ("DISSOLVE_EDGE", "融并边", "", "MOD_WIREFRAME", 5),
+        ("DISSOLVE_FACE", "融并面", "", "FACESEL", 6),
+        ("LIMITED_DISSOLVE", "有限融并", "", "MESH_DATA", 7),
+        ("EDGE_LOOP", "循环边", "", "MOD_EDGESPLIT", 8),
+        ("EDGE_COLLAPSE", "塌陷边", "", "UV_EDGESEL", 9),
+        ("ONLY_EDGE_FACE", "仅边和面", "", "EDGESEL", 10),
+        ("ONLY_FACE", "仅面", "", "FACESEL", 11),
+        ("DISSOLVE_ALL", "融并点线面", "", "MOD_WIREFRAME", 12),
+        ("NONE", "无", "", "X", 0),
+    ]
+
+def _unity_fbx_apply_scale_options_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("FBX_SCALE_NONE", "All Local", ""),
+            ("FBX_SCALE_UNITS", "FBX Units Scale", ""),
+            ("FBX_SCALE_CUSTOM", "FBX Custom Scale", ""),
+            ("FBX_SCALE_ALL", "FBX All", ""),
+        ]
+    return [
+        ("FBX_SCALE_NONE", "全部本地", ""),
+        ("FBX_SCALE_UNITS", "FBX 单位缩放", ""),
+        ("FBX_SCALE_CUSTOM", "FBX 自定义缩放", ""),
+        ("FBX_SCALE_ALL", "FBX 全部", ""),
+    ]
+
+def _origin_default_operator_types_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("ROTATE", "Rotate", "", "NONE", 1),
+            ("LOCATION", "Location", "", "NONE", 2),
+        ]
+    return [
+        ("ROTATE", "旋转", "", "NONE", 1),
+        ("LOCATION", "位置", "", "NONE", 2),
+    ]
+
+def _moving_view_type_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("NONE", "None", "", "RESTRICT_SELECT_ON", 0),
+            ("MAINTAINING_ZOOM", "Maintaining Zoom", "", "VIEWZOOM", 1),
+            ("ANIMATION", "Animation", "", "ANIM", 2),
+        ]
+    return [
+        ("NONE", "无", "", "RESTRICT_SELECT_ON", 0),
+        ("MAINTAINING_ZOOM", "保持缩放", "", "VIEWZOOM", 1),
+        ("ANIMATION", "动画", "", "ANIM", 2),
+    ]
+
+# Finder functions
+def _is_our_pie_keymap_item(kmi):
+    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
+    return getattr(kmi.properties, "name", "") in {PIE_MENU_ID, SWITCH_MODE_PIE_ID, EDGE_PROPERTY_PIE_ID, SMART_PIE_ID, SWITCH_EDITOR_PIE_ID}
+
+def _is_our_switch_mode_item(kmi):
+    return getattr(kmi, "idname", "") == 'object.switch_mode'
+
+def _is_our_quick_delete_item(kmi):
+    return getattr(kmi, "idname", "") == 'm8.quick_delete'
+
+def _is_our_delete_pie_item(kmi):
+    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
+    return getattr(kmi.properties, "name", "") == DELETE_PIE_ID
+
+def _is_our_edge_property_pie_item(kmi):
+    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
+    return getattr(kmi.properties, "name", "") == EDGE_PROPERTY_PIE_ID
+
+def _is_our_smart_pie_item(kmi):
+    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
+    return getattr(kmi.properties, "name", "") == SMART_PIE_ID
+
+def _is_our_smart_tool_item(kmi):
+    return getattr(kmi, "idname", "") in {
+        "m8.smart_merge_center",
+        "m8.smart_paths_merge",
+        "m8.smart_paths_connect",
+        "m8.smart_slide_extend",
+        "m8.smart_edge",
+        "m8.smart_edge_toggle_mode",
+        "m8.smart_offset_edges",
+        "m8.clean_up",
+        "m8.smart_face",
+    }
+
+def _is_our_align_pie_item(kmi):
+    if kmi.idname == 'wm.call_menu_pie':
+        return getattr(kmi.properties, "name", "") in {ALIGN_OBJECT_PIE_ID, ALIGN_MESH_PIE_ID, ALIGN_UV_PIE_ID}
+    return kmi.idname == ALIGN_GENERIC_OP_ID
+
+def _is_our_shading_pie_item(kmi):
+    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
+    return getattr(kmi.properties, "name", "") == SHADING_PIE_ID
+
+def _is_our_save_pie_item(kmi):
+    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
+    return getattr(kmi.properties, "name", "") == SAVE_PIE_ID
+
+def _is_our_switch_editor_pie_item(kmi):
+    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
+    return getattr(kmi.properties, "name", "") == SWITCH_EDITOR_PIE_ID
+
+def _is_our_rename_item(kmi):
+    return getattr(kmi, "idname", "") == 'm8.advanced_rename'
+
+def _is_our_mirror_item(kmi):
+    return getattr(kmi, "idname", "") == MIRROR_OP_ID
+
+def _is_our_group_tool_item(kmi):
+    return getattr(kmi, "idname", "") == 'm8.group_objects'
+
+def _is_our_double_click_select_group_item(kmi):
+    return getattr(kmi, "idname", "") == 'm8.select_group'
+
+def _is_our_double_click_edit_switch_item(kmi):
+    return getattr(kmi, "idname", "") == 'm8.double_click_edit_switch'
+
+def _is_our_subdivision_item(kmi):
+    return getattr(kmi, "idname", "") == 'm8.subdivision_set'
+
+def _find_subdivision_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in SUBDIVISION_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_subdivision_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_pie_keymap_item():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return None, None, None
+    for keymap_name, _ in TRANSFORM_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_pie_keymap_item(kmi): return kc, km, kmi
+    return kc, None, None
+
+def _find_switch_mode_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    try:
+        for km in kc.keymaps:
+            for kmi in km.keymap_items:
+                if _is_our_switch_mode_item(kmi):
+                    items.append((kc, km, kmi))
+    except Exception:
+        pass
+    return items
+
+def _find_quick_delete_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in QUICK_DELETE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_quick_delete_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_delete_pie_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in DELETE_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_delete_pie_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_edge_property_pie_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in EDGE_PROPERTY_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_edge_property_pie_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_align_pie_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in ALIGN_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_align_pie_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_shading_pie_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in SHADING_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_shading_pie_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_save_pie_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in SAVE_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_save_pie_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_switch_editor_pie_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in SWITCH_EDITOR_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_switch_editor_pie_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_rename_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in RENAME_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_rename_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_mirror_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in MIRROR_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_mirror_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_group_tool_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in GROUP_TOOL_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_group_tool_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_double_click_select_group_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in DOUBLE_CLICK_GROUP_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if km:
+            for kmi in km.keymap_items:
+                if _is_our_double_click_select_group_item(kmi): items.append((kc, km, kmi))
+    return items
+
+def _find_smart_pie_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in SMART_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if not km: continue
+        for kmi in km.keymap_items:
+            if _is_our_smart_pie_item(kmi) or _is_our_smart_tool_item(kmi):
+                items.append((kc, km, kmi))
+    return items
+
+def _find_toggle_area_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in TOGGLE_AREA_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if not km: continue
+        for kmi in km.keymap_items:
+            if kmi.idname == TOGGLE_AREA_OP_ID:
+                items.append((kc, km, kmi))
+    return items
+
+# Conflict helpers
+def _kmi_signature(kmi):
+    try:
+        return (
+            getattr(kmi, "type", None),
+            getattr(kmi, "value", None),
+            bool(getattr(kmi, "any", False)),
+            bool(getattr(kmi, "shift", False)),
+            bool(getattr(kmi, "ctrl", False)),
+            bool(getattr(kmi, "alt", False)),
+            bool(getattr(kmi, "oskey", False)),
+            getattr(kmi, "key_modifier", None),
+        )
+    except Exception:
+        return None
+
+def _match_signature(kmi, sig):
+    if not sig: return False
+    return _kmi_signature(kmi) == sig
+
+def _our_shortcut_signatures():
+    sigs = []
+    for km, kmi in addon_keymaps:
+        sig = _kmi_signature(kmi)
+        if sig and sig not in sigs:
+            sigs.append(sig)
+    return sigs
+
+def _disable_conflicts_for_signatures(kc, signatures):
+    if not kc: return 0
+    disabled = 0
+    all_bindings = list(TRANSFORM_PIE_KEYMAP_BINDINGS) + list(ALIGN_PIE_KEYMAP_BINDINGS) + \
+                   list(SWITCH_MODE_KEYMAP_BINDINGS) + list(QUICK_DELETE_KEYMAP_BINDINGS) + \
+                   list(DELETE_PIE_KEYMAP_BINDINGS) + list(SAVE_PIE_KEYMAP_BINDINGS) + \
+                   list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS) + \
+                   list(SMART_PIE_KEYMAP_BINDINGS) + list(TOGGLE_AREA_KEYMAP_BINDINGS) + \
+                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS) + \
+                   list(SUBDIVISION_KEYMAP_BINDINGS)
+    
+    seen_km = set()
+    for keymap_name, _ in all_bindings:
+        if keymap_name in seen_km: continue
+        seen_km.add(keymap_name)
+        
+        km = kc.keymaps.get(keymap_name)
+        if not km: continue
+        
+        for kmi in km.keymap_items:
+            if not getattr(kmi, "active", True): continue
+            
+            is_ours = (_is_our_pie_keymap_item(kmi) or 
+                       _is_our_align_pie_item(kmi) or 
+                       _is_our_switch_mode_item(kmi) or 
+                       _is_our_quick_delete_item(kmi) or 
+                       _is_our_delete_pie_item(kmi) or
+                       _is_our_shading_pie_item(kmi) or
+                       _is_our_save_pie_item(kmi) or
+                       _is_our_rename_item(kmi) or
+                       _is_our_mirror_item(kmi) or
+                       _is_our_group_tool_item(kmi) or
+                       _is_our_double_click_select_group_item(kmi) or
+                       _is_our_double_click_edit_switch_item(kmi) or
+                       _is_our_smart_pie_item(kmi) or
+                       _is_our_smart_tool_item(kmi) or
+                       _is_our_switch_editor_pie_item(kmi) or
+                       _is_our_edge_property_pie_item(kmi) or
+                       _is_our_subdivision_item(kmi) or
+                       kmi.idname == TOGGLE_AREA_OP_ID)
+            if is_ours: continue
+            
+            for sig in signatures:
+                if _match_signature(kmi, sig):
+                    try:
+                        kmi.active = False
+                        disabled += 1
+                        logger.info(f"Disabled conflicting hotkey: {kmi.name} ({kmi.idname}) in {keymap_name}")
+                    except Exception as e:
+                        logger.error(f"Failed to disable conflict {kmi.idname}: {e}")
+                    break
+    return disabled
+
+def _restore_conflicts_for_signatures(kc, signatures):
+    if not kc: return 0
+    restored = 0
+    all_bindings = list(TRANSFORM_PIE_KEYMAP_BINDINGS) + list(ALIGN_PIE_KEYMAP_BINDINGS) + \
+                   list(SWITCH_MODE_KEYMAP_BINDINGS) + list(QUICK_DELETE_KEYMAP_BINDINGS) + \
+                   list(DELETE_PIE_KEYMAP_BINDINGS) + list(SAVE_PIE_KEYMAP_BINDINGS) + \
+                   list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS) + \
+                   list(SMART_PIE_KEYMAP_BINDINGS) + list(TOGGLE_AREA_KEYMAP_BINDINGS) + \
+                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS) + \
+                   list(SUBDIVISION_KEYMAP_BINDINGS)
+    
+    seen_km = set()
+    for keymap_name, _ in all_bindings:
+        if keymap_name in seen_km: continue
+        seen_km.add(keymap_name)
+        
+        km = kc.keymaps.get(keymap_name)
+        if not km: continue
+        
+        for kmi in km.keymap_items:
+            if getattr(kmi, "active", True): continue
+            
+            is_ours = (_is_our_pie_keymap_item(kmi) or 
+                       _is_our_align_pie_item(kmi) or 
+                       _is_our_switch_mode_item(kmi) or 
+                       _is_our_quick_delete_item(kmi) or 
+                       _is_our_delete_pie_item(kmi) or
+                       _is_our_shading_pie_item(kmi) or
+                       _is_our_save_pie_item(kmi) or
+                       _is_our_rename_item(kmi) or
+                       _is_our_mirror_item(kmi) or
+                       _is_our_group_tool_item(kmi) or
+                       _is_our_double_click_select_group_item(kmi) or
+                       _is_our_smart_pie_item(kmi) or
+                       _is_our_smart_tool_item(kmi) or
+                       _is_our_switch_editor_pie_item(kmi) or
+                       _is_our_edge_property_pie_item(kmi) or
+                       _is_our_subdivision_item(kmi) or
+                       kmi.idname == TOGGLE_AREA_OP_ID)
+            if is_ours: continue
+
+            for sig in signatures:
+                if _match_signature(kmi, sig):
+                    try:
+                        kmi.active = True
+                        restored += 1
+                        logger.info(f"Restored conflicting hotkey: {kmi.name} ({kmi.idname}) in {keymap_name}")
+                    except Exception as e:
+                        logger.error(f"Failed to restore conflict {kmi.idname}: {e}")
+                    break
+    return restored

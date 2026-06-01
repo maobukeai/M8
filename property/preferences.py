@@ -1,2029 +1,50 @@
 import bpy
 from ..utils.logger import get_logger
-
-logger = get_logger()
-
-PIE_MENU_ID = "VIEW3D_MT_size_tool_transform_pie"
-SWITCH_MODE_PIE_ID = "VIEW3D_MT_m8_switch_mode_pie"
-EDGE_PROPERTY_PIE_ID = "VIEW3D_MT_m8_edge_property_pie"
-SWITCH_EDITOR_PIE_ID = "M8_MT_switch_editor_pie"
-MIRROR_OP_ID = "m8.mirror"
-
-TRANSFORM_PIE_KEYMAP_BINDINGS = (
-    ("3D View", "VIEW_3D"),
-    ("3D View Generic", "EMPTY"),
-)
-SWITCH_MODE_KEYMAP_BINDINGS = (
-    ("Object Non-modal", "EMPTY"),
-    ("Image", "IMAGE_EDITOR"),
-    ("Node Editor", "NODE_EDITOR"),
-    # Grease Pencil
-    ("Grease Pencil", "EMPTY"),
-    ("Grease Pencil (Legacy)", "EMPTY"),  # 旧版蜡笔 keymap 可能带后缀
-    ("Grease Pencil Stroke Edit Mode", "EMPTY"),
-    ("Grease Pencil Paint Mode", "EMPTY"),
-    ("Grease Pencil Sculpt Mode", "EMPTY"),
-    ("Grease Pencil Weight Paint Mode", "EMPTY"),
-    ("Grease Pencil Vertex Paint Mode", "EMPTY"),
-    # Grease Pencil 3.0 (Blender 4.3+)
-    ("Grease Pencil Edit Mode", "EMPTY"),
-    ("Grease Pencil Draw Mode", "EMPTY"),
-    ("Grease Pencil Sculpt Mode", "EMPTY"), # 新版可能复用名称，但也可能不同
-)
-QUICK_DELETE_KEYMAP_BINDINGS = (
-    ("Object Mode", "EMPTY"),
-    ("Object Non-modal", "EMPTY"),
-    ("Node Editor", "NODE_EDITOR"),
-    ("Node Generic", "NODE_EDITOR"),
-)
-DELETE_PIE_KEYMAP_BINDINGS = (
-    ("Mesh", "EMPTY"),
-)
-DELETE_PIE_ID = "VIEW3D_MT_M8DeletePie"
-EDGE_PROPERTY_PIE_KEYMAP_BINDINGS = (
-    ("Mesh", "EMPTY"),
-)
-ALIGN_OBJECT_PIE_ID = "M8_MT_ALIGN_OBJECT"
-ALIGN_MESH_PIE_ID = "M8_MT_ALIGN_MESH"
-ALIGN_UV_PIE_ID = "M8_MT_ALIGN_UV"
-ALIGN_GENERIC_OP_ID = "m8.align_pie_context_call"
-
-SHADING_PIE_ID = "VIEW3D_MT_m8_shading_pie"
-SHADING_PIE_KEYMAP_BINDINGS = (
-    ("3D View", "VIEW_3D"),
-)
-
-SAVE_PIE_ID = "VIEW3D_MT_m8_save_pie"
-SAVE_PIE_KEYMAP_BINDINGS = (
-    ("Window", "EMPTY"),
-)
-SWITCH_EDITOR_PIE_KEYMAP_BINDINGS = (
-    ("Window", "EMPTY"),
-)
-
-RENAME_KEYMAP_BINDINGS = (
-    ("Window", "EMPTY"),
-)
-
-MIRROR_KEYMAP_BINDINGS = (
-    ("3D View", "VIEW_3D"),
-    ("3D View Generic", "VIEW_3D"),
-)
-
-GROUP_TOOL_KEYMAP_BINDINGS = (
-    ("Object Mode", "EMPTY"),
-)
-
-DOUBLE_CLICK_GROUP_KEYMAP_BINDINGS = (
-    ("3D View", "VIEW_3D"),
-)
-
-ALIGN_PIE_KEYMAP_BINDINGS = (
-    ("Object Mode", "VIEW_3D"),
-    ("Mesh", "VIEW_3D"),
-    ("UV Editor", "EMPTY"),
-    ("3D View Generic", "VIEW_3D"),
-)
-
-SMART_PIE_ID = "VIEW3D_MT_M8SmartPie"
-SMART_PIE_KEYMAP_BINDINGS = (
-    ("Mesh", "EMPTY"),
-)
-
-TOGGLE_AREA_OP_ID = "m8.toggle_area"
-TOGGLE_AREA_KEYMAP_BINDINGS = (
-    ("3D View", "VIEW_3D"),
-    ("Node Editor", "NODE_EDITOR"),
-    ("Image", "IMAGE_EDITOR"),
-)
-
-SUBDIVISION_KEYMAP_BINDINGS = (
-    ("Object Mode", "EMPTY"),
-    ("Object Non-modal", "EMPTY"),
-)
-
-# Global list to store registered keymap items: list of (km, kmi)
-addon_keymaps = []
-
-def _get_addon_prefs():
-    root_pkg = (__package__ or "").split(".")[0]
-    addon = bpy.context.preferences.addons.get(root_pkg) if bpy.context and bpy.context.preferences else None
-    return addon.preferences if addon else None
-
-# Helper to ensure our keymap is at the top (priority)
-def _ensure_pie_keymap_priority(km, kmi):
-    # Blender API doesn't support .move() on keymap_items.
-    # Addon keymaps already have higher priority than defaults.
-    # To truly move it, we would need to remove and re-add, but that risks losing properties.
-    pass
-
-def _iter_switch_mode_keymap_bindings(wm):
-    bindings = []
-    seen = set()
-    for item in SWITCH_MODE_KEYMAP_BINDINGS:
-        if item not in seen:
-            bindings.append(item)
-            seen.add(item)
-    try:
-        for km in wm.keyconfigs.active.keymaps:
-            name = getattr(km, "name", "")
-            if not name:
-                continue
-            if "Grease Pencil" not in name and "GPencil" not in name:
-                continue
-            space_type = getattr(km, "space_type", "EMPTY") or "EMPTY"
-            item = (name, space_type)
-            if item in seen:
-                continue
-            bindings.append(item)
-            seen.add(item)
-    except Exception:
-        pass
-    return bindings
-
-def register_keymaps(force_default=False):
-    """
-    Registers all keymaps unconditionally.
-    Active state is determined by preferences (or default True).
-    """
-    global addon_keymaps
-    
-    # Avoid duplicate registration
-    if addon_keymaps:
-        return
-
-    wm = bpy.context.window_manager
-    kc = wm.keyconfigs.addon
-    if not kc:
-        return
-
-    prefs = _get_addon_prefs()
-    # Default to True if prefs not loaded yet
-    
-    def get_pref(name, default=True):
-        if force_default: return True
-        if prefs:
-            return getattr(prefs, name, default)
-        return default
-
-    # 1. Transform Pie (Shift+S)
-    active = get_pref("enable_transform_pie", True)
-    for keymap_name, space_type in TRANSFORM_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new('wm.call_menu_pie', 'S', 'PRESS', shift=True)
-        kmi.properties.name = PIE_MENU_ID
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    # 2. Switch Mode (Tab)
-    active = get_pref("activate_switch_mode", True)
-    for keymap_name, space_type in _iter_switch_mode_keymap_bindings(wm):
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new('object.switch_mode', 'TAB', 'PRESS')
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    active = get_pref("activate_switch_mode", True) and get_pref("switch_mode_double_click_edit_switch", False)
-    km = kc.keymaps.new(name="Mesh", space_type="EMPTY")
-    kmi = km.keymap_items.new('m8.double_click_edit_switch', 'LEFTMOUSE', 'DOUBLE_CLICK')
-    kmi.active = active
-    _ensure_pie_keymap_priority(km, kmi)
-    addon_keymaps.append((km, kmi))
-
-    kmi = km.keymap_items.new('m8.double_click_edit_switch', 'LEFTMOUSE', 'DOUBLE_CLICK', shift=True)
-    kmi.active = active
-    _ensure_pie_keymap_priority(km, kmi)
-    addon_keymaps.append((km, kmi))
-
-    # 3. Quick Delete (X, Del)
-    active = get_pref("activate_quick_delete", True)
-    for keymap_name, space_type in QUICK_DELETE_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        
-        kmi1 = km.keymap_items.new('m8.quick_delete', 'X', 'PRESS')
-        kmi1.active = active
-        _ensure_pie_keymap_priority(km, kmi1)
-        addon_keymaps.append((km, kmi1))
-        
-        kmi2 = km.keymap_items.new('m8.quick_delete', 'DEL', 'PRESS')
-        kmi2.active = active
-        _ensure_pie_keymap_priority(km, kmi2)
-        addon_keymaps.append((km, kmi2))
-
-    # 4. Delete Pie (Mesh Edit)
-    active = get_pref("activate_delete_pie", True)
-    for keymap_name, space_type in DELETE_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        
-        kmi1 = km.keymap_items.new('wm.call_menu_pie', 'X', 'PRESS')
-        kmi1.properties.name = DELETE_PIE_ID
-        kmi1.active = active
-        _ensure_pie_keymap_priority(km, kmi1)
-        addon_keymaps.append((km, kmi1))
-        
-        kmi2 = km.keymap_items.new('wm.call_menu_pie', 'DEL', 'PRESS')
-        kmi2.properties.name = DELETE_PIE_ID
-        kmi2.active = active
-        _ensure_pie_keymap_priority(km, kmi2)
-        addon_keymaps.append((km, kmi2))
-
-    # 5. Align Pie (Alt+A)
-    active = get_pref("activate_align_pie", True)
-    for keymap_name, space_type in ALIGN_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        
-        pie_id = ALIGN_OBJECT_PIE_ID
-        if keymap_name == "Mesh": pie_id = ALIGN_MESH_PIE_ID
-        elif keymap_name == "UV Editor": pie_id = ALIGN_UV_PIE_ID
-        
-        if keymap_name == "3D View Generic":
-            kmi = km.keymap_items.new(ALIGN_GENERIC_OP_ID, 'A', 'PRESS', alt=True)
-        else:
-            kmi = km.keymap_items.new('wm.call_menu_pie', 'A', 'PRESS', alt=True)
-            kmi.properties.name = pie_id
-            
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    # 6. Shading Pie (Z)
-    active = get_pref("activate_shading_pie", True)
-    for keymap_name, space_type in SHADING_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new('wm.call_menu_pie', 'Z', 'PRESS')
-        kmi.properties.name = SHADING_PIE_ID
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    # 7. Save Pie (Ctrl+S)
-    active = get_pref("activate_save_pie", True)
-    for keymap_name, space_type in SAVE_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new('wm.call_menu_pie', 'S', 'PRESS', ctrl=True)
-        kmi.properties.name = SAVE_PIE_ID
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    # 8. Rename (F2)
-    active = get_pref("activate_advanced_rename", True)
-    for keymap_name, space_type in RENAME_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new('m8.advanced_rename', 'F2', 'PRESS')
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    # 9. Edge Property Pie (Shift+E)
-    active = get_pref("activate_edge_property_pie", True)
-    for keymap_name, space_type in EDGE_PROPERTY_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new('wm.call_menu_pie', 'E', 'PRESS', shift=True)
-        kmi.properties.name = EDGE_PROPERTY_PIE_ID
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    # 10. Mirror (Shift+Alt+X)
-    active = get_pref("activate_mirror", True)
-    for keymap_name, space_type in MIRROR_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new(MIRROR_OP_ID, 'X', 'PRESS', shift=True, alt=True)
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    # 11. Group Tool (Ctrl+G)
-    active = get_pref("activate_group_tool", True)
-    for keymap_name, space_type in GROUP_TOOL_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new('m8.group_objects', 'G', 'PRESS', ctrl=True)
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    # 12. Double Click Select Group
-    active = get_pref("activate_double_click_select_group", False)
-    for keymap_name, space_type in DOUBLE_CLICK_GROUP_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new('m8.select_group', 'LEFTMOUSE', 'DOUBLE_CLICK')
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    # 13. Smart Pie (1)
-    active = get_pref("activate_smart_pie", True)
-    for keymap_name, space_type in SMART_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new('wm.call_menu_pie', 'ONE', 'PRESS')
-        kmi.properties.name = SMART_PIE_ID
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_merge_center', 'ONE', 'PRESS', shift=True)
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_paths_merge', 'ONE', 'PRESS', alt=True)
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_paths_connect', 'ONE', 'PRESS', ctrl=True, alt=True)
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_slide_extend', 'ONE', 'PRESS', shift=True, alt=True)
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_edge', 'TWO', 'PRESS')
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_edge_toggle_mode', 'TWO', 'PRESS', shift=True)
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_offset_edges', 'TWO', 'PRESS', ctrl=True)
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.clean_up', 'THREE', 'PRESS')
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_face', 'FOUR', 'PRESS')
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_face', 'FOUR', 'PRESS', shift=True)
-        kmi.properties.face_action = "DUPLICATE"
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_face', 'FOUR', 'PRESS', alt=True)
-        kmi.properties.face_action = "DISSOLVE"
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        kmi = km.keymap_items.new('m8.smart_face', 'FOUR', 'PRESS', ctrl=True)
-        kmi.properties.face_action = "EXTRACT"
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-    # 14. Toggle Area (T)
-    active = get_pref("activate_toggle_area", True)
-    for keymap_name, space_type in TOGGLE_AREA_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        kmi = km.keymap_items.new(TOGGLE_AREA_OP_ID, 'T', 'PRESS')
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-
-    # Switch Editor Pie (F12)
-    active = get_pref("activate_switch_editor_pie", True)
-    km = kc.keymaps.new(name="Window", space_type="EMPTY")
-    kmi = km.keymap_items.new('wm.call_menu_pie', 'F12', 'PRESS')
-    kmi.properties.name = SWITCH_EDITOR_PIE_ID
-    kmi.active = active
-    _ensure_pie_keymap_priority(km, kmi)
-    addon_keymaps.append((km, kmi))
-
-    # 15. Subdivision Level Shortcuts (Ctrl+0..4)
-    active = get_pref("activate_subdivision_shortcuts", True)
-    for keymap_name, space_type in SUBDIVISION_KEYMAP_BINDINGS:
-        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
-        
-        # Ctrl + 0
-        kmi = km.keymap_items.new('m8.subdivision_set', 'ZERO', 'PRESS', ctrl=True)
-        kmi.properties.level = 0
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        # Ctrl + 1
-        kmi = km.keymap_items.new('m8.subdivision_set', 'ONE', 'PRESS', ctrl=True)
-        kmi.properties.level = 1
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        # Ctrl + 2
-        kmi = km.keymap_items.new('m8.subdivision_set', 'TWO', 'PRESS', ctrl=True)
-        kmi.properties.level = 2
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        # Ctrl + 3
-        kmi = km.keymap_items.new('m8.subdivision_set', 'THREE', 'PRESS', ctrl=True)
-        kmi.properties.level = 3
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-        # Ctrl + 4
-        kmi = km.keymap_items.new('m8.subdivision_set', 'FOUR', 'PRESS', ctrl=True)
-        kmi.properties.level = 4
-        kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
-
-
-def unregister_keymaps():
-    global addon_keymaps
-    for km, kmi in addon_keymaps:
-        try:
-            km.keymap_items.remove(kmi)
-        except Exception:
-            pass
-    addon_keymaps.clear()
-
-def update_keymaps(self, context):
-    """
-    Updates the active state of registered keymaps based on current preferences.
-    Called when preferences change.
-    """
-    if not addon_keymaps:
-        return
-
-    # Helper to check if a kmi matches a feature
-    def is_transform_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == PIE_MENU_ID
-    
-    def is_switch_mode(kmi):
-        return kmi.idname == 'object.switch_mode'
-
-    def is_double_click_edit_switch(kmi):
-        return kmi.idname == 'm8.double_click_edit_switch'
-        
-    def is_quick_delete(kmi):
-        return kmi.idname == 'm8.quick_delete'
-        
-    def is_delete_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == DELETE_PIE_ID
-        
-    def is_align_pie(kmi):
-        if kmi.idname == ALIGN_GENERIC_OP_ID: return True
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") in {ALIGN_OBJECT_PIE_ID, ALIGN_MESH_PIE_ID, ALIGN_UV_PIE_ID}
-        
-    def is_shading_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == SHADING_PIE_ID
-
-    def is_save_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == SAVE_PIE_ID
-
-    def is_rename(kmi):
-        return kmi.idname == 'm8.advanced_rename'
-
-    def is_edge_property_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == EDGE_PROPERTY_PIE_ID
-
-    def is_mirror(kmi):
-        return kmi.idname == MIRROR_OP_ID
-
-    def is_group_tool(kmi):
-        return kmi.idname == 'm8.group_objects'
-
-    def is_double_click_select_group(kmi):
-        return kmi.idname == 'm8.select_group'
-
-    def is_smart_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == SMART_PIE_ID
-    
-    def is_smart_tools(kmi):
-        return kmi.idname in {
-            "m8.smart_merge_center",
-            "m8.smart_paths_merge",
-            "m8.smart_paths_connect",
-            "m8.smart_slide_extend",
-            "m8.smart_edge",
-            "m8.smart_edge_toggle_mode",
-            "m8.smart_offset_edges",
-            "m8.clean_up",
-            "m8.smart_face",
-        }
-
-    def is_switch_editor_pie(kmi):
-        return kmi.idname == "wm.call_menu_pie" and getattr(kmi.properties, "name", "") == SWITCH_EDITOR_PIE_ID
-
-    def is_toggle_area(kmi):
-        return kmi.idname == TOGGLE_AREA_OP_ID
-
-    def is_subdivision_shortcut(kmi):
-        return kmi.idname == 'm8.subdivision_set'
-
-    # Get pref values
-    # Note: 'self' is the preferences instance
-    p_transform = getattr(self, "enable_transform_pie", True)
-    p_switch = getattr(self, "activate_switch_mode", True)
-    p_switch_double_click = getattr(self, "switch_mode_double_click_edit_switch", False)
-    p_quick_del = getattr(self, "activate_quick_delete", True)
-    p_del_pie = getattr(self, "activate_delete_pie", True)
-    p_align = getattr(self, "activate_align_pie", True)
-    p_shading = getattr(self, "activate_shading_pie", True)
-    p_save = getattr(self, "activate_save_pie", True)
-    p_rename = getattr(self, "activate_advanced_rename", True)
-    p_edge_property = getattr(self, "activate_edge_property_pie", True)
-    p_mirror = getattr(self, "activate_mirror", True)
-    p_group_tool = getattr(self, "activate_group_tool", True)
-    p_double_click_select_group = getattr(self, "activate_double_click_select_group", False)
-    p_smart_pie = getattr(self, "activate_smart_pie", True)
-    p_toggle_area = getattr(self, "activate_toggle_area", True)
-    p_switch_editor = getattr(self, "activate_switch_editor_pie", True)
-    p_subdivision = getattr(self, "activate_subdivision_shortcuts", True)
-
-    for km, kmi in addon_keymaps:
-        try:
-            if is_transform_pie(kmi): kmi.active = p_transform
-            elif is_switch_mode(kmi): kmi.active = p_switch
-            elif is_double_click_edit_switch(kmi): kmi.active = p_switch and p_switch_double_click
-            elif is_quick_delete(kmi): kmi.active = p_quick_del
-            elif is_delete_pie(kmi): kmi.active = p_del_pie
-            elif is_align_pie(kmi): kmi.active = p_align
-            elif is_shading_pie(kmi): kmi.active = p_shading
-            elif is_save_pie(kmi): kmi.active = p_save
-            elif is_rename(kmi): kmi.active = p_rename
-            elif is_edge_property_pie(kmi): kmi.active = p_edge_property
-            elif is_mirror(kmi): kmi.active = p_mirror
-            elif is_group_tool(kmi): kmi.active = p_group_tool
-            elif is_double_click_select_group(kmi): kmi.active = p_double_click_select_group
-            elif is_smart_pie(kmi): kmi.active = p_smart_pie
-            elif is_smart_tools(kmi): kmi.active = p_smart_pie
-            elif is_toggle_area(kmi): kmi.active = p_toggle_area
-            elif is_switch_editor_pie(kmi): kmi.active = p_switch_editor
-            elif is_subdivision_shortcut(kmi): kmi.active = p_subdivision
-        except Exception:
-            pass
-
-    # Automatically manage subdivision hotkey exclusivity when toggled or updated
-    if p_subdivision:
-        try:
-            bpy.ops.size_tool.exclusive_subdivision_hotkey()
-        except Exception:
-            pass
-    else:
-        try:
-            bpy.ops.size_tool.restore_subdivision_conflicts()
-        except Exception:
-            pass
-
-    # Automatically manage toggle area hotkey exclusivity when toggled or updated
-    if p_toggle_area:
-        try:
-            bpy.ops.size_tool.exclusive_toggle_area_hotkey()
-        except Exception:
-            pass
-    else:
-        try:
-            bpy.ops.size_tool.restore_toggle_area_conflicts()
-        except Exception:
-            pass
-
-
-
-def _on_prefs_update(self, context):
-    update_keymaps(self, context)
-
-def _on_autoorigin_update(self, context):
-    try:
-        from ..ops.origin.auto_origin import register as reg_auto, unregister as unreg_auto
-        if getattr(self, "auto_new_object_origin_bottom", False):
-            reg_auto()
-        else:
-            unreg_auto()
-    except Exception:
-        pass
-
-def _on_autopack_update(self, context):
-    try:
-        from ..ops.file.auto_pack import register as reg_auto, unregister as unreg_auto
-        enabled = bool(getattr(self, "auto_pack_resources_on_save", False)) or bool(getattr(self, "auto_purge_unused_materials_on_save", False))
-        if enabled:
-            reg_auto()
-        else:
-            unreg_auto()
-    except Exception:
-        pass
-
 from ..utils.i18n import _T
 from ..utils.adapter import get_adapter_blender_icon as _ICON
 
-
-def _switch_editor_items(self, context):
-    from ..ui.pie.switch_editor_pie import EDITOR_TYPES
-    items = []
-    for val, name_en, name_zh, icon, _ in EDITOR_TYPES:
-        name = name_en if getattr(self, "addon_language", "ZH") == "EN" else name_zh
-        items.append((val, name, "", icon, _))
-    return items
-
-def _active_tab_items(self, context):
-    return [
-        ("GENERAL", _T("常规设置"), ""),
-        ("ABOUT", _T("关于"), ""),
-    ]
-
-def _smart_face_action_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("SEPARATE", "Separate", ""),
-            ("DUPLICATE", "Duplicate & Separate", ""),
-            ("DISSOLVE", "Dissolve", ""),
-            ("EXTRACT", "Extract & Separate", ""),
-        ]
-    return [
-        ("SEPARATE", "分离", ""),
-        ("DUPLICATE", "复制后分离", ""),
-        ("DISSOLVE", "溶解", ""),
-        ("EXTRACT", "提取后分离", ""),
-    ]
-
-def _clean_up_affect_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("ALL", "All", ""),
-            ("SELECTED", "Selected", ""),
-        ]
-    return [
-        ("ALL", "全部", ""),
-        ("SELECTED", "仅选中", ""),
-    ]
-
-def _switch_mode_tab_behavior_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("INSTANT", "Instant (Compatible)", "Press Tab to switch immediately"),
-            ("TAP_HOLD", "Tap Switch / Hold Menu", "Tap for default action, hold for the switch menu"),
-        ]
-    return [
-        ("INSTANT", "立即执行(兼容)", "按下 Tab 立即执行（与 Blender 默认更接近）"),
-        ("TAP_HOLD", "轻按切换 / 长按菜单", "轻按执行默认行为，长按弹出模式切换饼菜单"),
-    ]
-
-def _screencast_align_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("LEFT", "Left", ""),
-            ("CENTER", "Center", ""),
-            ("RIGHT", "Right", ""),
-        ]
-    return [
-        ("LEFT", "左", ""),
-        ("CENTER", "中", ""),
-        ("RIGHT", "右", ""),
-    ]
-
-def _screencast_style_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("KEYCAPS", "Keycaps", ""),
-            ("BOX", "Box", ""),
-        ]
-    return [
-        ("KEYCAPS", "键帽", ""),
-        ("BOX", "文本框", ""),
-    ]
-
-def _screencast_operator_label_mode_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("ZH", "Chinese First", ""),
-            ("EN", "English", ""),
-            ("BOTH", "Chinese/English", ""),
-        ]
-    return [
-        ("ZH", "中文优先", ""),
-        ("EN", "英文", ""),
-        ("BOTH", "中文/英文", ""),
-    ]
-
-def _screencast_stack_direction_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("UP", "Bottom-Up", "New entries appear above"),
-            ("DOWN", "Top-Down", "New entries appear below"),
-        ]
-    return [
-        ("UP", "向上 (Bottom-Up)", "新消息在上方"),
-        ("DOWN", "向下 (Top-Down)", "新消息在下方"),
-    ]
-
-def _addon_language_items(self, context):
-    return [
-        ("ZH", "中文", ""),
-        ("EN", "English", ""),
-    ]
-
-def _smart_edge_mode_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("SELECT", "Select Region", "Convert a closed edge loop to face selection"),
-            ("SHARPS", "Sharps", "Mark or clear sharp edges"),
-            ("BRIDGE", "Bridge", "Bridge two edge loops"),
-            ("FILL", "Fill", "Fill a closed region"),
-        ]
-    return [
-        ("SELECT", "选择区域", "将闭合边环转换为面选择"),
-        ("SHARPS", "锐边", "标记或清除锐边"),
-        ("BRIDGE", "桥接", "桥接两个边环"),
-        ("FILL", "填充", "填充闭合区域"),
-    ]
-
-def _group_tool_empty_type_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("PLAIN_AXES", "Plain Axes", ""),
-            ("ARROWS", "Arrows", ""),
-            ("SINGLE_ARROW", "Single Arrow", ""),
-            ("CIRCLE", "Circle", ""),
-            ("CUBE", "Cube", ""),
-            ("SPHERE", "Sphere", ""),
-            ("CONE", "Cone", ""),
-            ("IMAGE", "Image", ""),
-        ]
-    return [
-        ("PLAIN_AXES", "十字", ""),
-        ("ARROWS", "坐标轴", ""),
-        ("SINGLE_ARROW", "单箭头", ""),
-        ("CIRCLE", "圆环", ""),
-        ("CUBE", "方块", ""),
-        ("SPHERE", "球体", ""),
-        ("CONE", "锥体", ""),
-        ("IMAGE", "图片", ""),
-    ]
-
-def _switch_mode_target_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("VERT", "Vertex", ""),
-            ("EDGE", "Edge", ""),
-            ("FACE", "Face", ""),
-            ("SWITCH_MODE", "Switch Mode", ""),
-        ]
-    return [
-        ("VERT", "点", ""),
-        ("EDGE", "边", ""),
-        ("FACE", "面", ""),
-        ("SWITCH_MODE", "模式切换", ""),
-    ]
-
-def _switch_bone_mode_target_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("EDIT_OR_OBJECT", "Edit/Object", ""),
-            ("BONE_POSITION", "Bone Position", ""),
-            ("POSE", "Pose", ""),
-            ("EDIT", "Edit (Only Pose)", "Only show in pose mode"),
-            ("VIEW_SELECTED", "View Selected", ""),
-            ("TOGGLE_XRAY", "Toggle X-Ray", ""),
-            ("TOGGLE_NAMES", "Toggle Names", ""),
-            ("TOGGLE_AXES", "Toggle Axes", ""),
-        ]
-    return [
-        ("EDIT_OR_OBJECT", "编辑/物体", ""),
-        ("BONE_POSITION", "骨骼位置", ""),
-        ("POSE", "姿态", ""),
-        ("EDIT", "编辑(仅姿态)", "仅在姿态模式显示"),
-        ("VIEW_SELECTED", "视图聚焦选中", ""),
-        ("TOGGLE_XRAY", "切换透视(X-Ray)", ""),
-        ("TOGGLE_NAMES", "切换名称显示", ""),
-        ("TOGGLE_AXES", "切换轴显示", ""),
-    ]
-
-def _delete_pie_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("DELETE_VERT", "Delete Vertices", "", "VERTEXSEL", 1),
-            ("DELETE_EDGE", "Delete Edges", "", "EDGESEL", 2),
-            ("DELETE_FACE", "Delete Faces", "", "FACESEL", 3),
-            ("DISSOLVE_VERT", "Dissolve Vertices", "", "VERTEXSEL", 4),
-            ("DISSOLVE_EDGE", "Dissolve Edges", "", "MOD_WIREFRAME", 5),
-            ("DISSOLVE_FACE", "Dissolve Faces", "", "FACESEL", 6),
-            ("LIMITED_DISSOLVE", "Limited Dissolve", "", "MESH_DATA", 7),
-            ("EDGE_LOOP", "Delete Edge Loops", "", "MOD_EDGESPLIT", 8),
-            ("EDGE_COLLAPSE", "Collapse Edges", "", "UV_EDGESEL", 9),
-            ("ONLY_EDGE_FACE", "Only Edges & Faces", "", "EDGESEL", 10),
-            ("ONLY_FACE", "Only Faces", "", "FACESEL", 11),
-            ("DISSOLVE_ALL", "Dissolve (Smart)", "", "MOD_WIREFRAME", 12),
-            ("NONE", "None", "", "X", 0),
-        ]
-    return [
-        ("DELETE_VERT", "删除顶点", "", "VERTEXSEL", 1),
-        ("DELETE_EDGE", "删除边", "", "EDGESEL", 2),
-        ("DELETE_FACE", "删除面", "", "FACESEL", 3),
-        ("DISSOLVE_VERT", "融并顶点", "", "VERTEXSEL", 4),
-        ("DISSOLVE_EDGE", "融并边", "", "MOD_WIREFRAME", 5),
-        ("DISSOLVE_FACE", "融并面", "", "FACESEL", 6),
-        ("LIMITED_DISSOLVE", "有限融并", "", "MESH_DATA", 7),
-        ("EDGE_LOOP", "循环边", "", "MOD_EDGESPLIT", 8),
-        ("EDGE_COLLAPSE", "塌陷边", "", "UV_EDGESEL", 9),
-        ("ONLY_EDGE_FACE", "仅边和面", "", "EDGESEL", 10),
-        ("ONLY_FACE", "仅面", "", "FACESEL", 11),
-        ("DISSOLVE_ALL", "融并点线面", "", "MOD_WIREFRAME", 12),
-        ("NONE", "无", "", "X", 0),
-    ]
-
-def _unity_fbx_apply_scale_options_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("FBX_SCALE_NONE", "All Local", ""),
-            ("FBX_SCALE_UNITS", "FBX Units Scale", ""),
-            ("FBX_SCALE_CUSTOM", "FBX Custom Scale", ""),
-            ("FBX_SCALE_ALL", "FBX All", ""),
-        ]
-    return [
-        ("FBX_SCALE_NONE", "全部本地", ""),
-        ("FBX_SCALE_UNITS", "FBX 单位缩放", ""),
-        ("FBX_SCALE_CUSTOM", "FBX 自定义缩放", ""),
-        ("FBX_SCALE_ALL", "FBX 全部", ""),
-    ]
-
-def _origin_default_operator_types_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("ROTATE", "Rotate", "", "NONE", 1),
-            ("LOCATION", "Location", "", "NONE", 2),
-        ]
-    return [
-        ("ROTATE", "旋转", "", "NONE", 1),
-        ("LOCATION", "位置", "", "NONE", 2),
-    ]
-
-def _moving_view_type_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("NONE", "None", "", "RESTRICT_SELECT_ON", 0),
-            ("MAINTAINING_ZOOM", "Maintaining Zoom", "", "VIEWZOOM", 1),
-            ("ANIMATION", "Animation", "", "ANIM", 2),
-        ]
-    return [
-        ("NONE", "无", "", "RESTRICT_SELECT_ON", 0),
-        ("MAINTAINING_ZOOM", "保持缩放", "", "VIEWZOOM", 1),
-        ("ANIMATION", "动画", "", "ANIM", 2),
-    ]
-
-# --- Finder Functions for UI / Operators ---
-# These now search wm.keyconfigs.addon directly (standard) OR could use addon_keymaps.
-# Using standard search is safer for UI drawing as it finds what is actually there.
-
-def _is_our_pie_keymap_item(kmi):
-    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") in {PIE_MENU_ID, SWITCH_MODE_PIE_ID, EDGE_PROPERTY_PIE_ID, SMART_PIE_ID, SWITCH_EDITOR_PIE_ID}
-
-def _is_our_switch_mode_item(kmi):
-    return getattr(kmi, "idname", "") == 'object.switch_mode'
-
-def _is_our_quick_delete_item(kmi):
-    return getattr(kmi, "idname", "") == 'm8.quick_delete'
-
-def _is_our_delete_pie_item(kmi):
-    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == DELETE_PIE_ID
-
-def _is_our_edge_property_pie_item(kmi):
-    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == EDGE_PROPERTY_PIE_ID
-
-def _is_our_smart_pie_item(kmi):
-    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == SMART_PIE_ID
-
-def _is_our_smart_tool_item(kmi):
-    return getattr(kmi, "idname", "") in {
-        "m8.smart_merge_center",
-        "m8.smart_paths_merge",
-        "m8.smart_paths_connect",
-        "m8.smart_slide_extend",
-        "m8.smart_edge",
-        "m8.smart_edge_toggle_mode",
-        "m8.smart_offset_edges",
-        "m8.clean_up",
-        "m8.smart_face",
-    }
-
-def _is_our_align_pie_item(kmi):
-    if kmi.idname == 'wm.call_menu_pie':
-        return getattr(kmi.properties, "name", "") in {ALIGN_OBJECT_PIE_ID, ALIGN_MESH_PIE_ID, ALIGN_UV_PIE_ID}
-    return kmi.idname == ALIGN_GENERIC_OP_ID
-
-def _is_our_shading_pie_item(kmi):
-    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == SHADING_PIE_ID
-
-def _is_our_save_pie_item(kmi):
-    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == SAVE_PIE_ID
-
-def _is_our_switch_editor_pie_item(kmi):
-    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == SWITCH_EDITOR_PIE_ID
-
-def _is_our_rename_item(kmi):
-    return getattr(kmi, "idname", "") == 'm8.advanced_rename'
-
-def _is_our_mirror_item(kmi):
-    return getattr(kmi, "idname", "") == MIRROR_OP_ID
-
-def _is_our_group_tool_item(kmi):
-    return getattr(kmi, "idname", "") == 'm8.group_objects'
-
-def _is_our_double_click_select_group_item(kmi):
-    return getattr(kmi, "idname", "") == 'm8.select_group'
-
-def _is_our_double_click_edit_switch_item(kmi):
-    return getattr(kmi, "idname", "") == 'm8.double_click_edit_switch'
-
-def _is_our_subdivision_item(kmi):
-    return getattr(kmi, "idname", "") == 'm8.subdivision_set'
-
-def _find_subdivision_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in SUBDIVISION_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_subdivision_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_pie_keymap_item():
-    # Helper to find the transform pie item for the UI/Operators
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return None, None, None
-    for keymap_name, _ in TRANSFORM_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_pie_keymap_item(kmi): return kc, km, kmi
-    return kc, None, None
-
-def _find_switch_mode_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc:
-        return []
-    items = []
-    try:
-        for km in kc.keymaps:
-            for kmi in km.keymap_items:
-                if _is_our_switch_mode_item(kmi):
-                    items.append((kc, km, kmi))
-    except Exception:
-        pass
-    return items
-
-def _find_quick_delete_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in QUICK_DELETE_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_quick_delete_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_delete_pie_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in DELETE_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_delete_pie_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_edge_property_pie_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in EDGE_PROPERTY_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_edge_property_pie_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_align_pie_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in ALIGN_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_align_pie_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_shading_pie_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in SHADING_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_shading_pie_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_save_pie_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in SAVE_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_save_pie_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_switch_editor_pie_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in SWITCH_EDITOR_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_switch_editor_pie_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_rename_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in RENAME_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_rename_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_mirror_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in MIRROR_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_mirror_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_group_tool_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in GROUP_TOOL_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_group_tool_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_double_click_select_group_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
-    items = []
-    for keymap_name, _ in DOUBLE_CLICK_GROUP_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_double_click_select_group_item(kmi): items.append((kc, km, kmi))
-    return items
-
-def _find_smart_pie_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc:
-        return []
-    items = []
-    for keymap_name, _ in SMART_PIE_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if not km:
-            continue
-        for kmi in km.keymap_items:
-            if _is_our_smart_pie_item(kmi) or _is_our_smart_tool_item(kmi):
-                items.append((kc, km, kmi))
-    return items
-
-def _find_toggle_area_keymap_items():
-    wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc:
-        return []
-    items = []
-    for keymap_name, _ in TOGGLE_AREA_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if not km:
-            continue
-        for kmi in km.keymap_items:
-            if kmi.idname == TOGGLE_AREA_OP_ID:
-                items.append((kc, km, kmi))
-    return items
-
-# --- Conflict Handling ---
-def _kmi_signature(kmi):
-    try:
-        return (
-            getattr(kmi, "type", None),
-            getattr(kmi, "value", None),
-            bool(getattr(kmi, "any", False)),
-            bool(getattr(kmi, "shift", False)),
-            bool(getattr(kmi, "ctrl", False)),
-            bool(getattr(kmi, "alt", False)),
-            bool(getattr(kmi, "oskey", False)),
-            getattr(kmi, "key_modifier", None),
-        )
-    except Exception:
-        return None
-
-def _match_signature(kmi, sig):
-    if not sig: return False
-    return _kmi_signature(kmi) == sig
-
-def _our_shortcut_signatures():
-    # Gather signatures from currently registered keymaps
-    sigs = []
-    for km, kmi in addon_keymaps:
-        sig = _kmi_signature(kmi)
-        if sig and sig not in sigs:
-            sigs.append(sig)
-    return sigs
-
-def _disable_conflicts_for_signatures(kc, signatures):
-    if not kc: return 0
-    disabled = 0
-    # Search all maps where we put keys
-    all_bindings = list(TRANSFORM_PIE_KEYMAP_BINDINGS) + list(ALIGN_PIE_KEYMAP_BINDINGS) + \
-                   list(SWITCH_MODE_KEYMAP_BINDINGS) + list(QUICK_DELETE_KEYMAP_BINDINGS) + \
-                   list(DELETE_PIE_KEYMAP_BINDINGS) + list(SAVE_PIE_KEYMAP_BINDINGS) + \
-                   list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS) + \
-                   list(SMART_PIE_KEYMAP_BINDINGS) + list(TOGGLE_AREA_KEYMAP_BINDINGS) + \
-                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS) + \
-                   list(SUBDIVISION_KEYMAP_BINDINGS)
-    
-    seen_km = set()
-    for keymap_name, _ in all_bindings:
-        if keymap_name in seen_km: continue
-        seen_km.add(keymap_name)
-        
-        km = kc.keymaps.get(keymap_name)
-        if not km: continue
-        
-        for kmi in km.keymap_items:
-            if not getattr(kmi, "active", True): continue
-            
-            # Skip our own items (checked via ID/Name)
-            is_ours = (_is_our_pie_keymap_item(kmi) or 
-                       _is_our_align_pie_item(kmi) or 
-                       _is_our_switch_mode_item(kmi) or 
-                       _is_our_quick_delete_item(kmi) or 
-                       _is_our_delete_pie_item(kmi) or
-                       _is_our_shading_pie_item(kmi) or
-                       _is_our_save_pie_item(kmi) or
-                       _is_our_rename_item(kmi) or
-                       _is_our_mirror_item(kmi) or
-                       _is_our_group_tool_item(kmi) or
-                       _is_our_double_click_select_group_item(kmi) or
-                       _is_our_double_click_edit_switch_item(kmi) or
-                       _is_our_smart_pie_item(kmi) or
-                       _is_our_smart_tool_item(kmi) or
-                       _is_our_switch_editor_pie_item(kmi) or
-                       _is_our_edge_property_pie_item(kmi) or
-                       _is_our_subdivision_item(kmi) or
-                       kmi.idname == TOGGLE_AREA_OP_ID)
-            if is_ours: continue
-            
-            for sig in signatures:
-                if _match_signature(kmi, sig):
-                    try:
-                        kmi.active = False
-                        disabled += 1
-                        logger.info(f"Disabled conflicting hotkey: {kmi.name} ({kmi.idname}) in {keymap_name}")
-                    except Exception as e:
-                        logger.error(f"Failed to disable conflict {kmi.idname}: {e}")
-                    break
-    return disabled
-
-def _restore_conflicts_for_signatures(kc, signatures):
-    if not kc: return 0
-    restored = 0
-    all_bindings = list(TRANSFORM_PIE_KEYMAP_BINDINGS) + list(ALIGN_PIE_KEYMAP_BINDINGS) + \
-                   list(SWITCH_MODE_KEYMAP_BINDINGS) + list(QUICK_DELETE_KEYMAP_BINDINGS) + \
-                   list(DELETE_PIE_KEYMAP_BINDINGS) + list(SAVE_PIE_KEYMAP_BINDINGS) + \
-                   list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS) + \
-                   list(SMART_PIE_KEYMAP_BINDINGS) + list(TOGGLE_AREA_KEYMAP_BINDINGS) + \
-                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS) + \
-                   list(SUBDIVISION_KEYMAP_BINDINGS)
-    
-    seen_km = set()
-    for keymap_name, _ in all_bindings:
-        if keymap_name in seen_km: continue
-        seen_km.add(keymap_name)
-        
-        km = kc.keymaps.get(keymap_name)
-        if not km: continue
-        
-        for kmi in km.keymap_items:
-            if getattr(kmi, "active", True): continue
-            
-            # Skip our own items
-            is_ours = (_is_our_pie_keymap_item(kmi) or 
-                       _is_our_align_pie_item(kmi) or 
-                       _is_our_switch_mode_item(kmi) or 
-                       _is_our_quick_delete_item(kmi) or 
-                       _is_our_delete_pie_item(kmi) or
-                       _is_our_shading_pie_item(kmi) or
-                       _is_our_save_pie_item(kmi) or
-                       _is_our_rename_item(kmi) or
-                       _is_our_mirror_item(kmi) or
-                       _is_our_group_tool_item(kmi) or
-                       _is_our_double_click_select_group_item(kmi) or
-                       _is_our_smart_pie_item(kmi) or
-                       _is_our_smart_tool_item(kmi) or
-                       _is_our_switch_editor_pie_item(kmi) or
-                       _is_our_edge_property_pie_item(kmi) or
-                       _is_our_subdivision_item(kmi) or
-                       kmi.idname == TOGGLE_AREA_OP_ID)
-            if is_ours: continue
-
-            for sig in signatures:
-                if _match_signature(kmi, sig):
-                    try:
-                        kmi.active = True
-                        restored += 1
-                        logger.info(f"Restored conflicting hotkey: {kmi.name} ({kmi.idname}) in {keymap_name}")
-                    except Exception as e:
-                        logger.error(f"Failed to restore conflict {kmi.idname}: {e}")
-                    break
-    return restored
-
-# --- Operators ---
-class SIZE_TOOL_OT_ResetTransformPieKeymap(bpy.types.Operator):
-    bl_idname = "size_tool.reset_transform_pie_keymap"
-    bl_label = "恢复默认快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        unregister_keymaps()
-        register_keymaps(force_default=True)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceTransformPiePriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_transform_pie_priority"
-    bl_label = "强制置顶快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        # We can just iterate our addon_keymaps and move them to top
-        # But for now, use old find logic to report errors if missing
-        kc, km, kmi = _find_pie_keymap_item()
-        if not (kc and km and kmi):
-            self.report({'WARNING'}, "未找到变换辅助饼菜单的快捷键项")
-            return {'CANCELLED'}
-        _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceSwitchModePriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_switch_mode_priority"
-    bl_label = "强制置顶快捷键(Tab)"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_switch_mode_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到 Tab 绑定")
-            return {'CANCELLED'}
-        for _, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        self.report({'INFO'}, f"已置顶 {len(items)} 个 Tab 绑定")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ExclusiveTransformPieHotkey(bpy.types.Operator):
-    bl_idname = "size_tool.exclusive_transform_pie_hotkey"
-    bl_label = "独占 Shift+S"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        kc2, km2, kmi2 = _find_pie_keymap_item()
-        sig = _kmi_signature(kmi2) if kmi2 else None
-        signatures = [sig] if sig else [("S", "PRESS", False, True, False, False, False, 'NONE')]
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-        
-        # Ensure ours is at top
-        kc2, km2, kmi2 = _find_pie_keymap_item()
-        if km2 and kmi2:
-            _ensure_pie_keymap_priority(km2, kmi2)
-
-        if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Shift+S 快捷键")
-        else:
-            self.report({'INFO'}, "未发现插件层面的 Shift+S 冲突快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_RestoreShiftSConflicts(bpy.types.Operator):
-    bl_idname = "size_tool.restore_shift_s_conflicts"
-    bl_label = "恢复被禁用的 Shift+S"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        kc2, km2, kmi2 = _find_pie_keymap_item()
-        sig = _kmi_signature(kmi2) if kmi2 else None
-        signatures = [sig] if sig else [("S", "PRESS", False, True, False, False, False, 'NONE')]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Shift+S 快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceAlignPiePriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_align_pie_priority"
-    bl_label = "强制置顶对齐快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_align_pie_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到对齐辅助饼菜单的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ExclusiveAlignPieHotkey(bpy.types.Operator):
-    bl_idname = "size_tool.exclusive_align_pie_hotkey"
-    bl_label = "独占 Alt+A"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [("A", "PRESS", False, False, False, True, False, 'NONE')]
-        
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        # Ensure ours is at top
-        items = _find_align_pie_keymap_items()
-        for kc2, km2, kmi2 in items:
-            _ensure_pie_keymap_priority(km2, kmi2)
-
-        if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Alt+A 快捷键")
-        else:
-            self.report({'INFO'}, "未发现插件层面的 Alt+A 冲突快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_RestoreAltAConflicts(bpy.types.Operator):
-    bl_idname = "size_tool.restore_alt_a_conflicts"
-    bl_label = "恢复被禁用的 Alt+A"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [("A", "PRESS", False, False, False, True, False, 'NONE')]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Alt+A 快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceSavePiePriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_save_pie_priority"
-    bl_label = "强制置顶保存快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_save_pie_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到保存饼菜单的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ExclusiveSavePieHotkey(bpy.types.Operator):
-    bl_idname = "size_tool.exclusive_save_pie_hotkey"
-    bl_label = "独占 Ctrl+S"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [("S", "PRESS", False, False, True, False, False, 'NONE')]
-
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        items = _find_save_pie_keymap_items()
-        for kc2, km2, kmi2 in items:
-            _ensure_pie_keymap_priority(km2, kmi2)
-
-        if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Ctrl+S 快捷键")
-        else:
-            self.report({'INFO'}, "未发现插件层面的 Ctrl+S 冲突快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_RestoreCtrlSConflicts(bpy.types.Operator):
-    bl_idname = "size_tool.restore_ctrl_s_conflicts"
-    bl_label = "恢复被禁用的 Ctrl+S"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [("S", "PRESS", False, False, True, False, False, 'NONE')]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Ctrl+S 快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceEdgePropertyPiePriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_edge_property_pie_priority"
-    bl_label = "强制置顶边属性快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_edge_property_pie_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到边属性饼菜单的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ExclusiveEdgePropertyPieHotkey(bpy.types.Operator):
-    bl_idname = "size_tool.exclusive_edge_property_pie_hotkey"
-    bl_label = "独占 Shift+E"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [("E", "PRESS", False, True, False, False, False, 'NONE')]
-
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        items = _find_edge_property_pie_keymap_items()
-        for kc2, km2, kmi2 in items:
-            _ensure_pie_keymap_priority(km2, kmi2)
-
-        if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Shift+E 快捷键")
-        else:
-            self.report({'INFO'}, "未发现插件层面的 Shift+E 冲突快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_RestoreShiftEConflicts(bpy.types.Operator):
-    bl_idname = "size_tool.restore_shift_e_conflicts"
-    bl_label = "恢复被禁用的 Shift+E"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [("E", "PRESS", False, True, False, False, False, 'NONE')]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Shift+E 快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceMirrorPriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_mirror_priority"
-    bl_label = "强制置顶镜像快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_mirror_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到镜像的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ExclusiveMirrorHotkey(bpy.types.Operator):
-    bl_idname = "size_tool.exclusive_mirror_hotkey"
-    bl_label = "独占 Shift+Alt+X"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [("X", "PRESS", False, True, False, True, False, 'NONE')]
-
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        items = _find_mirror_keymap_items()
-        for kc2, km2, kmi2 in items:
-            _ensure_pie_keymap_priority(km2, kmi2)
-
-        if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Shift+Alt+X 快捷键")
-        else:
-            self.report({'INFO'}, "未发现插件层面的 Shift+Alt+X 冲突快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_RestoreShiftAltXConflicts(bpy.types.Operator):
-    bl_idname = "size_tool.restore_shift_alt_x_conflicts"
-    bl_label = "恢复被禁用的 Shift+Alt+X"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [("X", "PRESS", False, True, False, True, False, 'NONE')]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Shift+Alt+X 快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceGroupToolPriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_group_tool_priority"
-    bl_label = "强制置顶打组快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_group_tool_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到打组的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ExclusiveGroupToolHotkey(bpy.types.Operator):
-    bl_idname = "size_tool.exclusive_group_tool_hotkey"
-    bl_label = "独占 Ctrl+G"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [("G", "PRESS", False, False, True, False, False, 'NONE')]
-
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        items = _find_group_tool_keymap_items()
-        for kc2, km2, kmi2 in items:
-            _ensure_pie_keymap_priority(km2, kmi2)
-
-        if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Ctrl+G 快捷键")
-        else:
-            self.report({'INFO'}, "未发现插件层面的 Ctrl+G 冲突快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_RestoreCtrlGConflicts(bpy.types.Operator):
-    bl_idname = "size_tool.restore_ctrl_g_conflicts"
-    bl_label = "恢复被禁用的 Ctrl+G"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [("G", "PRESS", False, False, True, False, False, 'NONE')]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Ctrl+G 快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ExclusiveSubdivisionHotkey(bpy.types.Operator):
-    bl_idname = "size_tool.exclusive_subdivision_hotkey"
-    bl_label = "独占细分快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [
-            ("ZERO", "PRESS", False, False, True, False, False, 'NONE'),
-            ("ONE", "PRESS", False, False, True, False, False, 'NONE'),
-            ("TWO", "PRESS", False, False, True, False, False, 'NONE'),
-            ("THREE", "PRESS", False, False, True, False, False, 'NONE'),
-            ("FOUR", "PRESS", False, False, True, False, False, 'NONE'),
-        ]
-        
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures)
-        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        # Ensure ours is at top
-        items = _find_subdivision_keymap_items()
-        for kc2, km2, kmi2 in items:
-            _ensure_pie_keymap_priority(km2, kmi2)
-
-        if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件或系统的细分冲突快捷键")
-        else:
-            self.report({'INFO'}, "未发现任何细分冲突快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_RestoreSubdivisionConflicts(bpy.types.Operator):
-    bl_idname = "size_tool.restore_subdivision_conflicts"
-    bl_label = "恢复被禁用的细分快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [
-            ("ZERO", "PRESS", False, False, True, False, False, 'NONE'),
-            ("ONE", "PRESS", False, False, True, False, False, 'NONE'),
-            ("TWO", "PRESS", False, False, True, False, False, 'NONE'),
-            ("THREE", "PRESS", False, False, True, False, False, 'NONE'),
-            ("FOUR", "PRESS", False, False, True, False, False, 'NONE'),
-        ]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures)
-        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的细分快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ExclusiveToggleAreaHotkey(bpy.types.Operator):
-    bl_idname = "size_tool.exclusive_toggle_area_hotkey"
-    bl_label = "独占区域切换快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [
-            ("T", "PRESS", False, False, False, False, False, 'NONE'),
-        ]
-        
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures)
-        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        # Ensure ours is at top
-        items = _find_toggle_area_keymap_items()
-        for kc2, km2, kmi2 in items:
-            _ensure_pie_keymap_priority(km2, kmi2)
-
-        if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个系统或其它插件冲突的 T 键快捷键")
-        else:
-            self.report({'INFO'}, "未发现任何 T 键冲突快捷键")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_RestoreToggleAreaConflicts(bpy.types.Operator):
-    bl_idname = "size_tool.restore_toggle_area_conflicts"
-    bl_label = "恢复被禁用的区域切换快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        wm = bpy.context.window_manager if bpy.context else None
-        if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
-            return {'CANCELLED'}
-
-        prefs = _get_addon_prefs()
-        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
-
-        signatures = [
-            ("T", "PRESS", False, False, False, False, False, 'NONE'),
-        ]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures)
-        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
-        if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
-
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 T 键快捷键")
-        return {'FINISHED'}
-
-
-class SIZE_TOOL_OT_ForceDeletePiePriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_delete_pie_priority"
-    bl_label = "强制置顶删除饼菜单快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_delete_pie_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到删除饼菜单的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceRenamePriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_rename_priority"
-    bl_label = "强制置顶重命名快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_rename_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到重命名的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceShadingPiePriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_shading_pie_priority"
-    bl_label = "强制置顶着色饼菜单快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_shading_pie_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到着色饼菜单的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceSmartPiePriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_smart_pie_priority"
-    bl_label = "强制置顶智能饼菜单快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_smart_pie_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到智能饼菜单的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceSwitchEditorPriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_switch_editor_priority"
-    bl_label = "强制置顶切换窗口快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_switch_editor_pie_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到切换窗口饼菜单的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ForceToggleAreaPriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_toggle_area_priority"
-    bl_label = "强制置顶区域切换快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        items = _find_toggle_area_keymap_items()
-        if not items:
-            self.report({'WARNING'}, "未找到区域切换的快捷键项")
-            return {'CANCELLED'}
-        for kc, km, kmi in items:
-            _ensure_pie_keymap_priority(km, kmi)
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_ExclusiveAllHotkeys(bpy.types.Operator):
-    bl_idname = "size_tool.exclusive_all_hotkeys"
-    bl_label = "一键独占所有快捷键"
-    bl_description = "自动禁用 Blender 内置或其它插件冲突的 Shift+S, Shift+E, Alt+A, Ctrl+S 等快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        try:
-            bpy.ops.size_tool.exclusive_transform_pie_hotkey()
-            bpy.ops.size_tool.exclusive_align_pie_hotkey()
-            bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
-            bpy.ops.size_tool.exclusive_save_pie_hotkey()
-            bpy.ops.size_tool.exclusive_mirror_hotkey()
-            bpy.ops.size_tool.exclusive_subdivision_hotkey()
-            bpy.ops.size_tool.exclusive_toggle_area_hotkey()
-            self.report({'INFO'}, "已执行所有独占操作")
-        except Exception as e:
-            self.report({'WARNING'}, f"部分操作失败: {e}")
-        return {'FINISHED'}
-
-class SIZE_TOOL_OT_RestoreAllConflicts(bpy.types.Operator):
-    bl_idname = "size_tool.restore_all_conflicts"
-    bl_label = "一键恢复所有冲突"
-    bl_description = "恢复被本插件禁用的所有冲突快捷键"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        try:
-            bpy.ops.size_tool.restore_shift_s_conflicts()
-            bpy.ops.size_tool.restore_alt_a_conflicts()
-            bpy.ops.size_tool.restore_shift_e_conflicts()
-            bpy.ops.size_tool.restore_ctrl_s_conflicts()
-            bpy.ops.size_tool.restore_shift_alt_x_conflicts()
-            bpy.ops.size_tool.restore_subdivision_conflicts()
-            bpy.ops.size_tool.restore_toggle_area_conflicts()
-            self.report({'INFO'}, "已执行所有恢复操作")
-        except Exception as e:
-            self.report({'WARNING'}, f"部分操作失败: {e}")
-        return {'FINISHED'}
-
-class M8_OT_ResetSwitchModePrefs(bpy.types.Operator):
-    bl_idname = "m8.reset_switch_mode_prefs"
-    bl_label = "恢复默认(切换模式)"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        prefs = _get_addon_prefs()
-        if not prefs:
-            return {'CANCELLED'}
-
-        prefs.switch_mode_smart_focus = True
-        prefs.switch_mode_tab_behavior = "INSTANT"
-        prefs.switch_mode_hold_ms = 220
-
-        prefs.switch_mode_up = "SWITCH_MODE"
-        prefs.switch_mode_down = "EDGE"
-        prefs.switch_mode_left = "VERT"
-        prefs.switch_mode_right = "FACE"
-
-        prefs.switch_bone_mode_up = "EDIT_OR_OBJECT"
-        prefs.switch_bone_mode_down = "EDIT"
-        prefs.switch_bone_mode_left = "POSE"
-        prefs.switch_bone_mode_right = "BONE_POSITION"
-
-        prefs.ui_show_switch_mode_mapping = False
-        prefs.ui_show_tab_keymap = False
-        return {'FINISHED'}
-
-class M8_OT_ResetPrefsUI(bpy.types.Operator):
-    bl_idname = "m8.reset_prefs_ui"
-    bl_label = "重置偏好界面"
-    bl_options = {'INTERNAL'}
-
-    def execute(self, context):
-        prefs = _get_addon_prefs()
-        if not prefs:
-            return {'CANCELLED'}
-
-        prefs.ui_show_tab_keymap = False
-        prefs.ui_show_shift_keymap = False
-        prefs.ui_show_switch_mode_mapping = False
-        prefs.ui_show_shift_s_advanced = False
-        prefs.ui_show_delete_keymap = False
-        prefs.ui_show_delete_mapping = False
-        prefs.ui_show_save_keymap = False
-        prefs.ui_show_save_advanced = False
-        prefs.ui_show_switch_editor_keymap = False
-        
-        prefs.ui_show_section_switch_mode = True
-        prefs.ui_show_section_transform_pie = True
-        prefs.ui_show_section_delete = True
-        prefs.ui_show_section_other = True
-        return {'FINISHED'}
+from .keymap_constants import *
+from .keymap_helpers import (
+    _get_addon_prefs,
+    _ensure_pie_keymap_priority,
+    _on_prefs_update,
+    _on_autoorigin_update,
+    _on_autopack_update,
+    _switch_editor_items,
+    _active_tab_items,
+    _smart_face_action_items,
+    _clean_up_affect_items,
+    _switch_mode_tab_behavior_items,
+    _screencast_align_items,
+    _screencast_style_items,
+    _screencast_operator_label_mode_items,
+    _screencast_stack_direction_items,
+    _addon_language_items,
+    _smart_edge_mode_items,
+    _group_tool_empty_type_items,
+    _switch_mode_target_items,
+    _switch_bone_mode_target_items,
+    _delete_pie_items,
+    _unity_fbx_apply_scale_options_items,
+    _origin_default_operator_types_items,
+    _moving_view_type_items,
+    _find_subdivision_keymap_items,
+    _find_pie_keymap_item,
+    _find_switch_mode_keymap_items,
+    _find_quick_delete_keymap_items,
+    _find_delete_pie_keymap_items,
+    _find_edge_property_pie_keymap_items,
+    _find_align_pie_keymap_items,
+    _find_shading_pie_keymap_items,
+    _find_save_pie_keymap_items,
+    _find_switch_editor_pie_keymap_items,
+    _find_rename_keymap_items,
+    _find_mirror_keymap_items,
+    _find_group_tool_keymap_items,
+    _find_double_click_select_group_keymap_items,
+    _find_smart_pie_keymap_items,
+    _find_toggle_area_keymap_items,
+)
 
 class M8_MP7_MockDrawProperty(bpy.types.PropertyGroup):
     enable_name_translation: bpy.props.BoolProperty(name="Enable Name Translation", default=True)
@@ -2270,18 +291,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     def _on_screencast_enabled_update(self, context):
         try:
             from ..ops.misc.screencast import M8_OT_InternalScreencast
-            # Sync state: If enabled but not running -> Start. If disabled but running -> Stop.
-            # We use the operator to toggle state.
             if self.screencast_enabled != M8_OT_InternalScreencast._running:
-                # We need a context override for 3D view usually, but 'INVOKE_DEFAULT' might find one?
-                # Or we just try running it. The operator checks _running flag globally.
-                # But it needs to register handlers in a specific context/area?
-                # The operator attaches handler to 'WINDOW', so it covers all views?
-                # Actually handler is SpaceView3D.draw_handler_add.
-                # So it needs to run in a context that can access SpaceView3D? No, handler is global type based.
-                # But 'invoke' usually needs context.
-                
-                # Let's try finding a context if needed.
                 found = False
                 for win in context.window_manager.windows:
                     for area in win.screen.areas:
@@ -2293,7 +303,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     if found: break
                 
                 if not found:
-                    # Fallback
                     bpy.ops.m8.internal_screencast('INVOKE_DEFAULT')
         except Exception:
             pass
@@ -2522,7 +531,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             from ..src import icons as mp7_icons
             pcoll = mp7_icons.previews_icons
             if pcoll:
-                # 使用 box 包含二维码区域，使其背景稍有区分
                 qr_box = col.box()
                 row = qr_box.row()
                 
@@ -2531,7 +539,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 col1.alignment = 'CENTER'
                 col1.label(text=_T("联系作者"))
                 if "wechat_code" in pcoll:
-                    # scale 控制图标大小，10.0 约为 200px 左右
                     col1.template_icon(icon_value=pcoll["wechat_code"].icon_id, scale=8.0)
                 else:
                     col1.label(text=_T("图片未找到"), icon=_ICON("ERROR"))
@@ -2595,7 +602,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             box.label(text=_T("偏好项未完成注册：请重新启用插件或重启 Blender"), icon=_ICON("ERROR"))
             box.label(text=_T("常见原因：升级后未重启；或 Blender\\4.4/5.0 同时存在多个 M8，实际加载的不是当前文件。"), icon=_ICON("INFO"))
             return
-        # Safe access to active_tab property
         active_tab = getattr(self, "active_tab", "GENERAL")
         
         row = layout.row(align=True)
@@ -2613,27 +619,17 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             box.label(text=_T("偏好设置界面绘制失败，请打开系统控制台查看报错。"), icon=_ICON("ERROR"))
 
     def _draw_sidebar_button(self, layout, icon, text, item_value):
-        # 移除 row.alignment = 'LEFT' 让按钮充满宽度
-        # 增加 scale_y 让按钮稍微高一点，更有点击感
         row = layout.row(align=True)
         row.scale_y = 1.25
         
-        # 提示：Blender 的 prop_enum 会自动处理选中状态的高亮
-        # 我们使用 EMBOSS (默认) 风格，这样选中时会有凹陷感
-        # 如果当前项被选中，我们可以加一个图标或者改变文字来增强提示，但 prop_enum 本身已经足够
-        
-        # Safe access to navigation_tab property
         nav_tab = getattr(self, "navigation_tab", "TRANSFORM")
         
         if "navigation_tab" in self.bl_rna.properties:
             if nav_tab == item_value:
-                # 选中状态：使用主图标，并且不高亮（保持按下状态）
                 row.prop_enum(self, "navigation_tab", item_value, icon=_ICON(icon), text=_T(text))
             else:
-                # 未选中状态：也可以正常绘制，保持可点击
                 row.prop_enum(self, "navigation_tab", item_value, icon=_ICON(icon), text=_T(text))
         else:
-            # Fallback if property is missing
             row.label(text=_T(text), icon=_ICON(icon))
 
     def _get_tab_description(self, key=None):
@@ -2706,7 +702,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         self._draw_sidebar_button(col_nav, "WINDOW", "切换窗口 (F12)", "SWITCH_EDITOR")
         self._draw_sidebar_button(col_nav, "MOD_SUBSURF", "细分级别 (Ctrl+0..4)", "SUBDIVISION")
 
-
         col_nav.separator()
         col_nav.label(text=_T("实用工具"), icon="TOOL_SETTINGS")
         self._draw_sidebar_button(col_nav, "FONT_DATA", "重命名 (F2)", "RENAME")
@@ -2726,9 +721,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         header_row = header_box.row(align=True)
         header_row.alignment = "LEFT"
         
-        # Safe access to ui_show_all_settings
         show_all = getattr(self, "ui_show_all_settings", False)
-        # Safe access to navigation_tab
         nav_tab = getattr(self, "navigation_tab", "TRANSFORM")
         
         if show_all:
@@ -2900,7 +893,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_subdivision_shortcuts" in self.bl_rna.properties:
             col.prop(self, "activate_subdivision_shortcuts")
 
-        # Safe access to activate_subdivision_shortcuts
         activate_shortcuts = getattr(self, "activate_subdivision_shortcuts", True)
         
         if activate_shortcuts:
@@ -2920,7 +912,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 row_sub.operator("size_tool.exclusive_subdivision_hotkey", text=_T("独占(禁用冲突)"))
                 row_sub.operator("size_tool.restore_subdivision_conflicts", text=_T("恢复冲突"))
 
-            # Safe access to ui_show_subdivision_keymap
             show_keymap = getattr(self, "ui_show_subdivision_keymap", False)
             if show_keymap:
                 sub_col = col.column()
@@ -2978,7 +969,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "enable_transform_pie" in self.bl_rna.properties:
             col.prop(self, "enable_transform_pie", text=_T("启用变换辅助饼菜单"))
 
-        # Safe access to enable_transform_pie
         enable_pie = getattr(self, "enable_transform_pie", True)
         
         if enable_pie:
@@ -2993,7 +983,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             row.operator("size_tool.reset_transform_pie_keymap", text=_T("恢复默认"), icon="LOOP_BACK")
             col.separator()
             
-            # Safe access to ui_show_shift_keymap
             show_keymap = getattr(self, "ui_show_shift_keymap", False)
             if show_keymap:
                 sub_col = col.column()
@@ -3007,7 +996,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 except Exception:
                     pass
 
-            # Safe access to ui_show_shift_s_advanced
             show_advanced = getattr(self, "ui_show_shift_s_advanced", False)
             if show_advanced:
                 sub_col = col.column()
@@ -3041,7 +1029,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     pie_items = _find_delete_pie_keymap_items()
                     
                     if not quick_items and not pie_items:
-                            sub_col.label(text=_T("未找到删除相关绑定"), icon="INFO")
+                        sub_col.label(text=_T("未找到删除相关绑定"), icon="INFO")
                     
                     if quick_items:
                         sub_col.label(text=_T("快速删除 (Object):"))
@@ -3057,14 +1045,13 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     pass
 
             if self.ui_show_delete_mapping and self.activate_delete_pie:
-                    self.draw_delete_mapping(col)
+                self.draw_delete_mapping(col)
 
     def draw_edge_property_settings(self, layout):
         col = layout.column()
         if "activate_edge_property_pie" in self.bl_rna.properties:
             col.prop(self, "activate_edge_property_pie", text=_T("启用 Shift+E"))
 
-        # Safe access to activate_edge_property_pie
         activate_pie = getattr(self, "activate_edge_property_pie", True)
         
         if activate_pie:
@@ -3078,7 +1065,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             row.operator("size_tool.force_edge_property_pie_priority", text=_T("置顶"), icon="SORT_ASC")
             row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
             col.separator()
-            # Safe access to ui_show_edge_property_keymap
             show_keymap = getattr(self, "ui_show_edge_property_keymap", False)
             if show_keymap:
                 sub_col = col.column()
@@ -3096,7 +1082,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 except Exception:
                     pass
 
-            # Safe access to ui_show_edge_property_advanced
             show_advanced = getattr(self, "ui_show_edge_property_advanced", False)
             if show_advanced:
                 sub_col = col.column()
@@ -3109,7 +1094,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_align_pie" in self.bl_rna.properties:
             col.prop(self, "activate_align_pie")
 
-        # Safe access to activate_align_pie
         activate_pie = getattr(self, "activate_align_pie", True)
         
         if activate_pie:
@@ -3123,7 +1107,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             row.operator("size_tool.force_align_pie_priority", text=_T("置顶"), icon="SORT_ASC")
             row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
             col.separator()
-            # Safe access to ui_show_align_keymap
             show_keymap = getattr(self, "ui_show_align_keymap", False)
             if show_keymap:
                 sub_col = col.column()
@@ -3132,7 +1115,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     align_items = _find_align_pie_keymap_items()
                     
                     if not align_items:
-                            sub_col.label(text=_T("未找到对齐相关绑定"), icon="INFO")
+                        sub_col.label(text=_T("未找到对齐相关绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in align_items:
                             row_km = sub_col.row(align=True)
@@ -3147,7 +1130,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 except Exception:
                     pass
             
-            # Safe access to ui_show_align_advanced
             show_advanced = getattr(self, "ui_show_align_advanced", False)
             if show_advanced:
                 sub_col = col.column()
@@ -3160,7 +1142,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_shading_pie" in self.bl_rna.properties:
             col.prop(self, "activate_shading_pie")
 
-        # Safe access to activate_shading_pie
         activate_pie = getattr(self, "activate_shading_pie", True)
         
         if activate_pie:
@@ -3177,7 +1158,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             if getattr(self, "ui_show_shading_advanced", False):
                 sub_col = col.column()
                 sub_col.label(text=_T("该模块暂无内置的快捷键冲突配置"), icon="INFO")
-            # Safe access to ui_show_shading_keymap
             show_keymap = getattr(self, "ui_show_shading_keymap", False)
             if show_keymap:
                 sub_col = col.column()
@@ -3186,7 +1166,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     shading_items = _find_shading_pie_keymap_items()
                     
                     if not shading_items:
-                            sub_col.label(text=_T("未找到着色相关绑定"), icon="INFO")
+                        sub_col.label(text=_T("未找到着色相关绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in shading_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
@@ -3198,7 +1178,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_save_pie" in self.bl_rna.properties:
             col.prop(self, "activate_save_pie", text=_T("启用保存饼菜单 (Ctrl+S)"))
 
-        # Safe access to activate_save_pie
         activate_pie = getattr(self, "activate_save_pie", True)
         
         if activate_pie:
@@ -3224,7 +1203,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             if "fbx_export_unity_preset" in self.bl_rna.properties:
                 box_fbx.prop(self, "fbx_export_unity_preset", text=_T("启用 Unity 标准预设"))
             
-            # Safe access to fbx_export_unity_preset
             fbx_preset = getattr(self, "fbx_export_unity_preset", False)
             
             sub = box_fbx.column()
@@ -3256,7 +1234,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     save_items = _find_save_pie_keymap_items()
                     
                     if not save_items:
-                            sub_col.label(text=_T("未找到保存相关绑定"), icon="INFO")
+                        sub_col.label(text=_T("未找到保存相关绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in save_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
@@ -3290,7 +1268,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     rename_items = _find_rename_keymap_items()
                     
                     if not rename_items:
-                            sub_col.label(text=_T("未找到重命名相关绑定"), icon="INFO")
+                        sub_col.label(text=_T("未找到重命名相关绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in rename_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
@@ -3302,7 +1280,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_mirror" in self.bl_rna.properties:
             col.prop(self, "activate_mirror", text=_T("启用镜像 (Shift+Alt+X)"))
 
-        # Safe access to activate_mirror
         activate_mirror = getattr(self, "activate_mirror", True)
         
         if activate_mirror:
@@ -3316,7 +1293,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             row.operator("size_tool.force_mirror_priority", text=_T("置顶"), icon="SORT_ASC")
             row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
             col.separator()
-            # Appearance Settings
             box = col.box()
             box.label(text=_T("外观设置:"), icon="BRUSH_DATA")
             row = box.row()
@@ -3372,7 +1348,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     mirror_items = _find_mirror_keymap_items()
                     
                     if not mirror_items:
-                            sub_col.label(text=_T("未找到镜像相关绑定"), icon="INFO")
+                        sub_col.label(text=_T("未找到镜像相关绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in mirror_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
@@ -3416,7 +1392,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     double_click_items = _find_double_click_select_group_keymap_items()
                     
                     if not group_items and not double_click_items:
-                            sub_col.label(text=_T("未找到打组相关绑定"), icon="INFO")
+                        sub_col.label(text=_T("未找到打组相关绑定"), icon="INFO")
                     
                     if group_items:
                         sub_col.label(text=_T("打组 (Ctrl+G):"))
@@ -3553,8 +1529,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 try:
                     import rna_keymap_ui
                     
-                    # Helper function needed to find keymaps
-                    def _find_toggle_area_keymap_items():
+                    def _find_toggle_area_keymap_items_local():
                         wm = bpy.context.window_manager if bpy.context else None
                         kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
                         if not kc: return []
@@ -3567,7 +1542,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                                         items.append((kc, km, kmi))
                         return items
 
-                    items = _find_toggle_area_keymap_items()
+                    items = _find_toggle_area_keymap_items_local()
                     if not items:
                         col.label(text=_T("未找到相关绑定"), icon="INFO")
                     else:
@@ -3644,3 +1619,50 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         sub = col.column()
         sub.enabled = self.auto_new_object_origin_bottom
         sub.prop(self, "auto_new_object_snap_to_floor", text=_T("新建物体自动落地 (Z=0)"))
+
+
+# Re-expose properties and keymap registration/exclusive operators for registration.py and other files
+from .keymap_helpers import _get_addon_prefs
+
+from .keymap_exclusive import (
+    SIZE_TOOL_OT_ResetTransformPieKeymap,
+    SIZE_TOOL_OT_ForceTransformPiePriority,
+    SIZE_TOOL_OT_ForceSwitchModePriority,
+    SIZE_TOOL_OT_ForceAlignPiePriority,
+    SIZE_TOOL_OT_ForceSavePiePriority,
+    SIZE_TOOL_OT_ForceEdgePropertyPiePriority,
+    SIZE_TOOL_OT_ForceMirrorPriority,
+    SIZE_TOOL_OT_ForceGroupToolPriority,
+    SIZE_TOOL_OT_ExclusiveTransformPieHotkey,
+    SIZE_TOOL_OT_RestoreShiftSConflicts,
+    SIZE_TOOL_OT_ExclusiveAlignPieHotkey,
+    SIZE_TOOL_OT_RestoreAltAConflicts,
+    SIZE_TOOL_OT_ExclusiveSavePieHotkey,
+    SIZE_TOOL_OT_RestoreCtrlSConflicts,
+    SIZE_TOOL_OT_ExclusiveEdgePropertyPieHotkey,
+    SIZE_TOOL_OT_RestoreShiftEConflicts,
+    SIZE_TOOL_OT_ExclusiveMirrorHotkey,
+    SIZE_TOOL_OT_RestoreShiftAltXConflicts,
+    SIZE_TOOL_OT_ExclusiveGroupToolHotkey,
+    SIZE_TOOL_OT_RestoreCtrlGConflicts,
+    SIZE_TOOL_OT_ForceDeletePiePriority,
+    SIZE_TOOL_OT_ForceRenamePriority,
+    SIZE_TOOL_OT_ForceShadingPiePriority,
+    SIZE_TOOL_OT_ForceSmartPiePriority,
+    SIZE_TOOL_OT_ForceSwitchEditorPriority,
+    SIZE_TOOL_OT_ForceToggleAreaPriority,
+    SIZE_TOOL_OT_ExclusiveAllHotkeys,
+    SIZE_TOOL_OT_RestoreAllConflicts,
+    SIZE_TOOL_OT_ExclusiveSubdivisionHotkey,
+    SIZE_TOOL_OT_RestoreSubdivisionConflicts,
+    SIZE_TOOL_OT_ExclusiveToggleAreaHotkey,
+    SIZE_TOOL_OT_RestoreToggleAreaConflicts,
+    M8_OT_ResetSwitchModePrefs,
+    M8_OT_ResetPrefsUI,
+)
+
+from .keymap_manager import (
+    register_keymaps,
+    unregister_keymaps,
+    update_keymaps,
+)
