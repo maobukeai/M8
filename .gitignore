@@ -2,3 +2,7 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 M8_v*.zip
+
+# Addon text/log dumps
+ops_dump.txt
+output.txt
