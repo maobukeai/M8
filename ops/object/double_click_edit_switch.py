@@ -3,6 +3,7 @@ import bmesh
 from mathutils import Vector
 
 from ...utils.ray_cast import mouse_2d_ray_cast
+from ...utils.mesh import safe_loop_multi_select
 
 
 class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
@@ -88,7 +89,7 @@ class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
             return False
 
         try:
-            bpy.ops.mesh.loop_multi_select(ring=False)
+            safe_loop_multi_select(ring=False)
         except Exception:
             return False
 

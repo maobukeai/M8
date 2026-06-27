@@ -95,3 +95,15 @@ def from_face_index_get_material(obj, face_index) -> "bpy.types.Material|None":
         return obj.material_slots[material_index].material
     except IndexError:
         return None
+
+
+def safe_loop_multi_select(ring=False):
+    """安全地执行边循环/边环选择，兼容不同版本的 Blender 算子名称变更"""
+    try:
+        bpy.ops.mesh.loop_multi_select(ring=ring)
+    except (AttributeError, RuntimeError):
+        try:
+            bpy.ops.mesh.loop_select(ring=ring)
+        except (AttributeError, RuntimeError) as e:
+            print(f"执行边循环选择失败: {e}")
+
