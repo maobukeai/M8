@@ -5,7 +5,6 @@ import mathutils
 from mathutils import Vector, Matrix
 import concurrent.futures
 from ...utils.bmesh_selection import get_edge_loop, get_edge_ring, sort_edge_loop, get_checker_deselect
-from ...utils.mesh import safe_loop_multi_select
 
 # -------------------------------------------------------------------
 # Properties
@@ -254,23 +253,21 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
         # Use the first selected edge as direction reference
         start_edge = selected_edges[0]
         
-        # Clear and select starting edge
-        bpy.ops.mesh.select_all(action='DESELECT')
-        start_edge.select = True
-        bmesh.update_edit_mesh(mesh) # Ensure selection is updated for bpy.ops
-        
+        # Expand starting edge into ring and loops using pure BMesh
+        ring_edges = get_edge_ring(start_edge)
         if self.use_checker_deselect:
-            # For checker deselect: select edge ring, then use checker, then convert to loops
-            safe_loop_multi_select(ring=True)
-            bpy.ops.mesh.select_nth()
-            safe_loop_multi_select(ring=False)
-        else:
-            # Normal flow: ring selection then loop selection
-            safe_loop_multi_select(ring=True)
-            safe_loop_multi_select(ring=False)
+            ring_edges = get_checker_deselect(ring_edges, nth=2)
         
-        # Get all selected edges after loop selection
-        bm = bmesh.from_edit_mesh(mesh)
+        selected_loop_edges = set()
+        for e in ring_edges:
+            selected_loop_edges.update(get_edge_loop(e))
+        
+        for e in bm.edges:
+            e.select = False
+        for e in selected_loop_edges:
+            e.select = True
+        bmesh.update_edit_mesh(mesh)
+        
         selected_edges = [e for e in bm.edges if e.select]
         
         # Group edges into loops
@@ -474,22 +471,20 @@ class MESH_OT_simple_edge_loop_cleaner(bpy.types.Operator):
         # Use the first selected edge as the direction reference
         start_edge = selected_edges[0]
         
-        # Clear current selection
-        bpy.ops.mesh.select_all(action='DESELECT')
-        
-        # Select the starting edge
-        start_edge.select = True
-        bmesh.update_edit_mesh(mesh) # Ensure selection is updated for bpy.ops
-        
+        # Expand starting edge into ring and loops using pure BMesh
+        ring_edges = get_edge_ring(start_edge)
         if self.use_checker_deselect:
-            # For checker deselect: select edge ring, then use checker, then convert to loops
-            safe_loop_multi_select(ring=True)
-            bpy.ops.mesh.select_nth()
-            safe_loop_multi_select(ring=False)
-        else:
-            # Normal flow: ring selection then loop selection
-            safe_loop_multi_select(ring=True)
-            safe_loop_multi_select(ring=False)
+            ring_edges = get_checker_deselect(ring_edges, nth=2)
+        
+        selected_loop_edges = set()
+        for e in ring_edges:
+            selected_loop_edges.update(get_edge_loop(e))
+        
+        for e in bm.edges:
+            e.select = False
+        for e in selected_loop_edges:
+            e.select = True
+        bmesh.update_edit_mesh(mesh)
         
         # Auto dissolve if enabled
         if self.auto_dissolve:
@@ -1445,22 +1440,18 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
             bmesh.update_edit_mesh(obj.data)
             return {'FINISHED'}
 
-        # Select all similar edges at once
+        # Expand similar_edges into loops using pure BMesh
+        loop_edges_set = set()
+        for e in similar_edges:
+            loop_edges_set.update(get_edge_loop(e))
+            
         for e in bm.edges:
             e.select_set(False)
-        for e in similar_edges:
+        for e in loop_edges_set:
             e.select_set(True)
-
-        # Save original reference edge indices before loop_multi_select changes selection
-        original_selected_edge_indices = [e.index for e in selected_edges]
-
-        # Update mesh and use Blender's select edge loops ONCE for all edges (Huge performance boost)
         bmesh.update_edit_mesh(obj.data)
-        safe_loop_multi_select(ring=False)
-
-        # Get the selected edges (the complete loops)
-        bm = bmesh.from_edit_mesh(obj.data)  # Refresh bmesh
-        loop_edges = [e for e in bm.edges if e.select]
+        
+        loop_edges = list(loop_edges_set)
 
         # Check minimum loop length if specified (We do this collectively for simplicity, 
         # or we skip it if it's too complex to group them here. Since they wanted it fast, 
@@ -1579,18 +1570,13 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
             if edge in processed_edges:
                 continue
 
-            # Clear selection and select just this edge
+            # Get the complete loop using pure BMesh
+            loop_edges = get_edge_loop(edge)
             for e in bm.edges:
                 e.select_set(False)
-            edge.select_set(True)
-
-            # Update mesh and use Blender's select edge loops
+            for e in loop_edges:
+                e.select_set(True)
             bmesh.update_edit_mesh(obj.data)
-            safe_loop_multi_select(ring=False)
-
-            # Get the selected edges (the complete loop)
-            bm = bmesh.from_edit_mesh(obj.data)  # Refresh bmesh
-            loop_edges = [e for e in bm.edges if e.select]
 
             # Only include if this loop intersects with our originally selected edges
             loop_set = set(loop_edges)

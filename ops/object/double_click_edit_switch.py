@@ -3,7 +3,7 @@ import bmesh
 from mathutils import Vector
 
 from ...utils.ray_cast import mouse_2d_ray_cast
-from ...utils.mesh import safe_loop_multi_select
+from ...utils.bmesh_selection import get_edge_loop
 
 
 class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
@@ -89,7 +89,13 @@ class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
             return False
 
         try:
-            safe_loop_multi_select(ring=False)
+            selected_edges = [e for e in bm.edges if e.select]
+            loop_edges_set = set()
+            for e in selected_edges:
+                loop_edges_set.update(get_edge_loop(e))
+            for e in loop_edges_set:
+                e.select = True
+            bmesh.update_edit_mesh(obj.data)
         except Exception:
             return False
 
