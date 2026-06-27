@@ -99,11 +99,27 @@ def from_face_index_get_material(obj, face_index) -> "bpy.types.Material|None":
 
 def safe_loop_multi_select(ring=False):
     """安全地执行边循环/边环选择，兼容不同版本的 Blender 算子名称变更"""
-    try:
-        bpy.ops.mesh.loop_multi_select(ring=ring)
-    except (AttributeError, RuntimeError):
+    if ring:
         try:
-            bpy.ops.mesh.loop_select(ring=ring)
-        except (AttributeError, RuntimeError) as e:
-            print(f"执行边循环选择失败: {e}")
+            bpy.ops.mesh.loop_multi_select(ring=True)
+        except (AttributeError, RuntimeError, TypeError):
+            try:
+                bpy.ops.mesh.edgering_select(ring=True)
+            except (AttributeError, RuntimeError, TypeError):
+                try:
+                    bpy.ops.mesh.edgering_select()
+                except (AttributeError, RuntimeError) as e:
+                    print(f"执行边环选择失败: {e}")
+    else:
+        try:
+            bpy.ops.mesh.loop_multi_select(ring=False)
+        except (AttributeError, RuntimeError, TypeError):
+            try:
+                bpy.ops.mesh.loop_select(ring=False)
+            except (AttributeError, RuntimeError, TypeError):
+                try:
+                    bpy.ops.mesh.loop_select()
+                except (AttributeError, RuntimeError) as e:
+                    print(f"执行边循环选择失败: {e}")
+
 
