@@ -49,11 +49,12 @@ def find_draw_class(context, panel_name=None):
         if in_selected:
             obj_type = context.object.type
             if obj_type == "LIGHT":
-                engine = context.engine
-                if engine == "BLENDER_EEVEE_NEXT":
-                    panel_name = "DATA_PT_EEVEE_light"
-                elif engine == "BLENDER_EEVEE":
-                    panel_name = "DATA_PT_EEVEE_light_legacy"
+                engine = getattr(context, "engine", "")
+                if engine in {"BLENDER_EEVEE", "BLENDER_EEVEE_NEXT"}:
+                    if getattr(bpy.types, "DATA_PT_EEVEE_light", None):
+                        panel_name = "DATA_PT_EEVEE_light"
+                    else:
+                        panel_name = "DATA_PT_EEVEE_light_legacy"
                 elif engine == "CYCLES":
                     panel_name = "CYCLES_LIGHT_PT_light"
                 elif engine == "BLENDER_WORKBENCH":

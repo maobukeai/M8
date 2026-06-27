@@ -5,7 +5,7 @@ import bpy
 
 class M8_OT_AutoSmooth(bpy.types.Operator):
     bl_idname = "m8.auto_smooth"
-    bl_label = "Auto Smooth"
+    bl_label = "自动平滑"
     bl_options = {"REGISTER", "UNDO"}
 
     angle: bpy.props.IntProperty(
@@ -88,6 +88,11 @@ class M8_OT_AutoSmooth(bpy.types.Operator):
                     if hasattr(obj.data, "auto_smooth_angle"):
                         obj.data.auto_smooth_angle = radians(self.angle)
 
+        count = sum(1 for o in selected if o.type == "MESH")
+        if disable_auto_smooth:
+            self.report({"INFO"}, f"已对 {count} 个物体关闭自动平滑")
+        else:
+            self.report({"INFO"}, f"已对 {count} 个物体应用自动平滑（{self.angle}°）")
         return {"FINISHED"}
 
 

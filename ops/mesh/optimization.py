@@ -45,7 +45,7 @@ class M8_OT_MeshOptimizationMenu(bpy.types.Operator):
 
 class M8_OT_MeshMergeByDistance(bpy.types.Operator):
     bl_idname = "m8.mesh_merge_by_distance"
-    bl_label = "Merge by Distance"
+    bl_label = "按距离合并"
     bl_options = {"REGISTER", "UNDO"}
 
     distance: bpy.props.FloatProperty(name="Distance", default=0.0001, min=0.0, soft_max=0.1, precision=6)
@@ -59,13 +59,15 @@ class M8_OT_MeshMergeByDistance(bpy.types.Operator):
             bpy.ops.mesh.merge_by_distance(distance=self.distance)
         except Exception:
             # Fallback or just fail silently if op is not available (unlikely in 4.4)
+            self.report({"WARNING"}, "按距离合并失败")
             return {"CANCELLED"}
+        self.report({"INFO"}, f"已按距离合并（{self.distance:.6f}）")
         return {"FINISHED"}
 
 
 class M8_OT_MeshDeleteLoose(bpy.types.Operator):
     bl_idname = "m8.mesh_delete_loose"
-    bl_label = "Delete Loose"
+    bl_label = "删除松散元素"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -82,7 +84,7 @@ class M8_OT_MeshDeleteLoose(bpy.types.Operator):
 
 class M8_OT_MeshRecalcNormals(bpy.types.Operator):
     bl_idname = "m8.mesh_recalc_normals"
-    bl_label = "Recalculate Normals"
+    bl_label = "重计算法线"
     bl_options = {"REGISTER", "UNDO"}
 
     inside: bpy.props.BoolProperty(name="Inside", default=False)
@@ -94,14 +96,16 @@ class M8_OT_MeshRecalcNormals(bpy.types.Operator):
     def execute(self, context):
         try:
             bpy.ops.mesh.normals_make_consistent(inside=self.inside)
+            self.report({"INFO"}, f"已重计算法线（{'向内' if self.inside else '向外'}）")
             return {"FINISHED"}
         except Exception:
+            self.report({"WARNING"}, "重计算法线失败")
             return {"CANCELLED"}
 
 
 class M8_OT_MeshLimitedDissolve(bpy.types.Operator):
     bl_idname = "m8.mesh_limited_dissolve"
-    bl_label = "Limited Dissolve"
+    bl_label = "有限融并"
     bl_options = {"REGISTER", "UNDO"}
 
     angle_limit: bpy.props.FloatProperty(name="Angle Limit", default=0.0872665, min=0.0, soft_max=3.14159, subtype="ANGLE")
@@ -113,8 +117,10 @@ class M8_OT_MeshLimitedDissolve(bpy.types.Operator):
     def execute(self, context):
         try:
             bpy.ops.mesh.dissolve_limited(angle_limit=self.angle_limit)
+            self.report({"INFO"}, "已执行有限融并")
             return {"FINISHED"}
         except Exception:
+            self.report({"WARNING"}, "有限融并失败")
             return {"CANCELLED"}
 
 

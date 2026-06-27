@@ -3,7 +3,7 @@ import bpy
 
 class M8_OT_SwitchMeshMode(bpy.types.Operator):
     bl_idname = "m8.switch_mesh_mode"
-    bl_label = "Switch Mesh Select Mode"
+    bl_label = "切换网格选择模式"
     bl_options = {"REGISTER", "UNDO"}
 
     select_mode: bpy.props.EnumProperty(
@@ -100,8 +100,8 @@ class M8_OT_SwitchMeshMode(bpy.types.Operator):
         for mode in sorted_modes:
             bpy.ops.mesh.select_mode(
                 type=mode,
-                use_extend=not first, # First one clears previous if multiple? 
-                                    # Wait, if I want to set VERT+EDGE, 
+                use_extend=not first, # First one clears previous if multiple?
+                                    # Wait, if I want to set VERT+EDGE,
                                     # 1. VERT (Extend=False) -> Clears Face, sets Vert
                                     # 2. EDGE (Extend=True) -> Keeps Vert, sets Edge
                                     # Result: VERT+EDGE. Correct.
@@ -110,4 +110,6 @@ class M8_OT_SwitchMeshMode(bpy.types.Operator):
             )
             first = False
 
+        mode_label = "/".join(sorted_modes)
+        self.report({"INFO"}, f"已切换网格选择模式为 {mode_label}")
         return {"FINISHED"}

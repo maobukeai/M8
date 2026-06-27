@@ -2,7 +2,6 @@ import bpy
 
 from ...ops.align.align_object import AlignObject
 from ...ops.align.align_object_by_view import AlignObjectByView
-from ...utils import get_panel_bl_idname
 from ...utils.icon import get_custom_icon
 from ...utils.view import screen_relevant_direction_3d_axis
 
@@ -47,7 +46,7 @@ def get_center_align(layout, icon):
 
 def draw_distribution_x(layout, x):
     op = layout.operator(AlignObject.bl_idname,
-                         text="Distribution",
+                         text="分布",
                          icon_value=get_custom_icon("Align_Distribution_X"))
     op.align_mode = "DISTRIBUTION"
     op.distribution_sorted_axis = str(AXIS.index(x[-1]))
@@ -57,7 +56,7 @@ def draw_distribution_x(layout, x):
 
 def draw_distribution_y(layout, y):
     op = layout.operator(AlignObject.bl_idname,
-                         text="Distribution",
+                         text="分布",
                          icon_value=get_custom_icon("Align_Distribution_Y"))
     op.align_mode = "DISTRIBUTION"
     op.distribution_sorted_axis = str(AXIS.index(y[-1]))

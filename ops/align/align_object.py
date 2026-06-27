@@ -107,7 +107,7 @@ class AlignObject(
     UI
 ):
     bl_idname = get_operator_bl_idname("align_object")
-    bl_label = "Align"
+    bl_label = "对齐"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -170,7 +170,7 @@ class AlignObject(
 
     @classmethod
     def poll(cls, context):
-        return context.selected_objects.__len__()
+        return len(context.selected_objects) > 0
 
     def draw(self, context):
         layout = self.layout

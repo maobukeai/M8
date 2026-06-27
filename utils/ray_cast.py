@@ -40,7 +40,7 @@ class RayCast(bpy.types.Operator):
         buffer = cls.get_gpu_buffer([x, y], wh=[size, size], centered=True)
         numpy_buffer = np.asarray(buffer, dtype=np.float32).ravel()
         min_depth = np.min(numpy_buffer)
-        data['is_in_model'] = (min_depth != (0 or 1))
+        data['is_in_model'] = (min_depth not in (0, 1))
 
     def get_mouse_location_ray_cast(self, context, event) -> bool:
         x, y = (event.mouse_region_x, event.mouse_region_y)

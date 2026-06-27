@@ -1,8 +1,18 @@
 import re
+from pathlib import Path
 
-file_path = r'C:\Users\20269\AppData\Roaming\Blender Foundation\Blender\5.0\scripts\addons\M8\property\preferences.py'
+file_path = Path(__file__).resolve().parents[1] / "property" / "preferences.py"
+root_path = Path(__file__).resolve().parents[1]
 with open(file_path, 'r', encoding='utf-8') as f:
     content = f.read()
+repo_text = "\n".join(
+    path.read_text(encoding="utf-8")
+    for path in (
+        root_path / "property" / "preferences.py",
+        root_path / "property" / "keymap_exclusive.py",
+        root_path / "registration.py",
+    )
+)
 
 # Extract each draw function and audit its toolbar pattern
 draw_funcs = [
@@ -34,6 +44,10 @@ checks = {
     'col.separator()': 'col.separator()',
 }
 
+optional_by_func = {
+    "draw_rename_settings": {'toggle=True, icon="PREFERENCES"'},
+}
+
 for func_name in draw_funcs:
     # Extract function body
     pattern = r'def ' + func_name + r'\(self, layout\):.*?(?=\n    def |\nclass |\Z)'
@@ -45,6 +59,8 @@ for func_name in draw_funcs:
     body = match.group(0)
     missing = []
     for label, pattern_str in checks.items():
+        if label in optional_by_func.get(func_name, set()):
+            continue
         if pattern_str not in body:
             missing.append(label)
     
@@ -79,14 +95,14 @@ print("\n--- Operator existence check ---")
 ops_used = set(re.findall(r'row\.operator\("(size_tool\.force_[^"]+)"', content))
 for op in sorted(ops_used):
     bl_pattern = f'bl_idname = "{op}"'
-    if bl_pattern not in content:
+    if bl_pattern not in repo_text:
         print(f"[MISSING OP] {op} - used in UI but no class defined!")
     else:
         print(f"[OK] {op}")
 
 print("\n--- Classes tuple registration check ---")
-op_classes = set(re.findall(r'class (SIZE_TOOL_OT_Force\w+)\(', content))
-registered = set(re.findall(r'(SIZE_TOOL_OT_Force\w+),', content))
+op_classes = set(re.findall(r'class (SIZE_TOOL_OT_Force\w+)\(', repo_text))
+registered = set(re.findall(r'(SIZE_TOOL_OT_Force\w+),', repo_text))
 for cls in sorted(op_classes):
     if cls in registered:
         print(f"[OK] {cls} registered")

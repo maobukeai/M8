@@ -195,7 +195,7 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
         # Check if we have a selected edge to start with
         selected_edges = [e for e in bm.edges if e.select]
         if not selected_edges:
-            self.report({'ERROR'}, "Please select at least one edge to define direction")
+            self.report({'ERROR'}, "请至少选择一条边来定义方向")
             bmesh.update_edit_mesh(mesh)
             return {'CANCELLED'}
         
@@ -247,7 +247,7 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
         if not selected_edges:
             # Restore hidden elements before reporting error
             self.restore_hidden_elements(hidden_vert_indices, hidden_edge_indices, hidden_face_indices)
-            self.report({'ERROR'}, "No valid edges remain after hiding complex vertices")
+            self.report({'ERROR'}, "隐藏复杂顶点后没有有效边剩余")
             return {'CANCELLED'}
         
         # Use the first selected edge as direction reference
@@ -312,7 +312,7 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
         if self.hide_high_valence:
             self.restore_hidden_elements(hidden_vert_indices, hidden_edge_indices, hidden_face_indices)
         
-        self.report({'INFO'}, f"Selected {len(filtered_loops)} edge loops from {len(edge_loops)} total loops")
+        self.report({'INFO'}, f"已从 {len(edge_loops)} 条循环边中选中 {len(filtered_loops)} 条")
         
         return {'FINISHED'}
     
@@ -467,7 +467,7 @@ class MESH_OT_simple_edge_loop_cleaner(bpy.types.Operator):
         # Check if we have a selected edge to start with
         selected_edges = [e for e in bm.edges if e.select]
         if not selected_edges:
-            self.report({'ERROR'}, "Please select at least one edge to define direction")
+            self.report({'ERROR'}, "请至少选择一条边来定义方向")
             return {'CANCELLED'}
         
         # Use the first selected edge as the direction reference
@@ -494,7 +494,7 @@ class MESH_OT_simple_edge_loop_cleaner(bpy.types.Operator):
         if self.auto_dissolve:
             bpy.ops.mesh.dissolve_edges(use_verts=True)
         
-        self.report({'INFO'}, "Simple edge loop cleaning completed")
+        self.report({'INFO'}, "简单边循环清理已完成")
         
         return {'FINISHED'}
 
@@ -551,9 +551,9 @@ class MESH_OT_auto_unsubdivide(bpy.types.Operator):
             context.view_layer.objects.active = original_active
             
         if total_success > 0:
-            self.report({'INFO'}, f"Unsubdivide completed on {total_success} objects")
+            self.report({'INFO'}, f"已对 {total_success} 个物体执行反细分")
         else:
-            self.report({'WARNING'}, "No selection found or operation failed")
+            self.report({'WARNING'}, "未找到选择项或操作失败")
             
         return {'FINISHED'}
 
@@ -588,7 +588,6 @@ class MESH_OT_decimate_selected(bpy.types.Operator):
     def execute(self, context):
         objects = context.objects_in_mode_unique_data
         total_success = 0
-        total_success = 0
         original_active = context.view_layer.objects.active
         
         for obj in objects:
@@ -617,9 +616,9 @@ class MESH_OT_decimate_selected(bpy.types.Operator):
             context.view_layer.objects.active = original_active
             
         if total_success > 0:
-            self.report({'INFO'}, f"Decimated geometry on {total_success} objects (ratio: {self.ratio:.2f})")
+            self.report({'INFO'}, f"已对 {total_success} 个物体精简几何体（比率：{self.ratio:.2f}）")
         else:
-            self.report({'WARNING'}, "Please select geometry to decimate")
+            self.report({'WARNING'}, "请先选择要精简的几何体")
             
         return {'FINISHED'}
 
@@ -653,15 +652,15 @@ class MESH_OT_dissolve_edges(bpy.types.Operator):
         # Check if we have selected edges
         selected_edges = [e for e in bm.edges if e.select]
         if not selected_edges:
-            self.report({'WARNING'}, "No edges selected")
+            self.report({'WARNING'}, "未选中任何边")
             return {'CANCELLED'}
         
         # Dissolve the selected edges
         try:
             bpy.ops.mesh.dissolve_edges(use_verts=self.use_verts)
-            self.report({'INFO'}, f"Dissolved {len(selected_edges)} edges")
+            self.report({'INFO'}, f"已融并 {len(selected_edges)} 条边")
         except Exception as e:
-            self.report({'ERROR'}, f"Dissolve failed: {str(e)}")
+            self.report({'ERROR'}, f"融并失败：{str(e)}")
             return {'CANCELLED'}
         
         return {'FINISHED'}
@@ -690,7 +689,7 @@ class MESH_OT_mark_sharp(bpy.types.Operator):
         # Check if we have selected edges
         selected_edges = [e for e in bm.edges if e.select]
         if not selected_edges:
-            self.report({'WARNING'}, "No edges selected")
+            self.report({'WARNING'}, "未选中任何边")
             return {'CANCELLED'}
         
         # Mark selected edges as sharp
@@ -700,7 +699,7 @@ class MESH_OT_mark_sharp(bpy.types.Operator):
         # Update mesh
         bmesh.update_edit_mesh(mesh)
         
-        self.report({'INFO'}, f"Marked {len(selected_edges)} edges as sharp")
+        self.report({'INFO'}, f"已将 {len(selected_edges)} 条边标记为锐边")
         return {'FINISHED'}
 
 
@@ -844,7 +843,7 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
         active_obj = context.active_object
         
         if not active_obj or active_obj.type != 'MESH':
-            self.report({'ERROR'}, "No active mesh object")
+            self.report({'ERROR'}, "没有活动的网格物体")
             return {'CANCELLED'}
             
         # Enter edit mode if not already
@@ -860,7 +859,7 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
         selected_edges = [edge for edge in bm.edges if edge.select]
         
         if not selected_edges:
-            self.report({'ERROR'}, "Please select at least one edge first")
+            self.report({'ERROR'}, "请至少先选择一条边")
             return {'CANCELLED'}
         
         # Use the first selected edge as reference
@@ -903,7 +902,7 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
         bmesh.update_edit_mesh(active_obj.data)
         
         if len(similar_edges) == 0:
-            self.report({'WARNING'}, f"No similar edges found")
+            self.report({'WARNING'}, "未找到相似边")
             return {'CANCELLED'}
         
         # Store vertices that will be affected for sharp marking later
@@ -959,8 +958,8 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
         bm.normal_update()
         bmesh.update_edit_mesh(active_obj.data)
         
-        sharp_info = " and marked sharp" if self.mark_sharp else ""
-        self.report({'INFO'}, f"Selected and unbeveled {len(similar_edges)} similar edges (length: {reference_length:.6f}){sharp_info}")
+        sharp_info = "并标记为锐边" if self.mark_sharp else ""
+        self.report({'INFO'}, f"已选中并取消倒角 {len(similar_edges)} 条相似边（长度：{reference_length:.6f}）{sharp_info}")
         
         return {'FINISHED'}
 
@@ -986,7 +985,7 @@ class MESH_OT_select_short_edges(bpy.types.Operator):
         active_obj = context.active_object
         
         if not active_obj or active_obj.type != 'MESH':
-            self.report({'ERROR'}, "No active mesh object")
+            self.report({'ERROR'}, "没有活动的网格物体")
             return {'CANCELLED'}
             
         # Enter edit mode if not already
@@ -1020,7 +1019,7 @@ class MESH_OT_select_short_edges(bpy.types.Operator):
         
         bmesh.update_edit_mesh(active_obj.data)
         
-        self.report({'INFO'}, f"Selected {len(short_edges)} short edges")
+        self.report({'INFO'}, f"已选中 {len(short_edges)} 条短边")
         
         return {'FINISHED'}
 
@@ -1053,7 +1052,7 @@ class MESH_OT_unbevel_selected(bpy.types.Operator):
         active_obj = context.active_object
         
         if not active_obj or active_obj.type != 'MESH':
-            self.report({'ERROR'}, "No active mesh object")
+            self.report({'ERROR'}, "没有活动的网格物体")
             return {'CANCELLED'}
             
         # Enter edit mode if not already
@@ -1069,7 +1068,7 @@ class MESH_OT_unbevel_selected(bpy.types.Operator):
         selected_edges = [edge for edge in bm.edges if edge.select]
         
         if not selected_edges:
-            self.report({'WARNING'}, "No edges selected")
+            self.report({'WARNING'}, "未选中任何边")
             return {'CANCELLED'}
         
         # Store vertices and their connected edges before unbeveling for sharp marking
@@ -1137,8 +1136,8 @@ class MESH_OT_unbevel_selected(bpy.types.Operator):
         bm.normal_update()
         bmesh.update_edit_mesh(active_obj.data)
         
-        sharp_info = " and marked sharp" if self.mark_sharp else ""
-        self.report({'INFO'}, f"Unbeveled {len(selected_edges)} selected edges{sharp_info}")
+        sharp_info = "并标记为锐边" if self.mark_sharp else ""
+        self.report({'INFO'}, f"已取消倒角 {len(selected_edges)} 条选中边{sharp_info}")
         
         return {'FINISHED'}
 
@@ -1295,7 +1294,7 @@ class MESH_OT_flat_loop_cleaner(bpy.types.Operator):
     def execute(self, context):
         obj = context.object
         if obj.mode != 'EDIT':
-            self.report({'WARNING'}, "Must be in Edit Mode")
+            self.report({'WARNING'}, "请在编辑模式下执行")
             return {'CANCELLED'}
 
         bm = bmesh.from_edit_mesh(obj.data)
@@ -1309,7 +1308,7 @@ class MESH_OT_flat_loop_cleaner(bpy.types.Operator):
                 flat_edges.add(e)
 
         if not flat_edges:
-            self.report({'INFO'}, "No flat edges found.")
+            self.report({'INFO'}, "未找到平坦边")
             bmesh.update_edit_mesh(obj.data)
             return {'FINISHED'}
 
@@ -1344,7 +1343,7 @@ class MESH_OT_flat_loop_cleaner(bpy.types.Operator):
                             edges_to_process.update(sequence)
 
             if not edges_to_process:
-                self.report({'INFO'}, "No complete flat sequences found.")
+                self.report({'INFO'}, "未找到完整的平坦序列")
                 for e in bm.edges:
                     e.select_set(False)
                 bmesh.update_edit_mesh(obj.data)
@@ -1354,14 +1353,14 @@ class MESH_OT_flat_loop_cleaner(bpy.types.Operator):
 
         if self.auto_delete:
             bmesh.ops.dissolve_edges(bm, edges=list(edges_to_process), use_verts=True, use_face_split=False)
-            self.report({'INFO'}, f"Dissolved {len(edges_to_process)} edges")
+            self.report({'INFO'}, f"已融并 {len(edges_to_process)} 条边")
         else:
             for e in bm.edges:
                 e.select_set(False)
             for e in edges_to_process:
                 if e.is_valid:
                     e.select_set(True)
-            self.report({'INFO'}, f"Selected {len(edges_to_process)} edges")
+            self.report({'INFO'}, f"已选中 {len(edges_to_process)} 条边")
 
         bmesh.update_edit_mesh(obj.data)
         return {'FINISHED'}
@@ -1395,7 +1394,7 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
     def execute(self, context):
         obj = context.object
         if obj.mode != 'EDIT':
-            self.report({'WARNING'}, "Must be in Edit Mode")
+            self.report({'WARNING'}, "请在编辑模式下执行")
             return {'FINISHED'}
 
         bm = bmesh.from_edit_mesh(obj.data)
@@ -1405,7 +1404,7 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
         # Get selected edges to use as reference
         selected_edges = [e for e in bm.edges if e.select]
         if not selected_edges:
-            self.report({'WARNING'}, "No edges selected as reference")
+            self.report({'WARNING'}, "请先选择参考边")
             return {'FINISHED'}
 
         # Get reference angles from selected edges
@@ -1416,7 +1415,7 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
                 reference_angles.append(n1.angle(n2))
 
         if not reference_angles:
-            self.report({'WARNING'}, "Selected edges must have exactly 2 adjacent faces")
+            self.report({'WARNING'}, "所选边必须恰好有 2 个相邻面")
             return {'FINISHED'}
 
         # Find all edges that are similar to the reference edges
@@ -1434,7 +1433,7 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
                         break
 
         if not similar_edges:
-            self.report({'INFO'}, "No similar edges found")
+            self.report({'INFO'}, "未找到相似边")
             # Clear selection but keep popup open
             for e in bm.edges:
                 e.select_set(False)
@@ -1451,6 +1450,9 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
         for e in similar_edges:
             e.select_set(True)
 
+        # Save original reference edge indices before loop_multi_select changes selection
+        original_selected_edge_indices = [e.index for e in selected_edges]
+
         # Update mesh and use Blender's select edge loops ONCE for all edges (Huge performance boost)
         bmesh.update_edit_mesh(obj.data)
         bpy.ops.mesh.loop_multi_select(ring=False)
@@ -1464,13 +1466,13 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
         # we'll just keep the loops if min_loop_length == 0)
         
         # Restore original reference edges
-        for edge_idx in [e.index for e in original_selected_edges]:
+        for edge_idx in original_selected_edge_indices:
             if edge_idx < len(bm.edges) and bm.edges[edge_idx].is_valid:
                 bm.edges[edge_idx].select_set(True)
 
         bmesh.update_edit_mesh(obj.data)
 
-        self.report({'INFO'}, f"Selected similar loops efficiently")
+        self.report({'INFO'}, "已高效选中相似循环边")
 
         return {'FINISHED'}
 
@@ -1557,7 +1559,7 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
     def execute(self, context):
         obj = context.object
         if obj.mode != 'EDIT':
-            self.report({'WARNING'}, "Must be in Edit Mode")
+            self.report({'WARNING'}, "请在编辑模式下执行")
             return {'FINISHED'}
 
         bm = bmesh.from_edit_mesh(obj.data)
@@ -1565,7 +1567,7 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
         # Get selected edges
         selected_edges = [e for e in bm.edges if e.select]
         if not selected_edges:
-            self.report({'WARNING'}, "No edges selected")
+            self.report({'WARNING'}, "未选中任何边")
             return {'FINISHED'}
 
         # Group edges into separate loops
@@ -1601,7 +1603,7 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
                 processed_edges.update(loop_edges)
 
         if not edge_loops:
-            self.report({'WARNING'}, "No edge loops found")
+            self.report({'WARNING'}, "未找到边循环")
             return {'FINISHED'}
 
         total_flattened = 0
@@ -1632,5 +1634,5 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
             e.select_set(e in selected_edges)
 
         bmesh.update_edit_mesh(obj.data)
-        self.report({'INFO'}, f"Flattened {len(edge_loops)} separate loops ({total_flattened} vertices)")
+        self.report({'INFO'}, f"已展平 {len(edge_loops)} 条独立循环边（共 {total_flattened} 个顶点）")
         return {'FINISHED'}

@@ -64,7 +64,7 @@ RENAME_KEYMAP_BINDINGS = (
 
 MIRROR_KEYMAP_BINDINGS = (
     ("3D View", "VIEW_3D"),
-    ("3D View Generic", "VIEW_3D"),
+    ("3D View Generic", "EMPTY"),
 )
 
 GROUP_TOOL_KEYMAP_BINDINGS = (

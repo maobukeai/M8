@@ -71,7 +71,7 @@ class MirrorLattice:
                             hub.vert(nc)
 
             hub.depth_test = "LESS_EQUAL"
-            self.cache_mesh_hub[key] = hub
+            self.cache_lattice_hub[key] = hub
 
         hub.alpha = pref.mirror_preview_alpha * 2 if is_preview else None
         area_hash = hash(context.area)

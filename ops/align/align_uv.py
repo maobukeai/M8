@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import bmesh.types
 import bpy
 from mathutils import Vector
@@ -16,7 +18,7 @@ IDENTIFIER_LIST = [i[0] for i in UV_ALIGN_MODE_ENUMS]
 
 class AlignUV(bpy.types.Operator):
     bl_idname = get_operator_bl_idname("align_uv")
-    bl_label = "Align UV"
+    bl_label = "对齐 UV"
     bl_options = {"REGISTER", "UNDO"}
 
     align_uv: bpy.props.EnumProperty(items=[
@@ -71,7 +73,16 @@ class AlignUV(bpy.types.Operator):
             self.report({"ERROR"}, f"Bmesh in not found {uv_layer.name}")
             return {"CANCELLED"}
         layer = bm.loops.layers.uv[uv_layer.name]
+        try:
+            sync_from_mesh = getattr(bm, "uv_select_sync_from_mesh", None)
+            if sync_from_mesh:
+                sync_from_mesh()
+        except Exception:
+            pass
         self.init_uv_data(context, bm, layer)
+        if not self.loops:
+            self.report({"WARNING"}, "未选中任何 UV")
+            return {"CANCELLED"}
         for loop in self.loops:
             loop[layer].uv = self.mix_uv_co(loop[layer].uv)
 
@@ -79,7 +90,18 @@ class AlignUV(bpy.types.Operator):
         obj.data.update()
         return {"FINISHED"}
 
-    def init_uv_data(self, context: bpy.types.Context, bm: bmesh.types.BMesh, uv_layer: bmesh.types.BMLoopUV):
+    @staticmethod
+    def _loop_uv_selected(loop, uv):
+        if bool(getattr(uv, "select", False)):
+            return True
+        if bool(getattr(loop, "uv_select_vert", False)):
+            return True
+        if bool(getattr(loop, "uv_select_edge", False)):
+            return True
+        face = getattr(loop, "face", None)
+        return bool(getattr(face, "uv_select", False))
+
+    def init_uv_data(self, context: bpy.types.Context, bm: bmesh.types.BMesh, uv_layer):
         """
         1.测量最大最小值
         2.找到所有的uv列表
@@ -92,10 +114,7 @@ class AlignUV(bpy.types.Operator):
         for face in bm.faces:
             for loop in face.loops:
                 uv = loop[uv_layer]
-                is_select = getattr(uv, "select", False)
-                is_uv_select_vert = getattr(loop, "uv_select_vert", False)
-                is_uv_select_edge = getattr(loop, "uv_select_edge", False)
-                if is_select or is_uv_select_vert or is_uv_select_edge:
+                if self._loop_uv_selected(loop, uv):
                     u, v = uv.uv
                     if u > max_uv[0]:
                         max_uv[0] = u
@@ -109,8 +128,12 @@ class AlignUV(bpy.types.Operator):
                     # max_uv = Vectore((max(max_uv[0], u), max(max_uv[1], v)))
                     # min_uv = Vector((min(min_uv[0], u), min(min_uv[1], v)))
                     self.loops.append(loop)
+        if not self.loops:
+            self.uv_data = [Vector((0, 0))] * len(IDENTIFIER_LIST)
+            return
         center_uv = (max_uv + min_uv) / 2
-        cursor = context.space_data.cursor_location
+        space_data = getattr(context, "space_data", None)
+        cursor = getattr(space_data, "cursor_location", Vector((0, 0)))
         zero = Vector((0, 0))
         self.uv_data = [max_uv, center_uv, min_uv, zero, cursor]
 

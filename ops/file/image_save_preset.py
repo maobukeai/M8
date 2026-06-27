@@ -74,6 +74,7 @@ class M8_OT_AppendFilenameSuffix(bpy.types.Operator):
             
             new_filename = temp_real_name + ext
             params.filename = new_filename
+            self.report({"INFO"}, f"已清除后缀：{new_filename}")
             return {'FINISHED'}
             
         # Parse existing name to find base name, current PBR suffix, and current resolution
@@ -115,7 +116,7 @@ class M8_OT_AppendFilenameSuffix(bpy.types.Operator):
         # Reconstruct filename: BaseName + PBR Suffix + Resolution
         new_filename = base_name + current_pbr + current_res + ext
         params.filename = new_filename
-        
+        self.report({"INFO"}, f"已更新文件名：{new_filename}")
         return {'FINISHED'}
 
 

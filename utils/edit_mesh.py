@@ -194,7 +194,7 @@ def ensure_bevel_modifier(obj, name):
 
 def get_addon_prefs(package_name):
     try:
-        root_pkg = (package_name or "").split(".")[0]
+        root_pkg = ".".join(package_name.split(".")[:3]) if (package_name or "").startswith("bl_ext") else (package_name or "").split(".")[0]
         addon = bpy.context.preferences.addons.get(root_pkg) if bpy.context and bpy.context.preferences else None
         return addon.preferences if addon else None
     except Exception:

@@ -10,7 +10,7 @@ DEBUG_ALIGN = False
 
 class AlignObjectByView(bpy.types.Operator):
     bl_idname = get_operator_bl_idname("object_align_by_view")
-    bl_label = "Object Align by View"
+    bl_label = "按视图对齐物体"
     bl_options = {"REGISTER", "UNDO"}
 
     align_mode: EnumProperty(
@@ -41,7 +41,7 @@ class AlignObjectByView(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.selected_objects.__len__()
+        return len(context.selected_objects) > 0
 
     def draw(self, context):
         column = self.layout.column(align=True)
@@ -89,6 +89,7 @@ class AlignObjectByView(bpy.types.Operator):
         context.view_layer.update()
         bpy.ops.m8.align_object("INVOKE_DEFAULT", **self.get_ops_args(context))
         context.view_layer.update()
+        self.report({"INFO"}, f"已按视图对齐 {len(context.selected_objects)} 个物体")
         return {"FINISHED"}
 
     def get_ops_args(self, context):

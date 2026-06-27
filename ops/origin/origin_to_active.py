@@ -8,7 +8,7 @@ from ...utils.math import from_curve_get_matrix, from_edit_bone_get_matrix
 
 class OriginToActive(PublicOrigin):
     bl_idname = get_operator_bl_idname("origin_to_active")
-    bl_label = "To Active"
+    bl_label = "到活动项"
 
     @classmethod
     def poll(cls, context):
@@ -17,7 +17,6 @@ class OriginToActive(PublicOrigin):
             bm = bmesh.from_edit_mesh(context.active_object.data)
             for v in bm.verts:
                 if v.select:
-                    bm.free()
                     return True
         elif context.mode == "OBJECT":
             return len(context.selected_objects) > 1

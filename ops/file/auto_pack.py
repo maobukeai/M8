@@ -3,7 +3,7 @@ from bpy.app.handlers import persistent
 
 
 def _get_addon_prefs():
-    root_pkg = (__package__ or "").split(".")[0]
+    root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
     prefs = getattr(bpy.context, "preferences", None)
     addon = prefs.addons.get(root_pkg) if prefs else None
     return addon.preferences if addon else None

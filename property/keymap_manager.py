@@ -21,12 +21,29 @@ from .keymap_helpers import (
     _find_smart_pie_keymap_items,
     _find_toggle_area_keymap_items,
     _find_subdivision_keymap_items,
+    _is_our_keymap_item,
 )
+
+
+def _remove_untracked_m8_keymaps(kc):
+    removed = 0
+    if not kc:
+        return removed
+    for km in list(kc.keymaps):
+        for kmi in reversed(list(km.keymap_items)):
+            try:
+                if _is_our_keymap_item(kmi):
+                    km.keymap_items.remove(kmi)
+                    removed += 1
+            except Exception:
+                pass
+    return removed
+
 
 def register_keymaps(force_default=False):
     """
     Registers all keymaps unconditionally.
-    Active state is determined by preferences (or default True).
+    Active state is determined by preferences, with conservative defaults.
     """
     global addon_keymaps
     
@@ -39,6 +56,7 @@ def register_keymaps(force_default=False):
     if not kc:
         return
 
+    _remove_untracked_m8_keymaps(kc)
     prefs = _get_addon_prefs()
     
     def get_pref(name, default=True):
@@ -47,6 +65,9 @@ def register_keymaps(force_default=False):
             return getattr(prefs, name, default)
         return default
 
+    def add_keymap_item(km, kmi):
+        addon_keymaps.append((km, _ensure_pie_keymap_priority(km, kmi)))
+
     # 1. Transform Pie (Shift+S)
     active = get_pref("enable_transform_pie", True)
     for keymap_name, space_type in TRANSFORM_PIE_KEYMAP_BINDINGS:
@@ -54,8 +75,7 @@ def register_keymaps(force_default=False):
         kmi = km.keymap_items.new('wm.call_menu_pie', 'S', 'PRESS', shift=True)
         kmi.properties.name = PIE_MENU_ID
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # 2. Switch Mode (Tab)
     active = get_pref("activate_switch_mode", True)
@@ -63,20 +83,17 @@ def register_keymaps(force_default=False):
         km = kc.keymaps.new(name=keymap_name, space_type=space_type)
         kmi = km.keymap_items.new('object.switch_mode', 'TAB', 'PRESS')
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     active = get_pref("activate_switch_mode", True) and get_pref("switch_mode_double_click_edit_switch", False)
     km = kc.keymaps.new(name="Mesh", space_type="EMPTY")
     kmi = km.keymap_items.new('m8.double_click_edit_switch', 'LEFTMOUSE', 'DOUBLE_CLICK')
     kmi.active = active
-    _ensure_pie_keymap_priority(km, kmi)
-    addon_keymaps.append((km, kmi))
+    add_keymap_item(km, kmi)
 
     kmi = km.keymap_items.new('m8.double_click_edit_switch', 'LEFTMOUSE', 'DOUBLE_CLICK', shift=True)
     kmi.active = active
-    _ensure_pie_keymap_priority(km, kmi)
-    addon_keymaps.append((km, kmi))
+    add_keymap_item(km, kmi)
 
     # 3. Quick Delete (X, Del)
     active = get_pref("activate_quick_delete", True)
@@ -85,13 +102,11 @@ def register_keymaps(force_default=False):
         
         kmi1 = km.keymap_items.new('m8.quick_delete', 'X', 'PRESS')
         kmi1.active = active
-        _ensure_pie_keymap_priority(km, kmi1)
-        addon_keymaps.append((km, kmi1))
+        add_keymap_item(km, kmi1)
         
         kmi2 = km.keymap_items.new('m8.quick_delete', 'DEL', 'PRESS')
         kmi2.active = active
-        _ensure_pie_keymap_priority(km, kmi2)
-        addon_keymaps.append((km, kmi2))
+        add_keymap_item(km, kmi2)
 
     # 4. Delete Pie (Mesh Edit)
     active = get_pref("activate_delete_pie", True)
@@ -101,14 +116,12 @@ def register_keymaps(force_default=False):
         kmi1 = km.keymap_items.new('wm.call_menu_pie', 'X', 'PRESS')
         kmi1.properties.name = DELETE_PIE_ID
         kmi1.active = active
-        _ensure_pie_keymap_priority(km, kmi1)
-        addon_keymaps.append((km, kmi1))
+        add_keymap_item(km, kmi1)
         
         kmi2 = km.keymap_items.new('wm.call_menu_pie', 'DEL', 'PRESS')
         kmi2.properties.name = DELETE_PIE_ID
         kmi2.active = active
-        _ensure_pie_keymap_priority(km, kmi2)
-        addon_keymaps.append((km, kmi2))
+        add_keymap_item(km, kmi2)
 
     # 5. Align Pie (Alt+A)
     active = get_pref("activate_align_pie", True)
@@ -126,8 +139,7 @@ def register_keymaps(force_default=False):
             kmi.properties.name = pie_id
             
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # 6. Shading Pie (Z)
     active = get_pref("activate_shading_pie", True)
@@ -136,8 +148,7 @@ def register_keymaps(force_default=False):
         kmi = km.keymap_items.new('wm.call_menu_pie', 'Z', 'PRESS')
         kmi.properties.name = SHADING_PIE_ID
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # 7. Save Pie (Ctrl+S)
     active = get_pref("activate_save_pie", True)
@@ -146,8 +157,7 @@ def register_keymaps(force_default=False):
         kmi = km.keymap_items.new('wm.call_menu_pie', 'S', 'PRESS', ctrl=True)
         kmi.properties.name = SAVE_PIE_ID
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # 8. Rename (F2)
     active = get_pref("activate_advanced_rename", True)
@@ -155,8 +165,7 @@ def register_keymaps(force_default=False):
         km = kc.keymaps.new(name=keymap_name, space_type=space_type)
         kmi = km.keymap_items.new('m8.advanced_rename', 'F2', 'PRESS')
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # 9. Edge Property Pie (Shift+E)
     active = get_pref("activate_edge_property_pie", True)
@@ -165,8 +174,7 @@ def register_keymaps(force_default=False):
         kmi = km.keymap_items.new('wm.call_menu_pie', 'E', 'PRESS', shift=True)
         kmi.properties.name = EDGE_PROPERTY_PIE_ID
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # 10. Mirror (Shift+Alt+X)
     active = get_pref("activate_mirror", True)
@@ -174,8 +182,7 @@ def register_keymaps(force_default=False):
         km = kc.keymaps.new(name=keymap_name, space_type=space_type)
         kmi = km.keymap_items.new(MIRROR_OP_ID, 'X', 'PRESS', shift=True, alt=True)
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # 11. Group Tool (Ctrl+G)
     active = get_pref("activate_group_tool", True)
@@ -183,8 +190,7 @@ def register_keymaps(force_default=False):
         km = kc.keymaps.new(name=keymap_name, space_type=space_type)
         kmi = km.keymap_items.new('m8.group_objects', 'G', 'PRESS', ctrl=True)
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # 12. Double Click Select Group
     active = get_pref("activate_double_click_select_group", False)
@@ -192,8 +198,7 @@ def register_keymaps(force_default=False):
         km = kc.keymaps.new(name=keymap_name, space_type=space_type)
         kmi = km.keymap_items.new('m8.select_group', 'LEFTMOUSE', 'DOUBLE_CLICK')
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # 13. Smart Pie (1)
     active = get_pref("activate_smart_pie", True)
@@ -202,71 +207,58 @@ def register_keymaps(force_default=False):
         kmi = km.keymap_items.new('wm.call_menu_pie', 'ONE', 'PRESS')
         kmi.properties.name = SMART_PIE_ID
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_merge_center', 'ONE', 'PRESS', shift=True)
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_paths_merge', 'ONE', 'PRESS', alt=True)
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_paths_connect', 'ONE', 'PRESS', ctrl=True, alt=True)
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_slide_extend', 'ONE', 'PRESS', shift=True, alt=True)
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_edge', 'TWO', 'PRESS')
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_edge_toggle_mode', 'TWO', 'PRESS', shift=True)
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_offset_edges', 'TWO', 'PRESS', ctrl=True)
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.clean_up', 'THREE', 'PRESS')
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_face', 'FOUR', 'PRESS')
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_face', 'FOUR', 'PRESS', shift=True)
         kmi.properties.face_action = "DUPLICATE"
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_face', 'FOUR', 'PRESS', alt=True)
         kmi.properties.face_action = "DISSOLVE"
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         kmi = km.keymap_items.new('m8.smart_face', 'FOUR', 'PRESS', ctrl=True)
         kmi.properties.face_action = "EXTRACT"
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # 14. Toggle Area (T)
     active = get_pref("activate_toggle_area", True)
@@ -274,8 +266,7 @@ def register_keymaps(force_default=False):
         km = kc.keymaps.new(name=keymap_name, space_type=space_type)
         kmi = km.keymap_items.new(TOGGLE_AREA_OP_ID, 'T', 'PRESS')
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
     # Switch Editor Pie (F12)
     active = get_pref("activate_switch_editor_pie", True)
@@ -283,8 +274,7 @@ def register_keymaps(force_default=False):
     kmi = km.keymap_items.new('wm.call_menu_pie', 'F12', 'PRESS')
     kmi.properties.name = SWITCH_EDITOR_PIE_ID
     kmi.active = active
-    _ensure_pie_keymap_priority(km, kmi)
-    addon_keymaps.append((km, kmi))
+    add_keymap_item(km, kmi)
 
     # 15. Subdivision Level Shortcuts (Ctrl+0..4)
     active = get_pref("activate_subdivision_shortcuts", True)
@@ -295,46 +285,63 @@ def register_keymaps(force_default=False):
         kmi = km.keymap_items.new('m8.subdivision_set', 'ZERO', 'PRESS', ctrl=True)
         kmi.properties.level = 0
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         # Ctrl + 1
         kmi = km.keymap_items.new('m8.subdivision_set', 'ONE', 'PRESS', ctrl=True)
         kmi.properties.level = 1
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         # Ctrl + 2
         kmi = km.keymap_items.new('m8.subdivision_set', 'TWO', 'PRESS', ctrl=True)
         kmi.properties.level = 2
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         # Ctrl + 3
         kmi = km.keymap_items.new('m8.subdivision_set', 'THREE', 'PRESS', ctrl=True)
         kmi.properties.level = 3
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
         # Ctrl + 4
         kmi = km.keymap_items.new('m8.subdivision_set', 'FOUR', 'PRESS', ctrl=True)
         kmi.properties.level = 4
         kmi.active = active
-        _ensure_pie_keymap_priority(km, kmi)
-        addon_keymaps.append((km, kmi))
+        add_keymap_item(km, kmi)
 
 
 def unregister_keymaps():
     global addon_keymaps
+    # Collect unique keymap objects we created so we can clean up empty shells
+    created_keymaps = []
+    seen_ids = set()
     for km, kmi in addon_keymaps:
         try:
             km.keymap_items.remove(kmi)
         except Exception:
             pass
+        if id(km) not in seen_ids:
+            seen_ids.add(id(km))
+            created_keymaps.append(km)
     addon_keymaps.clear()
+
+    # Remove empty keymap shells we created to avoid leaks on repeated reload.
+    # Only remove if the keymap has no remaining items (other addons may share
+    # a keymap by name and add their own items to it).
+    try:
+        wm = bpy.context.window_manager
+    except Exception:
+        wm = None
+    kc = wm.keyconfigs.addon if wm and getattr(wm, "keyconfigs", None) else None
+    if kc:
+        for km in created_keymaps:
+            try:
+                if len(km.keymap_items) == 0:
+                    kc.keymaps.remove(km)
+            except Exception:
+                pass
 
 
 def update_keymaps(self, context):
@@ -412,23 +419,23 @@ def update_keymaps(self, context):
         return kmi.idname == 'm8.subdivision_set'
 
     # Get pref values
-    p_transform = getattr(self, "enable_transform_pie", True)
-    p_switch = getattr(self, "activate_switch_mode", True)
+    p_transform = getattr(self, "enable_transform_pie", False)
+    p_switch = getattr(self, "activate_switch_mode", False)
     p_switch_double_click = getattr(self, "switch_mode_double_click_edit_switch", False)
-    p_quick_del = getattr(self, "activate_quick_delete", True)
-    p_del_pie = getattr(self, "activate_delete_pie", True)
-    p_align = getattr(self, "activate_align_pie", True)
-    p_shading = getattr(self, "activate_shading_pie", True)
-    p_save = getattr(self, "activate_save_pie", True)
-    p_rename = getattr(self, "activate_advanced_rename", True)
-    p_edge_property = getattr(self, "activate_edge_property_pie", True)
-    p_mirror = getattr(self, "activate_mirror", True)
-    p_group_tool = getattr(self, "activate_group_tool", True)
+    p_quick_del = getattr(self, "activate_quick_delete", False)
+    p_del_pie = getattr(self, "activate_delete_pie", False)
+    p_align = getattr(self, "activate_align_pie", False)
+    p_shading = getattr(self, "activate_shading_pie", False)
+    p_save = getattr(self, "activate_save_pie", False)
+    p_rename = getattr(self, "activate_advanced_rename", False)
+    p_edge_property = getattr(self, "activate_edge_property_pie", False)
+    p_mirror = getattr(self, "activate_mirror", False)
+    p_group_tool = getattr(self, "activate_group_tool", False)
     p_double_click_select_group = getattr(self, "activate_double_click_select_group", False)
-    p_smart_pie = getattr(self, "activate_smart_pie", True)
-    p_toggle_area = getattr(self, "activate_toggle_area", True)
-    p_switch_editor = getattr(self, "activate_switch_editor_pie", True)
-    p_subdivision = getattr(self, "activate_subdivision_shortcuts", True)
+    p_smart_pie = getattr(self, "activate_smart_pie", False)
+    p_toggle_area = getattr(self, "activate_toggle_area", False)
+    p_switch_editor = getattr(self, "activate_switch_editor_pie", False)
+    p_subdivision = getattr(self, "activate_subdivision_shortcuts", False)
 
     for km, kmi in addon_keymaps:
         try:

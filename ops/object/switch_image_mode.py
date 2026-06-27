@@ -28,8 +28,8 @@ def draw_row_image_mode(context: bpy.types.Context, pie: bpy.types.UILayout, is_
 
 class OBJECT_OT_SwitchImageMode(bpy.types.Operator):
     bl_idname = "object.switch_image_mode"
-    bl_label = "Switch Image Mode"
-    bl_description = "Switch between Image/UV Editor modes"
+    bl_label = "切换图像模式"
+    bl_description = "在图像/UV 编辑器模式之间切换"
     
     mode: bpy.props.StringProperty()
 
@@ -40,4 +40,5 @@ class OBJECT_OT_SwitchImageMode(bpy.types.Operator):
             context.area.ui_type = 'IMAGE_EDITOR'
             if hasattr(context.space_data, "ui_mode"):
                 context.space_data.ui_mode = self.mode
+        self.report({"INFO"}, f"已切换到 {self.mode} 模式")
         return {"FINISHED"}

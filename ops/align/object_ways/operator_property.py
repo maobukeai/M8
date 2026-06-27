@@ -35,7 +35,7 @@ ENUM_DISTRIBUTION_MODE = [
     ("ADJUSTMENT", "Adjustment", "Adjust the distance between each object(Fixed active object)"),
 ]
 
-VALID_OBJ_TYPE = ("FONT", "OBJECT", "META", "SURFACE",
+VALID_OBJ_TYPE = ("FONT", "META", "SURFACE",
                   "CURVES", "LATTICE", "POINTCLOUD", "GPENCIL", "ARMATURE", "MESH")
 
 

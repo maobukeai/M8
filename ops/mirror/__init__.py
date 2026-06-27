@@ -70,7 +70,7 @@ class Mirror(
     MirrorArmature,
 ):
     bl_idname = get_operator_bl_idname("mirror")
-    bl_label = "M8_mirror"
+    bl_label = "M8 镜像"
     bl_options = {"REGISTER", "UNDO", "UNDO_GROUPED"}
 
     mirror_mode = None

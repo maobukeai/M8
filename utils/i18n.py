@@ -43,6 +43,10 @@ ZH_TO_EN = {
     "请放入": "Please put",
     "QQ 频道交流": "QQ Channel",
     "Bilibili 教程与动态": "Bilibili Tutorials",
+    "官网社区": "Official Community",
+    "GitHub 链接": "GitHub Repository",
+    "更新": "Update",
+    "反馈": "Feedback",
     "界面语言": "Language",
     "中文 (Chinese)": "Chinese",
     "英文 (English)": "English",
@@ -415,7 +419,7 @@ ZH_TO_EN = {
 def _T(text):
     # Try to get the addon preferences
     try:
-        root_pkg = __package__.split(".")[0] if __package__ else "M8"
+        root_pkg = ".".join(__package__.split(".")[:3]) if __package__ and __package__.startswith("bl_ext") else (__package__.split(".")[0] if __package__ else "M8")
         prefs = bpy.context.preferences.addons[root_pkg].preferences
         if getattr(prefs, "addon_language", "ZH") == "EN":
             return ZH_TO_EN.get(text, text)

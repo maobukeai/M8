@@ -12,7 +12,7 @@ _pending_process_queue = set()
 _timer_registered = False
 
 def _get_addon_prefs():
-    root_pkg = (__package__ or "").split(".")[0]
+    root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
     if not bpy.context or not getattr(bpy.context, "preferences", None):
         return None
     addon = bpy.context.preferences.addons.get(root_pkg)
@@ -222,6 +222,16 @@ def unregister():
         bpy.app.handlers.depsgraph_update_post.remove(depsgraph_update_post)
     if load_post_handler in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(load_post_handler)
+    # Unregister the pending queue timer if it's still scheduled (e.g. addon
+    # disabled within the 0.01s window before it fires).
+    global _timer_registered
+    try:
+        if bpy.app.timers.is_registered(_process_queue_timer):
+            bpy.app.timers.unregister(_process_queue_timer)
+    except Exception:
+        pass
+    _timer_registered = False
+    _pending_process_queue.clear()
 
 @persistent
 def load_post_handler(_scene=None, _depsgraph=None):

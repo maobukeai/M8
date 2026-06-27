@@ -119,7 +119,7 @@ def from_bmesh_face_get_optimal_edge(face: bmesh.types.BMFace) -> bmesh.types.BM
             edge = loop.edge
             angle_diff = ad
     if edge is None:
-        Exception("没有找到合适的边")
+        raise Exception("没有找到合适的边")
     return edge
 
 
@@ -142,8 +142,8 @@ def get_link_verts(element: BMVert | BMEdge | BMFace, exclude=[]) -> list[BMVert
         return [i.verts[0] if i.verts[0] != element else i.verts[1] for i in element.link_edges]
     elif isinstance(element, BMEdge):
         if not exclude:
-            Exception(f"输入的是一个边,但是没有排除的顶点 {exclude}")
-        return element.verts[0] if (element.verts[0] not in exclude) else element.verts[1]
+            raise Exception(f"输入的是一个边,但是没有排除的顶点 {exclude}")
+        return [element.verts[0] if (element.verts[0] not in exclude) else element.verts[1]]
     elif isinstance(element, BMFace):
         # TODO()
         ...
@@ -161,7 +161,7 @@ def get_max_difference_length_link_vert(vert: BMVert) -> BMVert:
 
     """
     if len(vert.link_edges) == 0:
-        Exception(f"输入顶点没有相连的边!! {vert}")
+        raise Exception(f"输入顶点没有相连的边!! {vert}")
 
     from ..math import find_max_difference
     length_map = {get_edge_length(e): e for e in vert.link_edges}  # {长度:边}

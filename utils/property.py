@@ -85,7 +85,7 @@ def set_property_to_kmi_properties(properties: 'bpy.types.KeyMapItem.properties'
     for pro in props:
         pr = props[pro]
         if hasattr(properties, pro):
-            if pr is tuple:
+            if isinstance(pr, tuple):
                 # 阵列参数
                 _for_set_prop(properties, pro, pr)
             else:

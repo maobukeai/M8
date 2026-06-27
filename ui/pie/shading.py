@@ -71,7 +71,7 @@ class VIEW3D_MT_M8ShadingPie(bpy.types.Menu):
                     else:
                         target_engine = "CYCLES"
                         target_text = "Cycles"
-                    op = col.operator("wm.context_set_enum", text=_T(f"切换: {target_text}"), icon="SHADING_RENDERED")
+                    op = col.operator("wm.context_set_enum", text=_T("切换: ") + target_text, icon="SHADING_RENDERED")
                     op.data_path = "scene.render.engine"
                     op.value = target_engine
                 elif cycles_available and render.engine != "CYCLES":

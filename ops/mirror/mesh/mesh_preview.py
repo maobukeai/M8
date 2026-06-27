@@ -223,43 +223,46 @@ class MeshPreview:
             hub.depth_test = "LESS_EQUAL"
 
             bm = self.preview_bm.copy()
-            remove_verts = []
-            bisect_edges = []
-            if self.bisect:
-                cut_verts = bmesh.ops.bisect_plane(bm,
-                                                   geom=bm.edges,
-                                                   plane_co=plane_co,
-                                                   plane_no=plane_no)
-                for vert in cut_verts["geom_cut"]:
-                    hub.vert(vert, color=(1, 1, 0), matrix=draw_matrix)
+            try:
+                remove_verts = []
+                bisect_edges = []
+                if self.bisect:
+                    cut_verts = bmesh.ops.bisect_plane(bm,
+                                                       geom=bm.edges,
+                                                       plane_co=plane_co,
+                                                       plane_no=plane_no)
+                    for vert in cut_verts["geom_cut"]:
+                        hub.vert(vert, color=(1, 1, 0), matrix=draw_matrix)
 
-                res = bmesh.ops.connect_verts(bm, verts=cut_verts["geom_cut"], faces_exclude=[], check_degenerate=False)
-                edges = res["edges"]
-                bisect_edges.extend(edges)
-                for edge in edges:
-                    hub.edge(edge, color=(0, 1, 0), matrix=draw_matrix)
+                    res = bmesh.ops.connect_verts(bm, verts=cut_verts["geom_cut"], faces_exclude=[], check_degenerate=False)
+                    edges = res["edges"]
+                    bisect_edges.extend(edges)
+                    for edge in edges:
+                        hub.edge(edge, color=(0, 1, 0), matrix=draw_matrix)
 
-                for vert in bm.verts:
-                    co = matrix @ vert.co
-                    axis_index = self.axis_index
-                    c = co[axis_index]
-                    factor = .000001
-                    is_remove = c < -factor if self.is_negative_axis else c > factor
+                    for vert in bm.verts:
+                        co = matrix @ vert.co
+                        axis_index = self.axis_index
+                        c = co[axis_index]
+                        factor = .000001
+                        is_remove = c < -factor if self.is_negative_axis else c > factor
 
-                    if is_remove:
-                        remove_verts.append(vert)
-                        hub.vert(vert, color=(1, 0, 0), matrix=draw_matrix)
-                bmesh.ops.delete(bm, geom=remove_verts, context="VERTS")
-            bmesh.ops.mirror(bm,
-                             geom=bm.edges,
-                             matrix=matrix,
-                             merge_dist=self.threshold,
-                             axis=self.axis)
+                        if is_remove:
+                            remove_verts.append(vert)
+                            hub.vert(vert, color=(1, 0, 0), matrix=draw_matrix)
+                    bmesh.ops.delete(bm, geom=remove_verts, context="VERTS")
+                bmesh.ops.mirror(bm,
+                                 geom=bm.edges,
+                                 matrix=matrix,
+                                 merge_dist=self.threshold,
+                                 axis=self.axis)
 
-            edge_color = get_pref_value("mirror_preview_edge_color", (0.2, 0.8, 1.0, 1.0))
-            for edge in bm.edges:
-                hub.edge(edge, color=edge_color, matrix=draw_matrix)
-            self.cache_mesh_hub[key] = hub
+                edge_color = get_pref_value("mirror_preview_edge_color", (0.2, 0.8, 1.0, 1.0))
+                for edge in bm.edges:
+                    hub.edge(edge, color=edge_color, matrix=draw_matrix)
+                self.cache_mesh_hub[key] = hub
+            finally:
+                bm.free()
 
         hub.alpha = get_pref_value("mirror_preview_alpha", 0.5) if is_preview else None
         area_hash = hash(context.area)

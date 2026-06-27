@@ -29,7 +29,7 @@ def create_face_set_color_attribute(obj: bpy.types.Object) -> bpy.types.FloatCol
     return face_set_color
 
 
-def update_face_set_color(obj: bpy.types.Object) -> "{int:int}":
+def update_face_set_color(obj: bpy.types.Object) -> dict:
     from .face_set_overlay_color import bke_paint_face_set_overlay_color_get
     data = {}
 
@@ -53,7 +53,7 @@ def update_face_set_color(obj: bpy.types.Object) -> "{int:int}":
 
             for face in bm.faces:
                 face_set = face[face_set_layer]  # 面集索引
-                color = bke_paint_face_set_overlay_color_get(0, face_set)
+                color = bke_paint_face_set_overlay_color_get(face_set, 0)
 
                 for loop in face.loops:
                     loop[color_layer] = color
@@ -74,7 +74,7 @@ def update_face_set_color(obj: bpy.types.Object) -> "{int:int}":
             color_index = 0
             for face_index, face in enumerate(obj.data.polygons):
                 face_set_index = attr.data[face_index].value  # 面集索引
-                color = bke_paint_face_set_overlay_color_get(0, face_set_index)
+                color = bke_paint_face_set_overlay_color_get(face_set_index, 0)
                 for v in face.vertices:
                     color_attribute.data[color_index].color = color
                     color_index += 1

@@ -2,7 +2,7 @@ import bpy
 from ...utils.i18n import _T
 
 def _get_addon_prefs():
-    root_pkg = (__package__ or "").split(".")[0]
+    root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
     addon = bpy.context.preferences.addons.get(root_pkg)
     return addon.preferences if addon else None
 

@@ -1,7 +1,6 @@
 import bpy
 from bpy.app.translations import pgettext_iface
 
-from ...utils import get_panel_bl_idname
 from ...utils.icon import get_custom_icon
 from ...utils.view import screen_relevant_direction_3d_axis
 

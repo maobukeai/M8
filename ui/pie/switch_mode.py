@@ -7,19 +7,19 @@ from ...ops.mesh.surface_sliding import ui as surface_sliding_ui
 from ...ops.mesh.optimization import M8_OT_MeshOptimizationMenu
 from ...ops.mesh.draw_texture import M8_OT_DrawSelected, M8_OT_CancelDrawSelected
 from ...ops.object.auto_smooth import draw_auto_smooth
-from ...ops.object.light_quick_settings import M8_OT_LightQuickSettings
-from ...ops.object.camera_quick_settings import M8_OT_CameraQuickSettings
-from ...ops.object.select_scene_camera import M8_OT_SelectSceneCamera
-from ...ops.object.camera_focus_selected import M8_OT_CameraFocusSelected
-from ...ops.object.light_track_to_selected import M8_OT_LightTrackToSelected, M8_OT_LightClearTrackTo
+from ...ops.light.light_quick_settings import M8_OT_LightQuickSettings
+from ...ops.camera.camera_quick_settings import M8_OT_CameraQuickSettings
+from ...ops.camera.select_scene_camera import M8_OT_SelectSceneCamera
+from ...ops.camera.camera_focus_selected import M8_OT_CameraFocusSelected
+from ...ops.light.light_track_to_selected import M8_OT_LightTrackToSelected, M8_OT_LightClearTrackTo
 from ...ops.object.text_tools import M8_OT_TextQuickSettings
-from ...ops.object.curve_tools import (
+from ...ops.curve.curve_tools import (
     M8_OT_CurveQuickSettings,
     M8_OT_CurveCyclicToggle,
     M8_OT_ObjectConvertToMesh,
 )
 from ...ops.object.mode_set_remember import M8_OT_ModeSetRemember
-from ...ops.object.curve_edit_tools import (
+from ...ops.curve.curve_edit_tools import (
     M8_OT_CurveHandleTypeRemember,
     M8_OT_CurveSwitchDirectionRemember,
     M8_OT_CurveSubdivideRemember,
@@ -31,7 +31,7 @@ from ...ops.object.switch_image_mode import draw_row_image_mode
 
 
 def get_pref():
-    root_pkg = (__package__ or "").split(".")[0]
+    root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
     addon = bpy.context.preferences.addons.get(root_pkg)
     return addon.preferences if addon else None
 
@@ -162,9 +162,9 @@ def draw_switch_image_mode_operator(context: bpy.types.Context, pie: bpy.types.U
     if mode == "SWITCH_MODE":
         is_edit_mesh = context.mode == "EDIT_MESH"
         if context.area.ui_type == 'UV' or context.area.type == 'IMAGE_EDITOR':
-             text = ("物体模式" if is_edit_mesh else "编辑UV")
+            text = ("物体模式" if is_edit_mesh else "编辑UV")
         else:
-             text = ("物体模式" if is_edit_mesh else "编辑模式")
+            text = ("物体模式" if is_edit_mesh else "编辑模式")
         
         icon = "OBJECT_DATAMODE" if is_edit_mesh else "EDITMODE_HLT"
         target = "OBJECT" if is_edit_mesh else "EDIT"

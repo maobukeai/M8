@@ -55,7 +55,7 @@ def _safe_menu(layout, menu_id, text="", icon='NONE', icon_value=0):
         return False
 
 def _get_addon_prefs():
-    root_pkg = (__package__ or "").split(".")[0]
+    root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
     addon = bpy.context.preferences.addons.get(root_pkg)
     return addon.preferences if addon else None
 
@@ -78,7 +78,7 @@ def draw_top_ui(layout):
     col = box.column(align=True)
     row = col.row(align=True)
     _safe_operator(row, M8_OT_OpenCurrentFolder.bl_idname, text="打开当前", icon_value=get_icon_id("open"), icon="FILE_FOLDER")
-    _safe_operator(row, M8_OT_OpenTempDir.bl_idname, text="打开临时", icon_value=get_icon_id("temp"), icon="TEMP")
+    _safe_operator(row, M8_OT_OpenTempDir.bl_idname, text="打开临时", icon_value=get_icon_id("temp"), icon="FILE_CACHE")
     
     row = col.row(align=True)
     _safe_operator(row, "wm.revert_mainfile", text="重新加载", icon="FILE_REFRESH")

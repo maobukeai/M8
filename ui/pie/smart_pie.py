@@ -3,7 +3,7 @@ from bpy.types import Menu
 from ...utils.i18n import _T
 
 class VIEW3D_MT_M8SmartPie(Menu):
-    bl_label = "Smart Pie"
+    bl_label = "智能饼菜单"
     bl_idname = "VIEW3D_MT_M8SmartPie"
 
     def draw(self, context):
@@ -12,7 +12,7 @@ class VIEW3D_MT_M8SmartPie(Menu):
 
         prefs = None
         try:
-            root_pkg = (__package__ or "").split(".")[0]
+            root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
             addon = bpy.context.preferences.addons.get(root_pkg) if bpy.context and bpy.context.preferences else None
             prefs = addon.preferences if addon else None
         except Exception:
@@ -43,11 +43,3 @@ class VIEW3D_MT_M8SmartPie(Menu):
 classes = (
     VIEW3D_MT_M8SmartPie,
 )
-
-def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
-
-def unregister():
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)

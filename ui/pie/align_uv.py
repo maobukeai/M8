@@ -6,8 +6,8 @@ from ...utils.icon import get_custom_icon
 
 class AlignUVPie(bpy.types.Menu):
     bl_idname = get_menu_bl_idname("ALIGN_UV")
-    bl_label = "Align UV"
-    bl_description = "Align UV"
+    bl_label = "对齐 UV"
+    bl_description = "对齐 UV"
 
     def draw(self, context):
         from ...ops.align.align_uv import AlignUV

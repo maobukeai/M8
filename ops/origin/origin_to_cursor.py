@@ -4,7 +4,7 @@ from ...utils import get_operator_bl_idname
 
 class OriginToCursor(PublicOrigin):
     bl_idname = get_operator_bl_idname("origin_to_cursor")
-    bl_label = "To Cursor"
+    bl_label = "到光标"
 
     @classmethod
     def poll(cls, context):

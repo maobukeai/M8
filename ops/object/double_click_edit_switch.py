@@ -7,11 +7,11 @@ from ...utils.ray_cast import mouse_2d_ray_cast
 
 class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
     bl_idname = "m8.double_click_edit_switch"
-    bl_label = "Double Click Edit Switch"
+    bl_label = "双击编辑切换"
     bl_options = {"REGISTER", "UNDO"}
 
     def _get_pref(self):
-        root_pkg = (__package__ or "").split(".")[0]
+        root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
         addon = bpy.context.preferences.addons.get(root_pkg)
         return addon.preferences if addon else None
 

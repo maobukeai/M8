@@ -109,7 +109,7 @@ class PublicOrigin(bpy.types.Operator):
         to_matrix = to_matrix_fun(context) if to_matrix_fun else None
         get_obj_matrix = getattr(self, "get_obj_matrix", None)  # get_obj_matrix(context,object) -> Matrix
         if not to_matrix and not get_obj_matrix:
-            self.report({'ERROR'}, "No to_matrix or get_obj_matrix")
+            self.report({'ERROR'}, "缺少 to_matrix 或 get_obj_matrix 参数")
             return {'CANCELLED'}
 
         preview_matrices = []
@@ -148,20 +148,27 @@ class PublicOrigin(bpy.types.Operator):
         if obj.type == "MESH":
             context.view_layer.update()
             bm: bmesh.types.BMesh
-            if context.mode == "EDIT_MESH":
+            is_edit = context.mode == "EDIT_MESH"
+            if is_edit:
                 bm = bmesh.from_edit_mesh(obj.data)
             else:
                 bm = bmesh.new()
                 bm.from_mesh(obj.data)
 
-            if DEBUG_ORIGIN:
-                print("transform_matrix =", transform_matrix.__repr__())
-            bm.transform(transform_matrix)
-            bm.normal_update()
-            if context.mode == "EDIT_MESH":
-                bmesh.update_edit_mesh(obj.data, loop_triangles=True, destructive=False)
-            else:
-                bm.to_mesh(obj.data)
+            try:
+                if DEBUG_ORIGIN:
+                    print("transform_matrix =", transform_matrix.__repr__())
+                bm.transform(transform_matrix)
+                bm.normal_update()
+                if is_edit:
+                    bmesh.update_edit_mesh(obj.data, loop_triangles=True, destructive=False)
+                else:
+                    bm.to_mesh(obj.data)
+            finally:
+                # Only free bmesh created with bmesh.new(); from_edit_mesh
+                # returns a wrapper around the live edit mesh and must not be freed.
+                if not is_edit:
+                    bm.free()
             context.scene.update_tag(refresh={'TIME'})
             obj.update_tag(refresh={'OBJECT', 'DATA', 'TIME'})
             context.view_layer.update()

@@ -11,8 +11,8 @@ from ...utils.math import location_to_matrix, scale_to_matrix, rotation_to_matri
 
 class OriginToBottom(PublicOrigin):
     bl_idname = get_operator_bl_idname("origin_to_bottom")
-    bl_label = "To Bottom"
-    bl_description = "Press ctrl or alt to use the object's Z-axis as the bottom"
+    bl_label = "到底部"
+    bl_description = "按住 Ctrl 或 Alt 可使用物体的 Z 轴作为底部"
 
     origin_to_geometry: BoolProperty(default=True, name="Origin to Geometry")
     reset_rotation: BoolProperty(default=True, name="Reset Rotation")
@@ -37,7 +37,9 @@ class OriginToBottom(PublicOrigin):
         if self.origin_to_geometry:
             bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
         context.view_layer.update()
-        return super().execute(context)
+        result = super().execute(context)
+        self.report({"INFO"}, f"已将原点移至底部（{len(context.selected_objects)} 个物体）")
+        return result
 
     def get_obj_matrix(self, obj: bpy.types.Object):
         if obj.type != "MESH":

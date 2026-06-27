@@ -794,7 +794,7 @@ def relax_calculate_knots(loops):
 
 class Relax(bpy.types.Operator):
     bl_idname = get_operator_bl_idname("relax")
-    bl_label = "Relax"
+    bl_label = "松弛"
     bl_options = {'REGISTER', 'UNDO'}
     input: EnumProperty(
         name="Input",
@@ -923,6 +923,10 @@ class Relax(bpy.types.Operator):
                     self._cached_bm_mod.free()
                 except Exception:
                     pass
+            try:
+                self.bmesh.free()
+            except Exception:
+                pass
             return {"CANCELLED"}
 
         # 计算当前迭代数
@@ -969,6 +973,10 @@ class Relax(bpy.types.Operator):
                     self._cached_bm_mod.free()
                 except Exception:
                     pass
+            try:
+                self.bmesh.free()
+            except Exception:
+                pass
             terminate()
             return {"FINISHED"}
 
@@ -1031,4 +1039,5 @@ class Relax(bpy.types.Operator):
         if derived:
             bm_mod.free()
         terminate()
+        self.report({"INFO"}, f"已松弛网格（{int(self.iterations)} 次迭代）")
         return {'FINISHED'}

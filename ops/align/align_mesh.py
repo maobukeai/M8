@@ -38,7 +38,7 @@ class AlignMesh(
     UI
 ):
     bl_idname = get_operator_bl_idname("align_mesh")
-    bl_label = "Align Mesh"
+    bl_label = "对齐网格"
     bl_options = {"REGISTER", "UNDO"}
     measure: BmeshMeasure
 
@@ -71,7 +71,6 @@ class AlignMesh(
             bm = bmesh.from_edit_mesh(context.object.data)
             for v in bm.verts:
                 if v.select:
-                    bm.free()
                     return True
         return False
 
@@ -99,7 +98,6 @@ class AlignMesh(
             ))
 
         bmesh.update_edit_mesh(context.object.data)
-        bm.free()
         context.view_layer.update()
 
     def align_to_original(self, context):

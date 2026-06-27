@@ -4,7 +4,7 @@ from ...utils.ray_cast import mouse_2d_ray_cast
 
 class M8_OT_GroupObjects(bpy.types.Operator):
     bl_idname = "m8.group_objects"
-    bl_label = "Group Objects (Ctrl+G)"
+    bl_label = "编组物体 (Ctrl+G)"
     bl_description = "创建空物体作为父级并绑定选中物体"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -15,7 +15,7 @@ class M8_OT_GroupObjects(bpy.types.Operator):
         return context.mode == 'OBJECT' and context.selected_objects
 
     def invoke(self, context, event):
-        root_pkg = (__package__ or "").split(".")[0]
+        root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
         addon = context.preferences.addons.get(root_pkg)
         if addon and addon.preferences:
             self.hide_empty = getattr(addon.preferences, "group_tool_hide_empty", False)
@@ -33,7 +33,7 @@ class M8_OT_GroupObjects(bpy.types.Operator):
         center /= len(selected_objects)
 
         # Get prefs
-        root_pkg = (__package__ or "").split(".")[0]
+        root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
         addon = context.preferences.addons.get(root_pkg)
         
         empty_type = 'SPHERE'
@@ -78,6 +78,7 @@ class M8_OT_GroupObjects(bpy.types.Operator):
         group_empty.select_set(True)
         context.view_layer.objects.active = group_empty
 
+        self.report({"INFO"}, f"已创建组 '{group_empty.name}'（含 {len(selected_objects)} 个物体）")
         return {'FINISHED'}
 
 def is_m8_group(obj):
@@ -119,10 +120,11 @@ class M8_OT_DissolveGroup(bpy.types.Operator):
         # Select children back
         for child in children:
             child.select_set(True)
-            
+
         if children:
             context.view_layer.objects.active = children[0]
-            
+
+        self.report({"INFO"}, f"已解散组 '{group_obj.name}'（{len(children)} 个子物体已解除父级）")
         return {'FINISHED'}
 
 class M8_OT_AddToGroup(bpy.types.Operator):
@@ -167,7 +169,7 @@ class M8_OT_AddToGroup(bpy.types.Operator):
             added_count += 1
             
         if added_count > 0:
-            self.report({'INFO'}, f"Added {added_count} objects to {target_group.name}")
+            self.report({'INFO'}, f"已将 {added_count} 个物体添加到 {target_group.name}")
             return {'FINISHED'}
         
         return {'CANCELLED'}
@@ -198,7 +200,7 @@ class M8_OT_RemoveFromGroup(bpy.types.Operator):
                 removed_count += 1
         
         if removed_count > 0:
-            self.report({'INFO'}, f"Removed {removed_count} objects from group")
+            self.report({'INFO'}, f"已从组中移除 {removed_count} 个物体")
             return {'FINISHED'}
             
         return {'CANCELLED'}
@@ -295,7 +297,8 @@ class M8_OT_RecalculateGroupCenter(bpy.types.Operator):
         # Restore children world matrices
         for c in children:
             c.matrix_world = child_matrices[c]
-            
+
+        self.report({"INFO"}, f"已重算组 '{target_group.name}' 的中心点")
         return {'FINISHED'}
 
 class M8_OT_SelectGroupParent(bpy.types.Operator):
@@ -326,6 +329,7 @@ class M8_OT_SelectGroupParent(bpy.types.Operator):
         bpy.ops.object.select_all(action='DESELECT')
         target_group.select_set(True)
         context.view_layer.objects.active = target_group
+        self.report({"INFO"}, f"已选中组父级 '{target_group.name}'")
         return {'FINISHED'}
 
 class M8_OT_LockGroup(bpy.types.Operator):
@@ -363,7 +367,7 @@ class M8_OT_LockGroup(bpy.types.Operator):
         target_group.select_set(True)
         context.view_layer.objects.active = target_group
         
-        self.report({'INFO'}, f"Group locked: {target_group.name}")
+        self.report({'INFO'}, f"已锁定组：{target_group.name}")
         return {'FINISHED'}
 
 class M8_OT_UnlockGroup(bpy.types.Operator):
@@ -395,7 +399,7 @@ class M8_OT_UnlockGroup(bpy.types.Operator):
         for c in children:
             c.hide_select = False
             
-        self.report({'INFO'}, f"Group unlocked: {target_group.name}")
+        self.report({'INFO'}, f"已解锁组：{target_group.name}")
         return {'FINISHED'}
 
 class M8_OT_DuplicateGroup(bpy.types.Operator):
@@ -434,7 +438,7 @@ class M8_OT_DuplicateGroup(bpy.types.Operator):
         bpy.ops.object.duplicate(linked=False)
         
         new_group = context.active_object
-        self.report({'INFO'}, f"Group duplicated: {new_group.name}")
+        self.report({'INFO'}, f"已复制组：{new_group.name}")
         return {'FINISHED'}
 
 class M8_OT_HideGroup(bpy.types.Operator):
@@ -467,7 +471,7 @@ class M8_OT_HideGroup(bpy.types.Operator):
         for c in children:
             c.hide_viewport = True
             
-        self.report({'INFO'}, f"Group hidden: {target_group.name}")
+        self.report({'INFO'}, f"已隐藏组：{target_group.name}")
         return {'FINISHED'}
 
 class M8_OT_IsolateGroup(bpy.types.Operator):
@@ -507,7 +511,7 @@ class M8_OT_IsolateGroup(bpy.types.Operator):
             else:
                 o.hide_viewport = False
                 
-        self.report({'INFO'}, f"Group isolated: {target_group.name}")
+        self.report({'INFO'}, f"已独立显示组：{target_group.name}")
         return {'FINISHED'}
 
 class M8_OT_ShowAllGroups(bpy.types.Operator):
@@ -523,7 +527,7 @@ class M8_OT_ShowAllGroups(bpy.types.Operator):
     def execute(self, context):
         for o in context.view_layer.objects:
             o.hide_viewport = False
-        self.report({'INFO'}, "All objects shown")
+        self.report({'INFO'}, "已显示所有物体")
         return {'FINISHED'}
 
 class M8_OT_ToggleGroupEmptyVisibility(bpy.types.Operator):
@@ -550,6 +554,7 @@ class M8_OT_ToggleGroupEmptyVisibility(bpy.types.Operator):
         if not target_group: return {'CANCELLED'}
         
         target_group.hide_viewport = not target_group.hide_viewport
+        self.report({"INFO"}, f"已{'隐藏' if target_group.hide_viewport else '显示'}组空物体 '{target_group.name}'")
         return {'FINISHED'}
 
 class M8_MT_GroupContextSubMenu(bpy.types.Menu):
@@ -595,7 +600,7 @@ class M8_OT_SelectGroup(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def _get_pref(self):
-        root_pkg = (__package__ or "").split(".")[0]
+        root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
         addon = bpy.context.preferences.addons.get(root_pkg)
         return addon.preferences if addon else None
 
@@ -623,6 +628,7 @@ class M8_OT_SelectGroup(bpy.types.Operator):
         obj = context.active_object
         if is_m8_group(obj):
             self._select_hierarchy(context, obj)
+            self.report({"INFO"}, f"已选中组 '{obj.name}' 的层级")
             return {'FINISHED'}
         return {'CANCELLED'}
 
@@ -634,7 +640,7 @@ class M8_OT_SelectGroup(bpy.types.Operator):
         if not pref:
              try:
                  # 尝试通过包名获取
-                 addon_name = __name__.split(".")[0]
+                 addon_name = ".".join(__name__.split(".")[:3]) if __name__.startswith("bl_ext") else __name__.split(".")[0]
                  pref = context.preferences.addons[addon_name].preferences
              except Exception:
                  pass

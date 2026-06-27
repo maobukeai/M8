@@ -7,14 +7,14 @@ import os
 import math
 
 def _get_prefs():
-    root_pkg = (__package__ or "").split(".")[0]
+    root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
     addon = bpy.context.preferences.addons.get(root_pkg)
     return addon.preferences if addon else None
 
 class M8_OT_InternalScreencast(bpy.types.Operator):
     bl_idname = "m8.internal_screencast"
-    bl_label = "M8 Screencast"
-    bl_description = "Internal full-featured screencast keys"
+    bl_label = "M8 录屏"
+    bl_description = "内置的全功能按键录屏"
     
     _handle = None
     _timer = None
@@ -36,21 +36,50 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
         if M8_OT_InternalScreencast._shader:
             return M8_OT_InternalScreencast._shader
         try:
-            # Blender 4.0+
-            shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+            # Blender 4.0+ uses 'UNIFORM_COLOR' (2D_/3D_ prefixes were removed)
+            shader = gpu.shader.from_builtin('UNIFORM_COLOR')
         except Exception:
             try:
-                # Blender < 4.0
-                shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+                # Fallback for older Blender versions
+                shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
             except Exception:
-                # 备用方案
-                shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+                try:
+                    shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+                except Exception:
+                    return None
         M8_OT_InternalScreencast._shader = shader
         return shader
 
     @classmethod
     def poll(cls, context):
         return True
+
+    @classmethod
+    def stop_running(cls):
+        """Stop a running screencast session and clean up resources.
+
+        Called from registration.unregister() to prevent leaks when the
+        addon is disabled while the screencast is active.
+        """
+        if not cls._running:
+            return
+        cls._running = False
+        # Find a window/context to remove the timer; draw_handler_remove
+        # does not need a context.
+        if cls._handle:
+            try:
+                bpy.types.SpaceView3D.draw_handler_remove(cls._handle, 'WINDOW')
+            except Exception:
+                pass
+            cls._handle = None
+        if cls._timer:
+            for win in bpy.context.window_manager.windows:
+                try:
+                    bpy.context.window_manager.event_timer_remove(cls._timer)
+                    break
+                except Exception:
+                    pass
+            cls._timer = None
 
     def modal(self, context, event):
         if not self.__class__._running:
@@ -249,7 +278,7 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
             # Sync Prefs (Avoid recursive update call if possible, or just set it)
             if prefs and prefs.screencast_enabled:
                 prefs.screencast_enabled = False
-            self.report({'INFO'}, "Screencast Stopped")
+            self.report({'INFO'}, "录屏已停止")
             if context.area: context.area.tag_redraw()
             return {'FINISHED'}
 
@@ -266,7 +295,7 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
         self.__class__._timer = context.window_manager.event_timer_add(0.1, window=context.window)
         
         context.window_manager.modal_handler_add(self)
-        self.report({'INFO'}, "Screencast Started")
+        self.report({'INFO'}, "录屏已开始")
         return {'RUNNING_MODAL'}
 
     @staticmethod
@@ -465,7 +494,6 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
         num_teeth = 8
         
         verts = []
-        import math
         for i in range(num_teeth * 2):
             angle = (i / (num_teeth * 2)) * math.pi * 2
             r = r_outer if i % 2 == 0 else r_inner
@@ -747,7 +775,7 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
             try:
                 if len(context.window_manager.operators) > 0:
                     op = context.window_manager.operators[-1]
-                    if getattr(op, "bl_idname", "") and op.bl_idname != "M8_OT_internal_screencast":
+                    if getattr(op, "bl_idname", "") and op.bl_idname != "m8.internal_screencast":
                         raw_label = getattr(op, "bl_label", "") or getattr(getattr(op, "bl_rna", None), "name", "") or ""
                         op_label = _prettify_operator_label(raw_label, op.bl_idname)
                         

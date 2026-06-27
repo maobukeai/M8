@@ -3,7 +3,7 @@ import bpy
 
 class M8_OT_SwitchUVMode(bpy.types.Operator):
     bl_idname = "m8.switch_uv_mode"
-    bl_label = "Switch UV Mode"
+    bl_label = "切换 UV 模式"
     bl_options = {"REGISTER", "UNDO"}
 
     uv_mode: bpy.props.StringProperty(default="")
@@ -25,4 +25,5 @@ class M8_OT_SwitchUVMode(bpy.types.Operator):
         is_sync = tool_settings.use_uv_select_sync
         ops = bpy.ops.mesh.select_mode if is_sync else bpy.ops.uv.select_mode
         ops("INVOKE_DEFAULT", type=self.uv_mode)
+        self.report({"INFO"}, f"已切换 UV 选择模式为 {self.uv_mode}")
         return {"FINISHED"}

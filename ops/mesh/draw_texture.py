@@ -23,7 +23,9 @@ class M8_OT_DrawSelected(bpy.types.Operator):
         try:
             bpy.ops.object.mode_set(mode="TEXTURE_PAINT", toggle=False)
         except Exception:
+            self.report({"WARNING"}, "无法进入纹理绘制模式")
             return {"CANCELLED"}
+        self.report({"INFO"}, "已进入纹理绘制模式（仅绘制选中）")
         return {"FINISHED"}
 
 

@@ -30,7 +30,7 @@ class VIEW3D_PT_SizeAdjustPanel(bpy.types.Panel):
         layout.separator()
         row = layout.row(align=True)
         row.operator("object.toggle_backup_visibility", icon='HIDE_OFF')
-        row.prop(context.scene, "size_tool_padding", text=_T("内边距"))
+        row.prop(context.scene.m8, "size_tool_padding", text=_T("内边距"))
         row.operator("scene.reset_size_tool_padding", text=_T("重置"))
         layout.operator("object.create_size_cage", icon='MOD_WIREFRAME')
 
@@ -126,6 +126,27 @@ class VIEW3D_PT_SizeToolToolboxPanel(bpy.types.Panel):
         op.freeze_location = False
         op.freeze_rotation = False
         op.freeze_scale = True
+
+        box = layout.box()
+        box.label(text=_T("选择快照"), icon='RESTRICT_SELECT_OFF')
+        wm_state = getattr(context.window_manager, "m8", None)
+        has_snapshot = bool(wm_state and getattr(wm_state, "selection_snapshot_names", ""))
+        row = box.row(align=True)
+        row.enabled = bool(context.selected_objects)
+        row.operator("m8.save_selection_snapshot", text=_T("保存"), icon='BOOKMARKS')
+        row.operator("m8.add_selection_to_snapshot", text=_T("添加"), icon='ADD')
+        row = box.row(align=True)
+        restore_col = row.column(align=True)
+        restore_col.enabled = has_snapshot
+        restore_col.operator("m8.restore_selection_snapshot", text=_T("还原"), icon='RESTRICT_SELECT_OFF')
+        remove_col = row.column(align=True)
+        remove_col.enabled = bool(has_snapshot and context.selected_objects)
+        remove_col.operator("m8.remove_selection_from_snapshot", text=_T("移除"), icon='REMOVE')
+        clear_col = row.column(align=True)
+        clear_col.enabled = has_snapshot
+        clear_col.operator("m8.clear_selection_snapshot", text="", icon='TRASH')
+        if wm_state and getattr(wm_state, "selection_snapshot_summary", ""):
+            box.label(text=wm_state.selection_snapshot_summary, icon='INFO')
 
         box = layout.box()
         box.label(text=_T("叶片转面片"), icon='MESH_GRID')

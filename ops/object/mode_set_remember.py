@@ -3,7 +3,7 @@ import bpy
 
 class M8_OT_ModeSetRemember(bpy.types.Operator):
     bl_idname = "m8.mode_set_remember"
-    bl_label = "Mode Set (Remember)"
+    bl_label = "切换模式（记忆）"
     bl_options = {"REGISTER", "UNDO"}
 
     mode: bpy.props.StringProperty()
@@ -26,5 +26,8 @@ class M8_OT_ModeSetRemember(bpy.types.Operator):
         try:
             bpy.ops.object.mode_set(mode=self.mode, toggle=self.toggle)
         except Exception:
+            self.report({"WARNING"}, f"无法切换到 {self.mode} 模式")
             return {"CANCELLED"}
+        mode_label = {"OBJECT": "物体", "EDIT": "编辑", "POSE": "姿态", "SCULPT": "雕刻"}.get(self.mode, self.mode)
+        self.report({"INFO"}, f"已切换到 {mode_label} 模式")
         return {"FINISHED"}

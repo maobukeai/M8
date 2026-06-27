@@ -654,6 +654,7 @@ class OBJECT_OT_AutoAdjustZ(bpy.types.Operator):
     def execute(self, context):
         cage = context.active_object
         if not cage or CAGE_ORIG_SIZE_KEY not in cage:
+            self.report({"WARNING"}, "未找到原始尺寸数据")
             return {'CANCELLED'}
         orig_x, orig_y, orig_z = cage[CAGE_ORIG_SIZE_KEY]
         curr_dims = cage.dimensions
@@ -661,6 +662,7 @@ class OBJECT_OT_AutoAdjustZ(bpy.types.Operator):
         scale_y = curr_dims.y / orig_y if orig_y != 0 else 1.0
         avg_scale = (scale_x + scale_y) / 2
         cage.dimensions.z = orig_z * avg_scale
+        self.report({"INFO"}, f"已同步 Z 轴比例（平均缩放 {avg_scale:.3f}）")
         return {'FINISHED'}
 
 class OBJECT_OT_ClearSnapshot(bpy.types.Operator):

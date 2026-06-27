@@ -31,17 +31,24 @@ from .ops.mesh.edge_property import (
     M8_OT_ClearAllEdgeProperty,
 )
 from .ops.object.transform import OBJECT_OT_SnapToFloor, OBJECT_OT_FreezeTransformsMaya
+from .ops.object.selection_snapshot import (
+    M8_OT_SaveSelectionSnapshot,
+    M8_OT_AddSelectionToSnapshot,
+    M8_OT_RemoveSelectionFromSnapshot,
+    M8_OT_RestoreSelectionSnapshot,
+    M8_OT_ClearSelectionSnapshot,
+)
 from .ops.object.auto_smooth import M8_OT_AutoSmooth
-from .ops.object.light_quick_settings import M8_OT_LightQuickSettings
-from .ops.object.camera_quick_settings import M8_OT_CameraQuickSettings
-from .ops.object.select_scene_camera import M8_OT_SelectSceneCamera
-from .ops.object.camera_focus_selected import M8_OT_CameraFocusSelected
-from .ops.object.light_track_to_selected import M8_OT_LightTrackToSelected, M8_OT_LightClearTrackTo
+from .ops.light.light_quick_settings import M8_OT_LightQuickSettings
+from .ops.camera.camera_quick_settings import M8_OT_CameraQuickSettings
+from .ops.camera.select_scene_camera import M8_OT_SelectSceneCamera
+from .ops.camera.camera_focus_selected import M8_OT_CameraFocusSelected
+from .ops.light.light_track_to_selected import M8_OT_LightTrackToSelected, M8_OT_LightClearTrackTo
 from .ops.object.text_tools import M8_OT_TextQuickSettings
-from .ops.object.curve_tools import M8_OT_CurveQuickSettings, M8_OT_CurveCyclicToggle, M8_OT_ObjectConvertToMesh
-from .ops.object.curve_param_popup import M8_OT_CurveParamPopup
+from .ops.curve.curve_tools import M8_OT_CurveQuickSettings, M8_OT_CurveCyclicToggle, M8_OT_ObjectConvertToMesh
+from .ops.curve.curve_param_popup import M8_OT_CurveParamPopup
 from .ops.object.mode_set_remember import M8_OT_ModeSetRemember
-from .ops.object.curve_edit_tools import (
+from .ops.curve.curve_edit_tools import (
     M8_OT_CurveHandleTypeRemember,
     M8_OT_CurveSwitchDirectionRemember,
     M8_OT_CurveSubdivideRemember,
@@ -49,9 +56,9 @@ from .ops.object.curve_edit_tools import (
 )
 from .ops.object.lattice_tools import M8_OT_LatticeMakeRegular
 from .ops.object.quick_delete import M8_OT_QuickDelete
-from .ops.object.rename import M8_OT_AdvancedRename
+from .ops.rename.rename import M8_OT_AdvancedRename
 from .ops.object.subdivision_set import M8_OT_SubdivisionSet
-from .ops.object.baking_renaming import classes as baking_renaming_classes, register as register_baking_renaming, unregister as unregister_baking_renaming
+from .ops.rename.baking_renaming import classes as baking_renaming_classes, register as register_baking_renaming, unregister as unregister_baking_renaming
 from .ops.object.switch_mode import OBJECT_OT_SwitchMode, M8_OT_SwitchBoneMode
 from .ops.object.double_click_edit_switch import M8_OT_DoubleClickEditSwitch
 from .ops.object.group_tool import (
@@ -90,8 +97,9 @@ from .ops.object.cage_tool import (
     OBJECT_OT_AutoAdjustZ,
     OBJECT_OT_ClearSnapshot
 )
-from .ops.scene.utils import OBJECT_OT_SwitchUnit, SCENE_OT_ResetSizeToolPadding
+from .ops.scene.utils import SCENE_OT_SwitchUnit, SCENE_OT_ResetSizeToolPadding
 from .ui.panel.main import VIEW3D_PT_SizeAdjustPanel, VIEW3D_PT_SizeToolToolboxPanel
+from .ui.panel.wave import M8_OT_WaveQuickSet, M8_OT_WaveSetLoopAnimation, VIEW3D_PT_M8_WaveHelper
 from .ui.pie.transform import VIEW3D_MT_SizeToolTransformPie, VIEW3D_MT_SizeToolObjectOrigin
 from .ui.pie.switch_mode import (
     VIEW3D_MT_M8SwitchModePie,
@@ -105,7 +113,7 @@ from .ui.pie.save import VIEW3D_MT_M8SavePie
 from .ui.pie.edge_property_pie import VIEW3D_MT_M8EdgePropertyPie
 from .ui.pie.switch_editor_pie import VIEW3D_MT_M8SwitchEditorPie, M8_OT_SwitchEditorArea
 from .ui.pie.align_generic import M8_OT_AlignPieContextCall
-from .ops.smart_tools import (
+from .ops.misc.smart_tools import (
     M8_OT_SmartVert,
     M8_OT_SmartEdge,
     M8_OT_SmartFace,
@@ -118,7 +126,7 @@ from .ops.smart_tools import (
     M8_OT_SmartSlideExtend,
     M8_OT_SmartEdgeToggleMode,
 )
-from .ops.toggle_area import M8_OT_ToggleArea
+from .ops.misc.toggle_area import M8_OT_ToggleArea
 from .ui.pie.smart_pie import VIEW3D_MT_M8SmartPie
 from .ops.mesh.cleaner import (
     M8_Clean_Props,
@@ -136,7 +144,7 @@ from .ops.mesh.cleaner import (
     MESH_OT_select_similar_loops,
     MESH_OT_flatten_loops,
 )
-from .ops.custom_tools import (
+from .ops.misc.custom_tools import (
     M8_OT_SortMaterials,
     M8_OT_MergeNearbyObjects,
     M8_OT_BatchCopyAlign,
@@ -145,6 +153,7 @@ from .ops.custom_tools import (
     M8_CustomTools_Props,
 )
 from .property.preferences import (
+    M8_OT_Dummy,
     M8_MP7_MockDrawProperty,
     SIZE_TOOL_Preferences,
     SIZE_TOOL_OT_ResetTransformPieKeymap,
@@ -173,6 +182,7 @@ from .property.preferences import (
     SIZE_TOOL_OT_ForceSmartPiePriority,
     SIZE_TOOL_OT_ForceSwitchEditorPriority,
     SIZE_TOOL_OT_ForceToggleAreaPriority,
+    SIZE_TOOL_OT_ForceSubdivisionPriority,
     SIZE_TOOL_OT_ExclusiveAllHotkeys,
     SIZE_TOOL_OT_RestoreAllConflicts,
     SIZE_TOOL_OT_ExclusiveSubdivisionHotkey,
@@ -201,8 +211,27 @@ from .ops.file.image_save_preset import (
 )
 from .ops.file.auto_pack import register as register_auto_pack, unregister as unregister_auto_pack
 from .ops.misc.screencast import M8_OT_InternalScreencast
-from .ops.restart_blender import RestartBlender, draw_restart_blender_top_bar
-from .ops.hotkey_wrappers import M8_OT_SmartPassThroughWrapper
+from .ops.misc.restart_blender import RestartBlender, draw_restart_blender_top_bar
+from .ops.misc.hotkey_wrappers import M8_OT_SmartPassThroughWrapper
+from .ops.misc.diagnostics import (
+    M8_OT_RunHealthCheck,
+    M8_OT_CopyHealthReport,
+    M8_OT_RunFullSystemCheck,
+    M8_OT_CopyFullSystemReport,
+)
+from .ops.misc.scene_audit import (
+    M8_OT_RunSceneAudit,
+    M8_OT_CopySceneAuditReport,
+    M8_OT_SelectSceneAuditIssueObjects,
+    M8_OT_FixSceneAuditSafeIssues,
+    M8_OT_SelectSceneAuditBackups,
+    M8_OT_RestoreSceneAuditSelectedBackups,
+    M8_OT_RestoreSceneAuditLatestBackups,
+    M8_OT_RefreshSceneAuditBackups,
+    M8_OT_CopySceneAuditBackupReport,
+    M8_OT_PruneSceneAuditBackups,
+    M8_OT_SelectSceneAuditProblemObjects,
+)
 from .ops.mirror import Mirror
 from .ops.align.align_object import AlignObject
 from .ops.align.align_object_by_view import AlignObjectByView
@@ -217,10 +246,13 @@ from .ops.origin.cursor_to_select import CursorToSelect
 from .ui.pie.align_mesh import AlignMeshPie
 from .ui.pie.align_object import AlignObjectPie
 from .ui.pie.align_uv import AlignUVPie
-from .ui.panel.cleaner import VIEW3D_PT_M8_CleanUp, VIEW3D_PT_M8_MeshCleaner
+from .ui.panel.cleaner import VIEW3D_PT_M8_MeshCleaner
+from .ui.panel.diagnostics import VIEW3D_PT_M8_Diagnostics
+from .ui.panel.scene_audit import VIEW3D_PT_M8_SceneAudit
 from .ui import icons as m8_icons
 
 CLASSES = [
+    M8_OT_Dummy,
     M8_OT_SortMaterials,
     M8_OT_MergeNearbyObjects,
     M8_OT_BatchCopyAlign,
@@ -264,6 +296,7 @@ CLASSES = [
     SIZE_TOOL_OT_ForceSmartPiePriority,
     SIZE_TOOL_OT_ForceSwitchEditorPriority,
     SIZE_TOOL_OT_ForceToggleAreaPriority,
+    SIZE_TOOL_OT_ForceSubdivisionPriority,
     MESH_OT_SelectRandomIslands,
     MESH_OT_LeavesToPlanes,
     MESH_OT_ScaleFromBottomUV,
@@ -312,6 +345,11 @@ CLASSES = [
     OBJECT_OT_SwitchImageMode,
     OBJECT_OT_SnapToFloor,
     OBJECT_OT_FreezeTransformsMaya,
+    M8_OT_SaveSelectionSnapshot,
+    M8_OT_AddSelectionToSnapshot,
+    M8_OT_RemoveSelectionFromSnapshot,
+    M8_OT_RestoreSelectionSnapshot,
+    M8_OT_ClearSelectionSnapshot,
     M8_OT_AutoSmooth,
     M8_OT_LightQuickSettings,
     M8_OT_CameraQuickSettings,
@@ -345,10 +383,13 @@ CLASSES = [
     OBJECT_OT_RestoreFromSnapshot,
     OBJECT_OT_AutoAdjustZ,
     OBJECT_OT_ClearSnapshot,
-    OBJECT_OT_SwitchUnit,
+    SCENE_OT_SwitchUnit,
     SCENE_OT_ResetSizeToolPadding,
     VIEW3D_PT_SizeAdjustPanel,
     VIEW3D_PT_SizeToolToolboxPanel,
+    M8_OT_WaveQuickSet,
+    M8_OT_WaveSetLoopAnimation,
+    VIEW3D_PT_M8_WaveHelper,
     VIEW3D_MT_SizeToolTransformPie,
     VIEW3D_MT_SizeToolObjectOrigin,
     VIEW3D_MT_M8SwitchModePie,
@@ -387,6 +428,21 @@ CLASSES = [
     M8_OT_InternalScreencast,
     RestartBlender,
     M8_OT_SmartPassThroughWrapper,
+    M8_OT_RunHealthCheck,
+    M8_OT_CopyHealthReport,
+    M8_OT_RunFullSystemCheck,
+    M8_OT_CopyFullSystemReport,
+    M8_OT_RunSceneAudit,
+    M8_OT_CopySceneAuditReport,
+    M8_OT_SelectSceneAuditIssueObjects,
+    M8_OT_FixSceneAuditSafeIssues,
+    M8_OT_SelectSceneAuditBackups,
+    M8_OT_RestoreSceneAuditSelectedBackups,
+    M8_OT_RestoreSceneAuditLatestBackups,
+    M8_OT_RefreshSceneAuditBackups,
+    M8_OT_CopySceneAuditBackupReport,
+    M8_OT_PruneSceneAuditBackups,
+    M8_OT_SelectSceneAuditProblemObjects,
     Mirror,
     AlignObject,
     AlignObjectByView,
@@ -428,8 +484,9 @@ CLASSES = [
     MESH_OT_flat_loop_cleaner,
     MESH_OT_select_similar_loops,
     MESH_OT_flatten_loops,
-    VIEW3D_PT_M8_CleanUp,
     VIEW3D_PT_M8_MeshCleaner,
+    VIEW3D_PT_M8_SceneAudit,
+    VIEW3D_PT_M8_Diagnostics,
 ]
 
 CLASSES.extend(baking_renaming_classes)
@@ -440,9 +497,66 @@ _startup_done = False          # True after the first successful full init
 _registration_errors = []
 
 def _get_addon_prefs():
-    root_pkg = (__package__ or "").split(".")[0]
-    addon = bpy.context.preferences.addons.get(root_pkg)
-    return addon.preferences if addon else None
+    try:
+        root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
+        prefs = getattr(bpy.context, "preferences", None)
+        addon = prefs.addons.get(root_pkg) if prefs else None
+        return addon.preferences if addon else None
+    except Exception:
+        return None
+
+def _stop_startup_timer():
+    global _startup_timer_registered
+    _startup_timer_registered = False
+    return None
+
+
+def _timer_is_registered(callback):
+    is_registered = getattr(bpy.app.timers, "is_registered", None)
+    if not is_registered:
+        return False
+    try:
+        return bool(is_registered(callback))
+    except Exception:
+        return False
+
+
+def _register_startup_timer():
+    global _startup_timer_registered
+    if _timer_is_registered(_startup_apply):
+        _startup_timer_registered = True
+        return
+    bpy.app.timers.register(_startup_apply, first_interval=0.1)
+    _startup_timer_registered = True
+
+
+def _unregister_startup_timer():
+    global _startup_timer_registered
+    if _timer_is_registered(_startup_apply):
+        try:
+            bpy.app.timers.unregister(_startup_apply)
+        except Exception:
+            pass
+    _startup_timer_registered = False
+
+
+def _install_menu_draw(menu_cls, draw_func, prepend=False):
+    try:
+        menu_cls.remove(draw_func)
+    except Exception:
+        pass
+    if prepend:
+        menu_cls.prepend(draw_func)
+    else:
+        menu_cls.append(draw_func)
+
+
+def _remove_menu_draw(menu_cls, draw_func):
+    try:
+        menu_cls.remove(draw_func)
+    except Exception:
+        pass
+
 
 def _startup_apply():
     global _startup_apply_runs, _startup_done
@@ -453,7 +567,7 @@ def _startup_apply():
         _startup_apply_runs += 1
         if _startup_apply_runs < 10:
             return 0.5
-        return None
+        return _stop_startup_timer()
 
     # Force register keymaps after startup to ensure they stick.
     # Sometimes addon prefs are not fully ready when _startup_apply first runs.
@@ -481,7 +595,7 @@ def _startup_apply():
                 exclusive_ok = False  # ops not ready, must retry
 
         # Proactively run exclusive overrides for subdivision shortcuts to ensure they work out of the box
-        if getattr(prefs, "activate_subdivision_shortcuts", True):
+        if getattr(prefs, "activate_subdivision_shortcuts", False):
             try:
                 res = bpy.ops.size_tool.exclusive_subdivision_hotkey()
                 if 'FINISHED' not in res:
@@ -490,7 +604,7 @@ def _startup_apply():
                 exclusive_ok = False
 
         # Proactively run exclusive overrides for Toggle Area to ensure they work out of the box
-        if getattr(prefs, "activate_toggle_area", True):
+        if getattr(prefs, "activate_toggle_area", False):
             try:
                 res = bpy.ops.size_tool.exclusive_toggle_area_hotkey()
                 if 'FINISHED' not in res:
@@ -499,7 +613,7 @@ def _startup_apply():
                 exclusive_ok = False
 
 
-        if getattr(prefs, "auto_new_object_origin_bottom", True):
+        if getattr(prefs, "auto_new_object_origin_bottom", False):
             register_auto_origin()
         else:
             unregister_auto_origin()
@@ -521,12 +635,12 @@ def _startup_apply():
 
     # Early exit: once init succeeded, keep at most 2 extra safety passes then stop.
     if _startup_done and _startup_apply_runs >= 2:
-        return None
+        return _stop_startup_timer()
 
     # Fallback: give up after 10 attempts regardless
     if _startup_apply_runs < 10:
         return 0.5
-    return None
+    return _stop_startup_timer()
 
 
 def _set_windows_console_utf8():
@@ -574,7 +688,7 @@ def register():
             logger.error(f"Failed to register class {cls.__name__}: {e}", exc_info=True)
     
     prefs = _get_addon_prefs()
-    if not prefs or getattr(prefs, "auto_new_object_origin_bottom", True):
+    if prefs and getattr(prefs, "auto_new_object_origin_bottom", False):
         register_auto_origin()
     try:
         mp7_icons.register()
@@ -586,23 +700,22 @@ def register():
         logger.error(f"Failed to register mp7_translate: {e}", exc_info=True)
     register_keymaps()
     try:
-        if prefs and getattr(prefs, "activate_subdivision_shortcuts", True):
+        if prefs and getattr(prefs, "activate_subdivision_shortcuts", False):
             bpy.ops.size_tool.exclusive_subdivision_hotkey()
     except Exception:
         pass
     try:
-        if prefs and getattr(prefs, "activate_toggle_area", True):
+        if prefs and getattr(prefs, "activate_toggle_area", False):
             bpy.ops.size_tool.exclusive_toggle_area_hotkey()
     except Exception:
         pass
     if hasattr(bpy.types, "TOPBAR_MT_editor_menus"):
-
-
-        bpy.types.TOPBAR_MT_editor_menus.append(draw_restart_blender_top_bar)
+        _install_menu_draw(bpy.types.TOPBAR_MT_editor_menus, draw_restart_blender_top_bar)
     
     # Register Group Tool Context Menu
     # Prepend to make it more visible at the top
-    bpy.types.VIEW3D_MT_object_context_menu.prepend(draw_group_context_menu)
+    if hasattr(bpy.types, "VIEW3D_MT_object_context_menu"):
+        _install_menu_draw(bpy.types.VIEW3D_MT_object_context_menu, draw_group_context_menu, prepend=True)
 
     if prefs:
         try:
@@ -623,11 +736,10 @@ def register():
     from .property import state
     state.register()
 
-    if (not bpy.app.background) and (not _startup_timer_registered):
+    if not bpy.app.background:
         _startup_apply_runs = 0
         _startup_done = False
-        bpy.app.timers.register(_startup_apply, first_interval=0.1)
-        _startup_timer_registered = True
+        _register_startup_timer()
 
     try:
         register_baking_renaming()
@@ -640,7 +752,20 @@ def unregister():
     from .utils.logger import get_logger
     logger = get_logger()
 
+    _unregister_startup_timer()
     unregister_keymaps()
+    # Stop any running screencast session to avoid leaking draw handler + timer
+    try:
+        from .ops.misc.screencast import M8_OT_InternalScreencast
+        M8_OT_InternalScreencast.stop_running()
+    except Exception as e:
+        logger.debug(f"Failed to stop screencast on unregister: {e}")
+    # Unregister hub: removes draw handlers, undo_post handler, persistent timer
+    try:
+        from . import hub
+        hub.unregister()
+    except Exception as e:
+        logger.debug(f"Failed to unregister hub: {e}")
     try:
         mp7_translate.unregister()
     except Exception as e:
@@ -650,13 +775,11 @@ def unregister():
     except Exception as e:
         logger.error(f"Failed to unregister mp7_icons: {e}", exc_info=True)
     if hasattr(bpy.types, "TOPBAR_MT_editor_menus"):
-        bpy.types.TOPBAR_MT_editor_menus.remove(draw_restart_blender_top_bar)
+        _remove_menu_draw(bpy.types.TOPBAR_MT_editor_menus, draw_restart_blender_top_bar)
     
     # Unregister Group Tool Context Menu
-    try:
-        bpy.types.VIEW3D_MT_object_context_menu.remove(draw_group_context_menu)
-    except Exception as e:
-        logger.error(f"Failed to unregister group context menu: {e}", exc_info=True)
+    if hasattr(bpy.types, "VIEW3D_MT_object_context_menu"):
+        _remove_menu_draw(bpy.types.VIEW3D_MT_object_context_menu, draw_group_context_menu)
 
     try:
         unregister_auto_origin()
@@ -670,8 +793,6 @@ def unregister():
         unregister_auto_pack()
     except Exception as e:
         logger.warning(f"Failed to unregister auto pack: {e}")
-    _startup_timer_registered = False
-
     from .property import state
     try:
         state.unregister()

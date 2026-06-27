@@ -10,15 +10,136 @@ logger = get_logger()
 addon_keymaps = []
 
 def _get_addon_prefs():
-    root_pkg = (__package__ or "").split(".")[0]
+    root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
     addon = bpy.context.preferences.addons.get(root_pkg) if bpy.context and bpy.context.preferences else None
     return addon.preferences if addon else None
 
+def _copy_operator_properties(src_kmi, dst_kmi):
+    src_props = getattr(src_kmi, "properties", None)
+    dst_props = getattr(dst_kmi, "properties", None)
+    if not src_props or not dst_props:
+        return
+
+    try:
+        rna_props = getattr(getattr(src_props, "bl_rna", None), "properties", [])
+        for prop in rna_props:
+            identifier = getattr(prop, "identifier", "")
+            if not identifier or identifier == "rna_type" or getattr(prop, "is_readonly", False):
+                continue
+            try:
+                setattr(dst_props, identifier, getattr(src_props, identifier))
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    try:
+        for key in src_props.keys():
+            try:
+                dst_props[key] = src_props[key]
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _new_keymap_item_at_head(km, kmi):
+    items = getattr(km, "keymap_items", None)
+    if not items:
+        return None
+
+    new_from_item = getattr(items, "new_from_item", None)
+    if new_from_item:
+        try:
+            new_kmi = new_from_item(kmi, head=True)
+            try:
+                new_kmi.active = bool(getattr(kmi, "active", True))
+            except Exception:
+                pass
+            return new_kmi
+        except TypeError:
+            pass
+        except Exception as exc:
+            logger.debug(f"new_from_item failed while prioritizing keymap item: {exc}")
+
+    kwargs = {
+        "any": bool(getattr(kmi, "any", False)),
+        "shift": bool(getattr(kmi, "shift", False)),
+        "ctrl": bool(getattr(kmi, "ctrl", False)),
+        "alt": bool(getattr(kmi, "alt", False)),
+        "oskey": bool(getattr(kmi, "oskey", False)),
+        "key_modifier": getattr(kmi, "key_modifier", "NONE") or "NONE",
+        "direction": getattr(kmi, "direction", "ANY") or "ANY",
+        "repeat": bool(getattr(kmi, "repeat", False)),
+        "head": True,
+    }
+
+    attempts = (
+        kwargs,
+        {key: value for key, value in kwargs.items() if key != "repeat"},
+        {key: value for key, value in kwargs.items() if key != "direction"},
+        {key: value for key, value in kwargs.items() if key not in {"direction", "repeat"}},
+    )
+    for attempt in attempts:
+        try:
+            new_kmi = items.new(
+                getattr(kmi, "idname", ""),
+                getattr(kmi, "type", "NONE"),
+                getattr(kmi, "value", "PRESS"),
+                **attempt,
+            )
+            _copy_operator_properties(kmi, new_kmi)
+            try:
+                new_kmi.active = bool(getattr(kmi, "active", True))
+            except Exception:
+                pass
+            return new_kmi
+        except TypeError:
+            continue
+        except Exception as exc:
+            logger.debug(f"keymap_items.new failed while prioritizing keymap item: {exc}")
+            break
+    return None
+
+
+def _replace_addon_keymap_reference(km, old_kmi, new_kmi):
+    for index, (stored_km, stored_kmi) in enumerate(addon_keymaps):
+        if stored_km == km and (stored_kmi == old_kmi or stored_kmi is old_kmi):
+            addon_keymaps[index] = (km, new_kmi)
+
+
 # Helper to ensure our keymap is at the top (priority)
 def _ensure_pie_keymap_priority(km, kmi):
-    # Blender API doesn't support .move() on keymap_items.
-    # Addon keymaps already have higher priority than defaults.
-    pass
+    if not km or not kmi:
+        return kmi
+
+    try:
+        items = list(km.keymap_items)
+    except Exception:
+        return kmi
+
+    if not items or items[0] == kmi or items[0] is kmi:
+        return kmi
+    if kmi not in items:
+        return kmi
+
+    new_kmi = _new_keymap_item_at_head(km, kmi)
+    if not new_kmi:
+        logger.warning(f"Failed to prioritize keymap item {getattr(kmi, 'idname', '<unknown>')} in {getattr(km, 'name', '<unknown>')}")
+        return kmi
+
+    try:
+        km.keymap_items.remove(kmi)
+    except Exception as exc:
+        try:
+            km.keymap_items.remove(new_kmi)
+        except Exception:
+            pass
+        logger.warning(f"Failed to replace keymap item while prioritizing {getattr(kmi, 'idname', '<unknown>')}: {exc}")
+        return kmi
+
+    _replace_addon_keymap_reference(km, kmi, new_kmi)
+    return new_kmi
 
 def _iter_switch_mode_keymap_bindings(wm):
     bindings = []
@@ -393,6 +514,28 @@ def _is_our_double_click_edit_switch_item(kmi):
 def _is_our_subdivision_item(kmi):
     return getattr(kmi, "idname", "") == 'm8.subdivision_set'
 
+def _is_our_keymap_item(kmi):
+    return (
+        _is_our_pie_keymap_item(kmi) or
+        _is_our_align_pie_item(kmi) or
+        _is_our_switch_mode_item(kmi) or
+        _is_our_quick_delete_item(kmi) or
+        _is_our_delete_pie_item(kmi) or
+        _is_our_shading_pie_item(kmi) or
+        _is_our_save_pie_item(kmi) or
+        _is_our_rename_item(kmi) or
+        _is_our_mirror_item(kmi) or
+        _is_our_group_tool_item(kmi) or
+        _is_our_double_click_select_group_item(kmi) or
+        _is_our_double_click_edit_switch_item(kmi) or
+        _is_our_smart_pie_item(kmi) or
+        _is_our_smart_tool_item(kmi) or
+        _is_our_switch_editor_pie_item(kmi) or
+        _is_our_edge_property_pie_item(kmi) or
+        _is_our_subdivision_item(kmi) or
+        getattr(kmi, "idname", "") == TOGGLE_AREA_OP_ID
+    )
+
 def _find_subdivision_keymap_items():
     wm = bpy.context.window_manager if bpy.context else None
     kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
@@ -616,47 +759,39 @@ def _our_shortcut_signatures():
             sigs.append(sig)
     return sigs
 
-def _disable_conflicts_for_signatures(kc, signatures):
-    if not kc: return 0
-    disabled = 0
+def _conflict_keymap_names(extra_keymap_names=()):
     all_bindings = list(TRANSFORM_PIE_KEYMAP_BINDINGS) + list(ALIGN_PIE_KEYMAP_BINDINGS) + \
                    list(SWITCH_MODE_KEYMAP_BINDINGS) + list(QUICK_DELETE_KEYMAP_BINDINGS) + \
                    list(DELETE_PIE_KEYMAP_BINDINGS) + list(SAVE_PIE_KEYMAP_BINDINGS) + \
                    list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS) + \
-                   list(SMART_PIE_KEYMAP_BINDINGS) + list(TOGGLE_AREA_KEYMAP_BINDINGS) + \
-                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS) + \
-                   list(SUBDIVISION_KEYMAP_BINDINGS)
-    
-    seen_km = set()
+                   list(DOUBLE_CLICK_GROUP_KEYMAP_BINDINGS) + list(SMART_PIE_KEYMAP_BINDINGS) + \
+                   list(TOGGLE_AREA_KEYMAP_BINDINGS) + list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + \
+                   list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS) + list(SHADING_PIE_KEYMAP_BINDINGS) + \
+                   list(MIRROR_KEYMAP_BINDINGS) + list(SUBDIVISION_KEYMAP_BINDINGS)
+
+    names = []
+    seen = set()
     for keymap_name, _ in all_bindings:
-        if keymap_name in seen_km: continue
-        seen_km.add(keymap_name)
-        
+        if keymap_name not in seen:
+            names.append(keymap_name)
+            seen.add(keymap_name)
+    for keymap_name in extra_keymap_names:
+        if keymap_name and keymap_name not in seen:
+            names.append(keymap_name)
+            seen.add(keymap_name)
+    return names
+
+def _disable_conflicts_for_signatures(kc, signatures, extra_keymap_names=()):
+    if not kc: return 0
+    disabled = 0
+
+    for keymap_name in _conflict_keymap_names(extra_keymap_names):
         km = kc.keymaps.get(keymap_name)
         if not km: continue
         
         for kmi in km.keymap_items:
             if not getattr(kmi, "active", True): continue
-            
-            is_ours = (_is_our_pie_keymap_item(kmi) or 
-                       _is_our_align_pie_item(kmi) or 
-                       _is_our_switch_mode_item(kmi) or 
-                       _is_our_quick_delete_item(kmi) or 
-                       _is_our_delete_pie_item(kmi) or
-                       _is_our_shading_pie_item(kmi) or
-                       _is_our_save_pie_item(kmi) or
-                       _is_our_rename_item(kmi) or
-                       _is_our_mirror_item(kmi) or
-                       _is_our_group_tool_item(kmi) or
-                       _is_our_double_click_select_group_item(kmi) or
-                       _is_our_double_click_edit_switch_item(kmi) or
-                       _is_our_smart_pie_item(kmi) or
-                       _is_our_smart_tool_item(kmi) or
-                       _is_our_switch_editor_pie_item(kmi) or
-                       _is_our_edge_property_pie_item(kmi) or
-                       _is_our_subdivision_item(kmi) or
-                       kmi.idname == TOGGLE_AREA_OP_ID)
-            if is_ours: continue
+            if _is_our_keymap_item(kmi): continue
             
             for sig in signatures:
                 if _match_signature(kmi, sig):
@@ -669,46 +804,17 @@ def _disable_conflicts_for_signatures(kc, signatures):
                     break
     return disabled
 
-def _restore_conflicts_for_signatures(kc, signatures):
+def _restore_conflicts_for_signatures(kc, signatures, extra_keymap_names=()):
     if not kc: return 0
     restored = 0
-    all_bindings = list(TRANSFORM_PIE_KEYMAP_BINDINGS) + list(ALIGN_PIE_KEYMAP_BINDINGS) + \
-                   list(SWITCH_MODE_KEYMAP_BINDINGS) + list(QUICK_DELETE_KEYMAP_BINDINGS) + \
-                   list(DELETE_PIE_KEYMAP_BINDINGS) + list(SAVE_PIE_KEYMAP_BINDINGS) + \
-                   list(RENAME_KEYMAP_BINDINGS) + list(GROUP_TOOL_KEYMAP_BINDINGS) + \
-                   list(SMART_PIE_KEYMAP_BINDINGS) + list(TOGGLE_AREA_KEYMAP_BINDINGS) + \
-                   list(SWITCH_EDITOR_PIE_KEYMAP_BINDINGS) + list(EDGE_PROPERTY_PIE_KEYMAP_BINDINGS) + \
-                   list(SUBDIVISION_KEYMAP_BINDINGS)
-    
-    seen_km = set()
-    for keymap_name, _ in all_bindings:
-        if keymap_name in seen_km: continue
-        seen_km.add(keymap_name)
-        
+
+    for keymap_name in _conflict_keymap_names(extra_keymap_names):
         km = kc.keymaps.get(keymap_name)
         if not km: continue
         
         for kmi in km.keymap_items:
             if getattr(kmi, "active", True): continue
-            
-            is_ours = (_is_our_pie_keymap_item(kmi) or 
-                       _is_our_align_pie_item(kmi) or 
-                       _is_our_switch_mode_item(kmi) or 
-                       _is_our_quick_delete_item(kmi) or 
-                       _is_our_delete_pie_item(kmi) or
-                       _is_our_shading_pie_item(kmi) or
-                       _is_our_save_pie_item(kmi) or
-                       _is_our_rename_item(kmi) or
-                       _is_our_mirror_item(kmi) or
-                       _is_our_group_tool_item(kmi) or
-                       _is_our_double_click_select_group_item(kmi) or
-                       _is_our_smart_pie_item(kmi) or
-                       _is_our_smart_tool_item(kmi) or
-                       _is_our_switch_editor_pie_item(kmi) or
-                       _is_our_edge_property_pie_item(kmi) or
-                       _is_our_subdivision_item(kmi) or
-                       kmi.idname == TOGGLE_AREA_OP_ID)
-            if is_ours: continue
+            if _is_our_keymap_item(kmi): continue
 
             for sig in signatures:
                 if _match_signature(kmi, sig):

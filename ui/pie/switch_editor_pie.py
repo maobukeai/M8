@@ -31,7 +31,7 @@ EDITOR_TYPES = [
 
 
 def _get_addon_prefs():
-    root_pkg = (__package__ or "").split(".")[0]
+    root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
     addon = bpy.context.preferences.addons.get(root_pkg) if bpy.context and bpy.context.preferences else None
     return addon.preferences if addon else None
 
@@ -69,7 +69,7 @@ def _apply_editor_target(area, target):
 
 class M8_OT_SwitchEditorArea(bpy.types.Operator):
     bl_idname = "m8.switch_editor_area"
-    bl_label = "Switch Editor Area"
+    bl_label = "切换编辑器区域"
     bl_options = {"INTERNAL"}
 
     target: bpy.props.EnumProperty(items=_editor_type_items)

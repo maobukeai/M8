@@ -36,7 +36,6 @@ def from_edge_get_matrix(bm: BMesh, obj_mat: Matrix = Matrix()):
             to_b = loc - f_loc
             rot_matrix = from_x_z_vector_get_matrix(to_b, to_a, )
             om = location_to_matrix(loc) @ rot_matrix
-            v = loc, to_b
             return obj_mat @ om
     elif len(select_edges) == 2:
         a, b = select_edges

@@ -469,11 +469,12 @@ class SIZE_TOOL_OT_ExclusiveSubdivisionHotkey(bpy.types.Operator):
             ("THREE", "PRESS", False, False, True, False, False, 'NONE'),
             ("FOUR", "PRESS", False, False, True, False, False, 'NONE'),
         ]
+        extra_keymap_names = ("Screen", "Screen Editing")
         
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures)
-        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
+        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures, extra_keymap_names)
+        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures, extra_keymap_names)
         if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
+            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
 
         items = _find_subdivision_keymap_items()
         for kc2, km2, kmi2 in items:
@@ -506,10 +507,11 @@ class SIZE_TOOL_OT_RestoreSubdivisionConflicts(bpy.types.Operator):
             ("THREE", "PRESS", False, False, True, False, False, 'NONE'),
             ("FOUR", "PRESS", False, False, True, False, False, 'NONE'),
         ]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures)
-        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
+        extra_keymap_names = ("Screen", "Screen Editing")
+        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures, extra_keymap_names)
+        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures, extra_keymap_names)
         if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
+            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
 
         self.report({'INFO'}, f"已恢复 {restored} 个被禁用的细分快捷键")
         return {'FINISHED'}
@@ -531,11 +533,12 @@ class SIZE_TOOL_OT_ExclusiveToggleAreaHotkey(bpy.types.Operator):
         signatures = [
             ("T", "PRESS", False, False, False, False, False, 'NONE'),
         ]
+        extra_keymap_names = ("Screen", "Screen Editing")
         
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures)
-        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
+        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures, extra_keymap_names)
+        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures, extra_keymap_names)
         if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
+            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
 
         items = _find_toggle_area_keymap_items()
         for kc2, km2, kmi2 in items:
@@ -564,12 +567,28 @@ class SIZE_TOOL_OT_RestoreToggleAreaConflicts(bpy.types.Operator):
         signatures = [
             ("T", "PRESS", False, False, False, False, False, 'NONE'),
         ]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures)
-        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
+        extra_keymap_names = ("Screen", "Screen Editing")
+        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures, extra_keymap_names)
+        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures, extra_keymap_names)
         if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
+            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
 
         self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 T 键快捷键")
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_ForceSubdivisionPriority(bpy.types.Operator):
+    bl_idname = "size_tool.force_subdivision_priority"
+    bl_label = "强制细分快捷键优先级"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        items = _find_subdivision_keymap_items()
+        if not items:
+            self.report({'WARNING'}, "未找到细分快捷键映射项")
+            return {'CANCELLED'}
+        for kc, km, kmi in items:
+            _ensure_pie_keymap_priority(km, kmi)
+        self.report({'INFO'}, f"已优先处理 {len(items)} 个细分快捷键绑定")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceDeletePiePriority(bpy.types.Operator):
@@ -716,9 +735,9 @@ class M8_OT_ResetSwitchModePrefs(bpy.types.Operator):
         prefs.switch_mode_right = "FACE"
 
         prefs.switch_bone_mode_up = "EDIT_OR_OBJECT"
-        prefs.switch_bone_mode_down = "EDIT"
-        prefs.switch_bone_mode_left = "POSE"
-        prefs.switch_bone_mode_right = "BONE_POSITION"
+        prefs.switch_bone_mode_down = "VIEW_SELECTED"
+        prefs.switch_bone_mode_left = "BONE_POSITION"
+        prefs.switch_bone_mode_right = "POSE"
 
         prefs.ui_show_switch_mode_mapping = False
         prefs.ui_show_tab_keymap = False

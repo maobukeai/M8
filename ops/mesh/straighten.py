@@ -31,7 +31,7 @@ def straighten_single_strip(matrix, pair, verts, hub):
 
 class Straighten(bpy.types.Operator):
     bl_idname = get_operator_bl_idname("straighten")
-    bl_label = "Straighten"
+    bl_label = "拉直"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod

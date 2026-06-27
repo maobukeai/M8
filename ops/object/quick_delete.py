@@ -16,12 +16,17 @@ class M8_OT_QuickDelete(bpy.types.Operator):
         if context.area.type == 'NODE_EDITOR':
             try:
                 bpy.ops.node.delete()
+                self.report({"INFO"}, "已删除节点")
                 return {"FINISHED"}
             except Exception:
+                self.report({"WARNING"}, "删除节点失败")
                 return {"CANCELLED"}
 
+        count = len(context.selected_objects)
         try:
             bpy.ops.object.delete(confirm=False)
         except Exception:
+            self.report({"WARNING"}, "删除物体失败")
             return {"CANCELLED"}
+        self.report({"INFO"}, f"已删除 {count} 个物体")
         return {"FINISHED"}

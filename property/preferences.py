@@ -49,8 +49,77 @@ from .keymap_helpers import (
 class M8_MP7_MockDrawProperty(bpy.types.PropertyGroup):
     enable_name_translation: bpy.props.BoolProperty(name="Enable Name Translation", default=True)
 
+def _on_transform_update(self, context):
+    self.navigation_tab = "TRANSFORM"
+    _on_prefs_update(self, context)
+
+def _on_switch_mode_update(self, context):
+    self.navigation_tab = "SWITCH_MODE"
+    _on_prefs_update(self, context)
+
+def _on_quick_delete_update(self, context):
+    self.navigation_tab = "DELETE"
+    _on_prefs_update(self, context)
+
+def _on_delete_pie_update(self, context):
+    self.navigation_tab = "DELETE"
+    _on_prefs_update(self, context)
+
+def _on_edge_property_update(self, context):
+    self.navigation_tab = "EDGE_PROPERTY"
+    _on_prefs_update(self, context)
+
+def _on_align_update(self, context):
+    self.navigation_tab = "ALIGN"
+    _on_prefs_update(self, context)
+
+def _on_shading_update(self, context):
+    self.navigation_tab = "SHADING"
+    _on_prefs_update(self, context)
+
+def _on_save_update(self, context):
+    self.navigation_tab = "SAVE"
+    _on_prefs_update(self, context)
+
+def _on_mirror_update(self, context):
+    self.navigation_tab = "MIRROR"
+    _on_prefs_update(self, context)
+
+def _on_group_tool_update(self, context):
+    self.navigation_tab = "GROUP"
+    _on_prefs_update(self, context)
+
+def _on_smart_pie_update(self, context):
+    self.navigation_tab = "SMART_PIE"
+    _on_prefs_update(self, context)
+
+def _on_toggle_area_update(self, context):
+    self.navigation_tab = "TOGGLE_AREA"
+    _on_prefs_update(self, context)
+
+def _on_switch_editor_update(self, context):
+    self.navigation_tab = "SWITCH_EDITOR"
+    _on_prefs_update(self, context)
+
+def _on_subdivision_update(self, context):
+    self.navigation_tab = "SUBDIVISION"
+    _on_prefs_update(self, context)
+
+def _on_rename_update(self, context):
+    self.navigation_tab = "RENAME"
+    _on_prefs_update(self, context)
+
+class M8_OT_Dummy(bpy.types.Operator):
+    bl_idname = "m8.dummy"
+    bl_label = "未开发"
+    bl_description = "该功能暂时未开发"
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        return {'FINISHED'}
+
 class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
-    bl_idname = (__package__ or "").split(".")[0]
+    bl_idname = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
 
     addon_language: bpy.props.EnumProperty(
         name="界面语言",
@@ -62,21 +131,21 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     backup_collection_name: bpy.props.StringProperty(name="备用盒集合名", default="SizeTool_Backups")
     default_padding: bpy.props.FloatProperty(name="默认 Padding", default=0.0, min=0.0, unit='LENGTH')
     archive_default_bake: bpy.props.BoolProperty(name="备用盒默认烘焙", default=False)
-    enable_transform_pie: bpy.props.BoolProperty(name="启用变换辅助饼菜单", default=True, update=_on_prefs_update)
-    activate_switch_mode: bpy.props.BoolProperty(name="启用模式切换(Tab)", default=True, update=_on_prefs_update)
-    activate_quick_delete: bpy.props.BoolProperty(name="快速删除(无确认)", default=True, update=_on_prefs_update)
-    activate_delete_pie: bpy.props.BoolProperty(name="启用删除饼菜单(Edit)", default=True, update=_on_prefs_update)
-    activate_align_pie: bpy.props.BoolProperty(name="启用对齐饼菜单 (Alt+A)", default=True, update=_on_prefs_update)
-    activate_shading_pie: bpy.props.BoolProperty(name="启用着色饼菜单 (Z)", default=True, update=_on_prefs_update)
-    activate_save_pie: bpy.props.BoolProperty(name="启用保存饼菜单 (Ctrl+S)", default=True, update=_on_prefs_update)
-    activate_advanced_rename: bpy.props.BoolProperty(name="启用高级重命名 (F2)", default=True, update=_on_prefs_update)
-    activate_mirror: bpy.props.BoolProperty(name="启用镜像 (Shift+Alt+X)", default=True, update=_on_prefs_update)
-    activate_group_tool: bpy.props.BoolProperty(name="启用打组 (Ctrl+G)", default=True, update=_on_prefs_update)
-    activate_smart_pie: bpy.props.BoolProperty(name="启用智能饼菜单 (1)", default=True, update=_on_prefs_update)
+    enable_transform_pie: bpy.props.BoolProperty(name="启用变换辅助饼菜单", default=True, update=_on_transform_update)
+    activate_switch_mode: bpy.props.BoolProperty(name="启用模式切换(Tab)", default=True, update=_on_switch_mode_update)
+    activate_quick_delete: bpy.props.BoolProperty(name="快速删除(无确认)", default=True, update=_on_quick_delete_update)
+    activate_delete_pie: bpy.props.BoolProperty(name="启用删除饼菜单(Edit)", default=True, update=_on_delete_pie_update)
+    activate_align_pie: bpy.props.BoolProperty(name="启用对齐饼菜单 (Alt+A)", default=True, update=_on_align_update)
+    activate_shading_pie: bpy.props.BoolProperty(name="启用着色饼菜单 (Z)", default=True, update=_on_shading_update)
+    activate_save_pie: bpy.props.BoolProperty(name="启用保存饼菜单 (Ctrl+S)", default=True, update=_on_save_update)
+    activate_advanced_rename: bpy.props.BoolProperty(name="启用高级重命名 (F2)", default=True, update=_on_rename_update)
+    activate_mirror: bpy.props.BoolProperty(name="启用镜像 (Shift+Alt+X)", default=True, update=_on_mirror_update)
+    activate_group_tool: bpy.props.BoolProperty(name="启用打组 (Ctrl+G)", default=True, update=_on_group_tool_update)
+    activate_smart_pie: bpy.props.BoolProperty(name="启用智能饼菜单 (1)", default=True, update=_on_smart_pie_update)
 
-    activate_switch_editor_pie: bpy.props.BoolProperty(name="启用切换窗口饼菜单 (F12)", default=True, update=_on_prefs_update)
+    activate_switch_editor_pie: bpy.props.BoolProperty(name="启用切换窗口饼菜单 (F12)", default=True, update=_on_switch_editor_update)
     ui_show_switch_editor_keymap: bpy.props.BoolProperty(name="显示快捷键详情(切换窗口)", default=False)
-    activate_subdivision_shortcuts: bpy.props.BoolProperty(name="启用细分快捷键 (Ctrl+0..4)", default=True, update=_on_prefs_update)
+    activate_subdivision_shortcuts: bpy.props.BoolProperty(name="启用细分快捷键 (Ctrl+0..4)", default=True, update=_on_subdivision_update)
     ui_show_subdivision_keymap: bpy.props.BoolProperty(name="显示快捷键详情(细分级别)", default=False)
     switch_editor_pie_left: bpy.props.EnumProperty(name="左", items=_switch_editor_items, default=4)
     switch_editor_pie_right: bpy.props.EnumProperty(name="右", items=_switch_editor_items, default=24)
@@ -89,7 +158,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     
     # --- Toggle Area ---
-    activate_toggle_area: bpy.props.BoolProperty(name="启用区域切换 (T)", default=True, update=_on_prefs_update)
+    activate_toggle_area: bpy.props.BoolProperty(name="启用区域切换 (T)", default=True, update=_on_toggle_area_update)
     toggle_area_close_range: bpy.props.FloatProperty(name="关闭范围 (%)", default=30.0, min=0.0, max=100.0, description="以区域宽/高的百分比表示与边界的接近度")
     toggle_area_prefer_left_right: bpy.props.BoolProperty(name="首选左/右切换", default=True, description="在使用 Close Range 确定是否切换另一对之前，首选左/右切换，而不是 下/上")
     toggle_area_asset_shelf: bpy.props.BoolProperty(name="切换资产架", default=True, description="如果可用，则切换“资产工具架”而不是“浏览器”")
@@ -137,7 +206,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         default=5,
     )
     group_tool_hide_empty: bpy.props.BoolProperty(name="隐藏组空物体", default=False, description="创建组时自动隐藏组父物体")
-    activate_restart_blender: bpy.props.BoolProperty(name="启用重启 Blender 按钮", default=True)
+    activate_restart_blender: bpy.props.BoolProperty(name="启用重启 Blender 按钮", default=False)
 
     active_tab: bpy.props.EnumProperty(
         name="Tab",
@@ -170,6 +239,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     )
 
     ui_show_all_settings: bpy.props.BoolProperty(name="显示全部", default=False)
+    show_diagnostics_panels: bpy.props.BoolProperty(name="显示诊断/场景审计面板", default=False)
 
     fbx_export_unity_preset: bpy.props.BoolProperty(name="FBX 导出使用 Unity 预设", default=True)
     unity_fbx_use_selection: bpy.props.BoolProperty(name="Unity FBX: 仅导出选择", default=True)
@@ -189,8 +259,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     unity_fbx_reveal_after_export: bpy.props.BoolProperty(name="Unity FBX: 导出后定位文件", default=True)
     ui_show_unity_fbx_advanced: bpy.props.BoolProperty(name="Unity FBX: 高级", default=False)
 
-    auto_pack_resources_on_save: bpy.props.BoolProperty(name="保存时自动打包资源", default=True, update=_on_autopack_update)
-    auto_purge_unused_materials_on_save: bpy.props.BoolProperty(name="保存时自动清除孤立数据", default=True, update=_on_autopack_update)
+    auto_pack_resources_on_save: bpy.props.BoolProperty(name="保存时自动打包资源", default=False, update=_on_autopack_update)
+    auto_purge_unused_materials_on_save: bpy.props.BoolProperty(name="保存时自动清除孤立数据", default=False, update=_on_autopack_update)
     
     auto_new_object_origin_bottom: bpy.props.BoolProperty(name="新建物体默认原点到底部", default=False, update=_on_autoorigin_update)
     auto_new_object_snap_to_floor: bpy.props.BoolProperty(name="新建物体自动落地 (Z=0)", default=False, update=_on_autoorigin_update)
@@ -269,7 +339,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     ui_show_section_screencast: bpy.props.BoolProperty(name="Screencast (投射)", default=False)
 
     # --- Edge Property Properties ---
-    activate_edge_property_pie: bpy.props.BoolProperty(name="启用 Edge Property Pie", default=True, update=_on_prefs_update)
+    activate_edge_property_pie: bpy.props.BoolProperty(name="启用 Edge Property Pie", default=True, update=_on_edge_property_update)
     ui_show_edge_property_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Edge Property)", default=False)
     ui_show_edge_property_advanced: bpy.props.BoolProperty(name="显示高级(Edge Property)", default=False)
 
@@ -289,6 +359,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     # --- Screencast Properties ---
     def _on_screencast_enabled_update(self, context):
+        self.navigation_tab = "SCREENCAST"
         try:
             from ..ops.misc.screencast import M8_OT_InternalScreencast
             if self.screencast_enabled != M8_OT_InternalScreencast._running:
@@ -511,18 +582,23 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         
         grid.label(text=_T("作者:") + " 猫步可爱")
         grid.label(text=_T("微信:") + " LiLan-8")
-        grid.label(text=_T("版本:") + " 3.0.1")
+        grid.label(text=_T("版本:") + " 3.5.0")
         
         col.separator()
         
         # Links
-        row = col.row(align=True)
-        row.scale_y = 1.3
-        op = row.operator("wm.url_open", text=_T("Bilibili 教程与动态"), icon=_ICON("URL"))
-        op.url = "https://space.bilibili.com/35723238"
+        row1 = col.row(align=True)
+        row1.scale_y = 1.3
+        op = row1.operator("wm.url_open", text=_T("官网社区"), icon="WORLD")
+        op.url = "https://mao.591595.xyz/"
         
-        op = row.operator("wm.url_open", text=_T("QQ 频道交流"), icon=_ICON("COMMUNITY"))
-        op.url = "https://pd.qq.com/s/clcugqtln"
+        op = row1.operator("wm.url_open", text=_T("GitHub 链接"), icon="FILE_SCRIPT")
+        op.url = "https://github.com/maobukeai/M8"
+        
+        row2 = col.row(align=True)
+        row2.scale_y = 1.3
+        row2.operator("m8.dummy", text=_T("更新"), icon="FILE_REFRESH")
+        row2.operator("m8.dummy", text=_T("反馈"), icon="QUESTION")
         
         col.separator()
         
@@ -622,13 +698,35 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         row = layout.row(align=True)
         row.scale_y = 1.25
         
+        prop_map = {
+            "TRANSFORM": "enable_transform_pie",
+            "SWITCH_MODE": "activate_switch_mode",
+            "DELETE": "activate_quick_delete",
+            "EDGE_PROPERTY": "activate_edge_property_pie",
+            "ALIGN": "activate_align_pie",
+            "SHADING": "activate_shading_pie",
+            "MIRROR": "activate_mirror",
+            "GROUP": "activate_group_tool",
+            "SAVE": "activate_save_pie",
+            "SMART_PIE": "activate_smart_pie",
+            "TOGGLE_AREA": "activate_toggle_area",
+            "SWITCH_EDITOR": "activate_switch_editor_pie",
+            "SUBDIVISION": "activate_subdivision_shortcuts",
+            "RENAME": "activate_advanced_rename",
+            "SCREENCAST": "screencast_enabled",
+        }
+        
+        feature_prop_name = prop_map.get(item_value, None)
         nav_tab = getattr(self, "navigation_tab", "TRANSFORM")
         
         if "navigation_tab" in self.bl_rna.properties:
-            if nav_tab == item_value:
-                row.prop_enum(self, "navigation_tab", item_value, icon=_ICON(icon), text=_T(text))
+            row_split = row.split(factor=0.75, align=True)
+            if feature_prop_name and feature_prop_name in self.bl_rna.properties:
+                row_split.prop_enum(self, "navigation_tab", item_value, text=_T(text))
+                row_split.prop(self, feature_prop_name, text="", icon=_ICON(icon), toggle=True)
             else:
-                row.prop_enum(self, "navigation_tab", item_value, icon=_ICON(icon), text=_T(text))
+                row_split.prop_enum(self, "navigation_tab", item_value, text=_T(text))
+                row_split.prop_enum(self, "navigation_tab", item_value, text="", icon=_ICON(icon))
         else:
             row.label(text=_T(text), icon=_ICON(icon))
 
@@ -646,7 +744,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "MIRROR": (_T("镜像工具"), _T("Shift+Alt+X，提供直观的轴向滑动选择镜像功能")),
             "SMART_PIE": (_T("智能饼菜单"), _T("编辑模式下 1/2/3 的智能建模操作合集（顶点/边/面/清理/路径等）")),
             "TOGGLE_AREA": (_T("区域切换"), _T("T 键切换 Toolbar/Sidebar 及 Asset Browser/Shelf")),
-            "SWITCH_EDITOR": ("切换窗口", "配置 F12 切换窗口饼菜单映射"),
+            "SWITCH_EDITOR": (_T("切换窗口"), _T("配置 F12 切换窗口饼菜单映射")),
             "SUBDIVISION": (_T("细分级别"), _T("物体模式下 Ctrl+1/2/3/4 设置细分级别，Ctrl+0 清零细分级别")),
 
             "SCREENCAST": (_T("按键显示"), _T("实时在视口显示键盘鼠标操作，支持自定义外观")),
@@ -681,11 +779,14 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "ABOUT": "INFO",
         }
 
-        split = layout.split(factor=0.23)
+        split = layout.split(factor=0.12)
 
         col = split.column(align=True)
+        col.use_property_split = False
         nav_box = col.box()
+        nav_box.use_property_split = False
         col_nav = nav_box.column(align=True)
+        col_nav.use_property_split = False
 
         col_nav.label(text=_T("核心功能"), icon="MODIFIER")
         self._draw_sidebar_button(col_nav, "PIVOT_CURSOR", "变换辅助 (Shift+S)", "TRANSFORM")
@@ -713,7 +814,11 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         self._draw_sidebar_button(col_nav, "INFO", "关于", "ABOUT")
         col_nav.separator()
         if "ui_show_all_settings" in self.bl_rna.properties:
-            col_nav.prop(self, "ui_show_all_settings", text=_T("显示全部"), toggle=True, icon=_ICON("ALIGN_JUSTIFY"))
+            row = col_nav.row(align=True)
+            row.scale_y = 1.25
+            row_split = row.split(factor=0.75, align=True)
+            row_split.prop(self, "ui_show_all_settings", text=_T("显示全部"), toggle=True)
+            row_split.prop(self, "ui_show_all_settings", text="", toggle=True, icon=_ICON("ALIGN_JUSTIFY"))
 
         col = split.column()
 
@@ -893,12 +998,13 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_subdivision_shortcuts" in self.bl_rna.properties:
             col.prop(self, "activate_subdivision_shortcuts")
 
-        activate_shortcuts = getattr(self, "activate_subdivision_shortcuts", True)
+        activate_shortcuts = getattr(self, "activate_subdivision_shortcuts", False)
         
         if activate_shortcuts:
             row = col.row(align=True)
             row.use_property_split = False
             row.use_property_decorate = False
+            row.operator("size_tool.force_subdivision_priority", text=_T("置顶"), icon="SORT_ASC")
             if "ui_show_subdivision_keymap" in self.bl_rna.properties:
                 row.prop(self, "ui_show_subdivision_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
             if "ui_show_subdivision_advanced" in self.bl_rna.properties:
@@ -969,7 +1075,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "enable_transform_pie" in self.bl_rna.properties:
             col.prop(self, "enable_transform_pie", text=_T("启用变换辅助饼菜单"))
 
-        enable_pie = getattr(self, "enable_transform_pie", True)
+        enable_pie = getattr(self, "enable_transform_pie", False)
         
         if enable_pie:
             row = col.row(align=True)
@@ -1052,7 +1158,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_edge_property_pie" in self.bl_rna.properties:
             col.prop(self, "activate_edge_property_pie", text=_T("启用 Shift+E"))
 
-        activate_pie = getattr(self, "activate_edge_property_pie", True)
+        activate_pie = getattr(self, "activate_edge_property_pie", False)
         
         if activate_pie:
             row = col.row(align=True)
@@ -1094,7 +1200,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_align_pie" in self.bl_rna.properties:
             col.prop(self, "activate_align_pie")
 
-        activate_pie = getattr(self, "activate_align_pie", True)
+        activate_pie = getattr(self, "activate_align_pie", False)
         
         if activate_pie:
             row = col.row(align=True)
@@ -1142,7 +1248,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_shading_pie" in self.bl_rna.properties:
             col.prop(self, "activate_shading_pie")
 
-        activate_pie = getattr(self, "activate_shading_pie", True)
+        activate_pie = getattr(self, "activate_shading_pie", False)
         
         if activate_pie:
             row = col.row(align=True)
@@ -1178,7 +1284,14 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_save_pie" in self.bl_rna.properties:
             col.prop(self, "activate_save_pie", text=_T("启用保存饼菜单 (Ctrl+S)"))
 
-        activate_pie = getattr(self, "activate_save_pie", True)
+        activate_pie = getattr(self, "activate_save_pie", False)
+
+        box_auto = col.box()
+        box_auto.label(text=_T("常规自动化"), icon="FILE_BLEND")
+        if "auto_pack_resources_on_save" in self.bl_rna.properties:
+            box_auto.prop(self, "auto_pack_resources_on_save", text=_T("保存时自动打包资源"))
+        if "auto_purge_unused_materials_on_save" in self.bl_rna.properties:
+            box_auto.prop(self, "auto_purge_unused_materials_on_save", text=_T("保存时自动清除孤立数据"))
         
         if activate_pie:
             row = col.row(align=True)
@@ -1191,12 +1304,6 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             row.operator("size_tool.force_save_pie_priority", text=_T("置顶"), icon="SORT_ASC")
             row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
             col.separator()
-            box_auto = col.box()
-            box_auto.label(text=_T("常规自动化"), icon="FILE_BLEND")
-            if "auto_pack_resources_on_save" in self.bl_rna.properties:
-                box_auto.prop(self, "auto_pack_resources_on_save", text=_T("保存时自动打包资源"))
-            if "auto_purge_unused_materials_on_save" in self.bl_rna.properties:
-                box_auto.prop(self, "auto_purge_unused_materials_on_save", text=_T("保存时自动清除孤立数据"))
             
             box_fbx = col.box()
             box_fbx.label(text=_T("FBX 导出预设"), icon="EXPORT")
@@ -1280,7 +1387,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "activate_mirror" in self.bl_rna.properties:
             col.prop(self, "activate_mirror", text=_T("启用镜像 (Shift+Alt+X)"))
 
-        activate_mirror = getattr(self, "activate_mirror", True)
+        activate_mirror = getattr(self, "activate_mirror", False)
         
         if activate_mirror:
             row = col.row(align=True)
@@ -1606,6 +1713,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         
         col.separator()
         col.prop(self, "activate_restart_blender", text=_T("在顶部菜单栏显示重启 Blender 按钮"))
+        if "show_diagnostics_panels" in self.bl_rna.properties:
+            col.prop(self, "show_diagnostics_panels", text=_T("显示诊断/场景审计面板"))
         col.separator()
         row = col.row(align=True)
         row.operator("m8.reset_prefs_ui", text=_T("重置界面设置"), icon="FILE_REFRESH")
@@ -1651,6 +1760,7 @@ from .keymap_exclusive import (
     SIZE_TOOL_OT_ForceSmartPiePriority,
     SIZE_TOOL_OT_ForceSwitchEditorPriority,
     SIZE_TOOL_OT_ForceToggleAreaPriority,
+    SIZE_TOOL_OT_ForceSubdivisionPriority,
     SIZE_TOOL_OT_ExclusiveAllHotkeys,
     SIZE_TOOL_OT_RestoreAllConflicts,
     SIZE_TOOL_OT_ExclusiveSubdivisionHotkey,

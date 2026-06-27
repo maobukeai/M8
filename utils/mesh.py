@@ -16,7 +16,7 @@ def _get_mesh(data: object):
         data.update_from_editmode()
         obj = data.data
     else:
-        obj = Exception(f"物体{data}不是一个网格物体")
+        raise Exception(f"物体{data}不是一个网格物体")
     return obj
 
 
@@ -41,6 +41,7 @@ def vertices_co(data, *, matrix=None, debug=False):
         vertices.foreach_get("co", np_co)
     except Exception as e:
         print(f"获取错误:{data} 不是有效的网格或物体数据 {e.args}")
+        return np.array([], dtype=np.float32)
 
     else:
         np_co = np_co.reshape((v_l, 3))
@@ -58,8 +59,10 @@ def from_face_index_get_material_index(obj, face_index) -> "int":
     assert obj and obj.type == "MESH", "必须是网格"
 
     material_index = -1
+    bm = None
+    is_edit = obj.mode == "EDIT"
     try:
-        if obj.mode == "EDIT":
+        if is_edit:
             bm = bmesh.from_edit_mesh(obj.data)
         else:
             bm = bmesh.new()
@@ -78,7 +81,10 @@ def from_face_index_get_material_index(obj, face_index) -> "int":
         # face_index / sub_l
         # print("from_face_index_get_material_index", material_index, obj.name, face_index, e)
         ...
-    bm.free()
+    finally:
+        # 仅释放新建的 bmesh,编辑模式的 bmesh 是引用不应释放
+        if bm is not None and not is_edit:
+            bm.free()
     return material_index
 
 

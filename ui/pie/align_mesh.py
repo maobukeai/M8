@@ -9,8 +9,8 @@ from ...utils.view import screen_relevant_direction_3d_axis
 
 class AlignMeshPie(bpy.types.Menu):
     bl_idname = get_menu_bl_idname("ALIGN_MESH")
-    bl_label = "Align Mesh"
-    bl_description = "Quickly align to a specific position, to the active item, to the cursor, to the origin"
+    bl_label = "对齐网格"
+    bl_description = "快速对齐到指定位置、活动项、光标或原点"
 
     def draw(self, context):
         from ...ops.mesh.relax import Relax

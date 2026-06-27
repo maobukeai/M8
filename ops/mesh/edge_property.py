@@ -38,6 +38,7 @@ class M8_OT_VertCrease(bpy.types.Operator):
     def execute(self, context):
         bpy.ops.transform.vert_crease(value=-1)
         bpy.ops.transform.vert_crease(value=self.value)
+        self.report({"INFO"}, f"已设置顶点折痕为 {self.value:.2f}")
         return {"FINISHED"}
 
 
@@ -66,6 +67,7 @@ class M8_OT_VertBevelWeight(bpy.types.Operator):
                 if vert.select:
                     vert[layer] = self.value
             bmesh.update_edit_mesh(obj.data)
+        self.report({"INFO"}, f"已设置顶点倒角权重为 {self.value:.2f}")
         return {"FINISHED"}
 
 
@@ -85,6 +87,7 @@ class M8_OT_EdgeCrease(bpy.types.Operator):
     def execute(self, context):
         bpy.ops.transform.edge_crease(value=-1)
         bpy.ops.transform.edge_crease(value=self.value)
+        self.report({"INFO"}, f"已设置边折痕为 {self.value:.2f}")
         return {"FINISHED"}
 
 
@@ -104,6 +107,7 @@ class M8_OT_EdgeBevelWeight(bpy.types.Operator):
     def execute(self, context):
         bpy.ops.transform.edge_bevelweight(value=-1)
         bpy.ops.transform.edge_bevelweight(value=self.value)
+        self.report({"INFO"}, f"已设置边倒角权重为 {self.value:.2f}")
         return {"FINISHED"}
 
 
@@ -124,5 +128,6 @@ class M8_OT_ClearAllEdgeProperty(bpy.types.Operator):
         bpy.ops.mesh.mark_seam(clear=True)
         bpy.ops.mesh.mark_sharp(clear=True, use_verts=False)
         bpy.ops.mesh.mark_freestyle_edge(clear=True)
+        self.report({"INFO"}, "已清除所有边属性")
         return {"FINISHED"}
 

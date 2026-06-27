@@ -99,19 +99,24 @@ class Shader:
             for vert in vert_bm.verts:
                 data["pos"].append(vert.co.copy())
                 data["color"].append(vert[cl][:])
-            vert_bm.free()
+        vert_bm.free()
+        self.vert_bm = None
 
         edge_bm = self.edge_bm
         if len(edge_bm.edges):
             data = self.edge_data
             cl = self.edge_color_layer
             from_bmesh_element_get_data(edge_bm, cl, data, edge_bm.edges)
+        edge_bm.free()
+        self.edge_bm = None
 
         face_bm = self.face_bm
         if len(face_bm.faces):
             data = self.face_data
             cl = self.face_color_layer
             from_bmesh_element_get_data(face_bm, cl, data, face_bm.faces)
+        face_bm.free()
+        self.face_bm = None
 
     def preprocessed_data(self):
         """处理数据

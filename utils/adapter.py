@@ -44,7 +44,7 @@ def get_adapter_blender_icon(icon=None):
         icon = "URL"
     if icon == "FILE_ALIAS" and version <= (4, 2):
         icon = "FOLDER_REDIRECT"
-    if icon == "RNA_ADD" and version <= (5, 0):
+    if icon == "RNA_ADD" and "RNA_ADD" not in ALL_ICON:
         icon = "ADD"
     if icon not in ALL_ICON:
         icon = "QUESTION"

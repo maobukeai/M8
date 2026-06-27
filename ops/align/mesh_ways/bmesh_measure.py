@@ -21,7 +21,6 @@ class BmeshMeasure:
         self.active_location = from_bm_get_active_location(bm, obj.matrix_world)
         self.max, self.min = from_bmesh_get_selected_max_min_location(bm, obj.matrix_world)
         self.selected_verts_index = [v.index for v in bm.verts if v.select]
-        bm.free()
 
     @property
     def center(self) -> Vector:

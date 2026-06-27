@@ -7,7 +7,7 @@ from ...utils.view import screen_relevant_direction_3d_axis
 
 
 class AlignObjectPie(bpy.types.Menu):
-    bl_label = "Align Object"
+    bl_label = "对齐物体"
     bl_idname = get_menu_bl_idname("ALIGN_OBJECT")
 
     @classmethod
