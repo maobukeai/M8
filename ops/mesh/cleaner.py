@@ -7,16 +7,32 @@ import concurrent.futures
 from ...utils.bmesh_selection import get_edge_loop, get_edge_ring, sort_edge_loop, get_checker_deselect
 
 def safe_dissolve_edges(bm, mesh, edges_to_dissolve):
-    """安全地融并边，保护边界与非流形顶点不被删除以防止网格变形塌陷"""
+    """安全地融并边，保护边界、弧度转角与非流形顶点不被删除以防止网格变形塌陷"""
     if not edges_to_dissolve:
         return
     valid_edges = [e for e in edges_to_dissolve if e.is_valid and len(e.link_faces) >= 2]
     if not valid_edges:
         return
+    
+    # 1. 融并边线（暂不融并顶点）
     bmesh.ops.dissolve_edges(bm, edges=valid_edges, use_verts=False)
-    verts_to_dissolve = [v for v in bm.verts if v.is_valid and v.is_manifold and len(v.link_edges) == 2]
+    
+    # 2. 精准筛选内部平直顶点进行清理，保护弧度转角与边界顶点
+    verts_to_dissolve = []
+    for v in bm.verts:
+        if v.is_valid and v.is_manifold and len(v.link_edges) == 2:
+            e1, e2 = v.link_edges
+            v1_other = e1.other_vert(v)
+            v2_other = e2.other_vert(v)
+            vec1 = (v1_other.co - v.co).normalized()
+            vec2 = (v2_other.co - v.co).normalized()
+            # 如果两条边形成直线（夹角接近180度，点积接近-1），说明是平直顶点，可以安全融并；如果是弧度转角，则保留
+            if vec1.dot(vec2) < -0.95:
+                verts_to_dissolve.append(v)
+                
     if verts_to_dissolve:
         bmesh.ops.dissolve_verts(bm, verts=verts_to_dissolve)
+        
     bmesh.update_edit_mesh(mesh)
 
 # -------------------------------------------------------------------
@@ -388,42 +404,28 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
         return loops
     
     def is_flat_loop_range(self, loop, min_threshold, max_threshold):
-        """Check if a loop is flat based on face normal angles within a range"""
+        """Check if a loop is flat based on face normal angles across its edges"""
         if not loop:
             return True
         
-        # Get all faces connected to this loop
-        faces = set()
-        for edge in loop:
-            faces.update(edge.link_faces)
-        
-        if len(faces) < 2:
-            return True
-        
-        # Calculate average angle between adjacent face normals
-        face_list = list(faces)
-        total_angle = 0
+        total_angle = 0.0
         angle_count = 0
         
-        for i, face1 in enumerate(face_list):
-            for j, face2 in enumerate(face_list[i+1:], i+1):
-                # Check if faces share an edge
-                shared_edges = set(face1.edges) & set(face2.edges)
-                if shared_edges:
-                    angle = face1.normal.angle(face2.normal)
+        for edge in loop:
+            if len(edge.link_faces) == 2:
+                f1, f2 = edge.link_faces
+                try:
+                    angle = f1.normal.angle(f2.normal)
                     total_angle += angle
                     angle_count += 1
+                except Exception:
+                    pass
         
         if angle_count == 0:
             return True
-        
-        average_angle = total_angle / angle_count
-        # Convert thresholds from degrees to radians for comparison
-        min_threshold_radians = math.radians(min_threshold)
-        max_threshold_radians = math.radians(max_threshold)
-        
-        # Remove loops where angle is within the min-max range
-        return min_threshold_radians <= average_angle <= max_threshold_radians
+            
+        avg_angle_deg = math.degrees(total_angle / angle_count)
+        return min_threshold <= avg_angle_deg <= max_threshold
     
     def touches_open_geometry(self, loop):
         """Check if loop touches non-manifold or boundary edges"""
