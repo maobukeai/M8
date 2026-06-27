@@ -20,12 +20,40 @@ def version_tuple_to_str(v):
     return ".".join(str(x) for x in v)
 
 def get_addon_version():
-    pkg = __package__.split('.')
-    for i in range(len(pkg), 0, -1):
-        parent_pkg = ".".join(pkg[:i])
-        module = sys.modules.get(parent_pkg)
-        if module and hasattr(module, "bl_info"):
-            return module.bl_info.get("version", (3, 5, 0))
+    # 1. Try to read version from blender_manifest.toml (source of truth for Blender 4.2+ extensions)
+    try:
+        import os
+        import re
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        manifest_path = os.path.join(root, "blender_manifest.toml")
+        if os.path.exists(manifest_path):
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                match = re.search(r'^version\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
+                if match:
+                    return tuple(int(x) for x in match.group(1).split("."))
+    except Exception:
+        pass
+
+    # 2. Try importing bl_info from parent package
+    try:
+        from .. import bl_info
+        if bl_info and "version" in bl_info:
+            return bl_info["version"]
+    except Exception:
+        pass
+
+    # 3. Fallback to sys.modules traversal
+    try:
+        pkg = __package__.split('.')
+        for i in range(len(pkg), 0, -1):
+            parent_pkg = ".".join(pkg[:i])
+            module = sys.modules.get(parent_pkg)
+            if module and hasattr(module, "bl_info"):
+                return module.bl_info.get("version", (3, 5, 0))
+    except Exception:
+        pass
+
     return (3, 5, 0)
 
 def _draw_update_dialog(self, context):
