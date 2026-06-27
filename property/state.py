@@ -48,6 +48,13 @@ class M8_SceneState(bpy.types.PropertyGroup):
 
 class M8_WMState(bpy.types.PropertyGroup):
     """Encapsulated state for M8 WindowManager-level properties"""
+    update_available: bpy.props.BoolProperty(default=False, options={"SKIP_SAVE"})
+    update_version: bpy.props.StringProperty(default="", options={"SKIP_SAVE"})
+    update_changelog: bpy.props.StringProperty(default="", options={"SKIP_SAVE"})
+    update_download_url: bpy.props.StringProperty(default="", options={"SKIP_SAVE"})
+    update_status: bpy.props.StringProperty(default="idle", options={"SKIP_SAVE"})
+    update_checked: bpy.props.BoolProperty(default=False, options={"SKIP_SAVE"})
+
     last_curve_handle_type: bpy.props.StringProperty(default="AUTOMATIC")
     last_curve_edit_action: bpy.props.StringProperty(default="")
     cursor_z_axis: bpy.props.FloatVectorProperty(size=3, default=(0.0, 0.0, 0.0))

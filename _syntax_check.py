@@ -2,7 +2,7 @@ import py_compile
 import os
 import sys
 
-root = r'c:\Users\20269\AppData\Roaming\Blender Foundation\Blender\5.2\scripts\addons\M8'
+root = os.path.dirname(os.path.abspath(__file__))
 errors = []
 total = 0
 

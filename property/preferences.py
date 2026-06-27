@@ -127,6 +127,12 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         default=0,
     )
 
+    auto_error_report: bpy.props.BoolProperty(
+        name="自动发送错误报告",
+        description="当插件运行出错时自动上报Traceback到服务器以利于后续修复",
+        default=True
+    )
+
     backup_suffix: bpy.props.StringProperty(name="备用盒后缀", default="_Backup")
     backup_collection_name: bpy.props.StringProperty(name="备用盒集合名", default="SizeTool_Backups")
     default_padding: bpy.props.FloatProperty(name="默认 Padding", default=0.0, min=0.0, unit='LENGTH')
@@ -567,12 +573,16 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         
         col.separator()
         
-        # Language Switch
+        # Settings Box (Language & Error Telemetry)
         box = col.box()
         row = box.row(align=True)
         row.alignment = 'CENTER'
         row.label(text=_T("界面语言"), icon=_ICON("WORLD"))
         row.prop(self, "addon_language", expand=True)
+        
+        row_telemetry = box.row(align=True)
+        row_telemetry.alignment = 'CENTER'
+        row_telemetry.prop(self, "auto_error_report")
         
         col.separator()
         
@@ -582,7 +592,29 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         
         grid.label(text=_T("作者:") + " 猫步可爱")
         grid.label(text=_T("微信:") + " LiLan-8")
-        grid.label(text=_T("版本:") + " 3.5.0")
+        
+        # Version from bl_info
+        from ..utils.network import get_addon_version, version_tuple_to_str
+        cur_ver = version_tuple_to_str(get_addon_version())
+        grid.label(text=_T("版本:") + f" {cur_ver}")
+        
+        # Draw dynamic update status if checked or checking
+        wm = bpy.context.window_manager
+        m8 = getattr(wm, "m8", None)
+        if m8 and m8.update_status != "idle":
+            status_box = col.box()
+            status_row = status_box.row(align=True)
+            status_row.alignment = 'CENTER'
+            if m8.update_status == "checking":
+                status_row.label(text=_T("正在检测更新..."), icon="FILE_REFRESH")
+            elif m8.update_status == "available":
+                status_row.label(text=f"{_T('检测到新版本')}: v{m8.update_version}!", icon="ERROR")
+                op_dl = status_row.operator("wm.url_open", text=_T("前往下载"), icon="IMPORT")
+                op_dl.url = m8.update_download_url
+            elif m8.update_status == "latest":
+                status_row.label(text=_T("已经是最新版本"), icon="CHECKMARK")
+            elif m8.update_status == "error":
+                status_row.label(text=_T("连接失败，请检查网络"), icon="CANCEL")
         
         col.separator()
         
@@ -597,8 +629,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         
         row2 = col.row(align=True)
         row2.scale_y = 1.3
-        row2.operator("m8.dummy", text=_T("更新"), icon="FILE_REFRESH")
-        row2.operator("m8.dummy", text=_T("反馈"), icon="QUESTION")
+        row2.operator("m8.check_update", text=_T("检测更新"), icon="FILE_REFRESH")
+        row2.operator("m8.submit_feedback", text=_T("提交反馈"), icon="QUESTION")
         
         col.separator()
         

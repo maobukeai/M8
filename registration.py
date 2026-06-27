@@ -127,6 +127,7 @@ from .ops.misc.smart_tools import (
     M8_OT_SmartEdgeToggleMode,
 )
 from .ops.misc.toggle_area import M8_OT_ToggleArea
+from .ops.misc.telemetry import M8_OT_CheckUpdate, M8_OT_SubmitFeedback, M8_OT_InstallUpdate
 from .ui.pie.smart_pie import VIEW3D_MT_M8SmartPie
 from .ops.mesh.cleaner import (
     M8_Clean_Props,
@@ -253,6 +254,9 @@ from .ui import icons as m8_icons
 
 CLASSES = [
     M8_OT_Dummy,
+    M8_OT_CheckUpdate,
+    M8_OT_SubmitFeedback,
+    M8_OT_InstallUpdate,
     M8_OT_SortMaterials,
     M8_OT_MergeNearbyObjects,
     M8_OT_BatchCopyAlign,
@@ -629,6 +633,11 @@ def _startup_apply():
 
         if keymap_ok and exclusive_ok:
             _startup_done = True  # all good, no need for further full inits
+            try:
+                from .utils.network import check_for_updates_async
+                check_for_updates_async(is_manual=False)
+            except Exception:
+                pass
 
 
     _startup_apply_runs += 1

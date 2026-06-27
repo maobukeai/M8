@@ -6,6 +6,43 @@ import sys
 LOG_NAME = "M8_Toolbox"
 logger = logging.getLogger(LOG_NAME)
 
+class M8TelemetryErrorHandler(logging.Handler):
+    def emit(self, record):
+        if record.levelno < logging.ERROR:
+            return
+        
+        try:
+            from ..property.keymap_helpers import _get_addon_prefs
+            prefs = _get_addon_prefs()
+            if not prefs or not getattr(prefs, "auto_error_report", True):
+                return
+        except Exception:
+            return
+            
+        tb_str = ""
+        if record.exc_info:
+            import traceback
+            exc_type, exc_value, exc_traceback = record.exc_info
+            tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+            tb_str = "".join(tb_lines)
+            
+        msg = record.getMessage()
+        content = f"Log Message: {msg}\n"
+        if tb_str:
+            content += f"Traceback:\n{tb_str}"
+        else:
+            import inspect
+            stack = inspect.stack()
+            content += "Call Stack:\n"
+            for frame in stack[2:10]:
+                content += f"  File {frame.filename}, line {frame.lineno}, in {frame.function}\n"
+                
+        try:
+            from .network import send_error_report_background
+            send_error_report_background(content)
+        except Exception:
+            pass
+
 # Prevent adding multiple handlers if reloaded
 if not logger.handlers:
     logger.setLevel(logging.DEBUG)  # Default level, can be configured via preferences later
@@ -20,6 +57,16 @@ if not logger.handlers:
 
     # Add the handlers to the logger
     logger.addHandler(ch)
+
+# Ensure telemetry handler is registered
+has_telemetry = any(isinstance(h, M8TelemetryErrorHandler) for h in logger.handlers)
+if not has_telemetry:
+    try:
+        telemetry_handler = M8TelemetryErrorHandler()
+        telemetry_handler.setLevel(logging.ERROR)
+        logger.addHandler(telemetry_handler)
+    except Exception:
+        pass
 
 def get_logger():
     """Return the central M8 logger instance."""
