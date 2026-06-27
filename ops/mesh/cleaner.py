@@ -300,7 +300,7 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
         selected_edges = [e for e in bm.edges if e.select]
         
         # Group edges into loops
-        edge_loops = self.group_edges_into_loops(selected_edges)
+        edge_loops = group_edges_into_loops(selected_edges)
         
         # Filter loops based on settings
         loops_to_dissolve = []
@@ -310,11 +310,11 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
             
             # Filter flat loops (only dissolve if within flat threshold)
             if self.filter_flat_loops:
-                if not self.is_flat_loop_range(loop, self.flat_threshold_min, self.flat_threshold_max):
+                if not is_flat_loop_range(loop, self.flat_threshold_min, self.flat_threshold_max):
                     should_dissolve = False
             
             # Protect open geometry (never dissolve loops touching open boundaries)
-            if self.touches_open_geometry(loop):
+            if touches_open_geometry(loop):
                 should_dissolve = False
             
             if should_dissolve:
@@ -368,78 +368,66 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
                 bm.faces[face_idx].hide = False
         
         bmesh.update_edit_mesh(mesh)
+
+
+def group_edges_into_loops(edges):
+    """Group connected edges into individual loops"""
+    loops = []
+    visited = set()
+    edges_set = set(edges)
     
-    def group_edges_into_loops(self, edges):
-        """Group connected edges into individual loops"""
-        loops = []
-        visited = set()
+    for edge in edges:
+        if edge in visited:
+            continue
+        current_loop = []
+        edge_queue = [edge]
+        visited.add(edge)
         
-        # Convert to set for faster lookup
-        edges_set = set(edges)
+        while edge_queue:
+            current_edge = edge_queue.pop(0)
+            current_loop.append(current_edge)
+            for vert in current_edge.verts:
+                for connected_edge in vert.link_edges:
+                    if connected_edge in edges_set and connected_edge not in visited:
+                        visited.add(connected_edge)
+                        edge_queue.append(connected_edge)
         
-        for edge in edges:
-            if edge in visited:
-                continue
-            
-            # Find connected edges to form a loop
-            current_loop = []
-            edge_queue = [edge]
-            visited.add(edge)
-            
-            while edge_queue:
-                current_edge = edge_queue.pop(0)
-                current_loop.append(current_edge)
-                
-                # Find connected edges through vertices
-                for vert in current_edge.verts:
-                    # Filter link_edges to only those in our input set
-                    for connected_edge in vert.link_edges:
-                        if connected_edge in edges_set and connected_edge not in visited:
-                            visited.add(connected_edge)
-                            edge_queue.append(connected_edge)
-            
-            if current_loop:
-                loops.append(current_loop)
-        
-        return loops
-    
-    def is_flat_loop_range(self, loop, min_threshold, max_threshold):
-        """Check if a loop is flat based on face normal angles across its edges"""
-        if not loop:
+        if current_loop:
+            loops.append(current_loop)
+    return loops
+
+
+def is_flat_loop_range(loop, min_threshold, max_threshold):
+    """Check if a loop is flat based on face normal angles across its edges"""
+    if not loop:
+        return True
+    total_angle = 0.0
+    angle_count = 0
+    for edge in loop:
+        if len(edge.link_faces) == 2:
+            f1, f2 = edge.link_faces
+            try:
+                angle = f1.normal.angle(f2.normal)
+                total_angle += angle
+                angle_count += 1
+            except Exception:
+                pass
+    if angle_count == 0:
+        return True
+    avg_angle_deg = math.degrees(total_angle / angle_count)
+    return min_threshold <= avg_angle_deg <= max_threshold
+
+
+def touches_open_geometry(loop):
+    """Check if loop touches non-manifold or boundary edges"""
+    for edge in loop:
+        if len(edge.link_faces) < 2:
             return True
-        
-        total_angle = 0.0
-        angle_count = 0
-        
-        for edge in loop:
-            if len(edge.link_faces) == 2:
-                f1, f2 = edge.link_faces
-                try:
-                    angle = f1.normal.angle(f2.normal)
-                    total_angle += angle
-                    angle_count += 1
-                except Exception:
-                    pass
-        
-        if angle_count == 0:
-            return True
-            
-        avg_angle_deg = math.degrees(total_angle / angle_count)
-        return min_threshold <= avg_angle_deg <= max_threshold
-    
-    def touches_open_geometry(self, loop):
-        """Check if loop touches non-manifold or boundary edges"""
-        for edge in loop:
-            # Check if edge is on boundary (only one face)
-            if len(edge.link_faces) < 2:
+        for vert in edge.verts:
+            if not vert.is_manifold:
                 return True
-            
-            # Check vertices for non-manifold geometry
-            for vert in edge.verts:
-                if not vert.is_manifold:
-                    return True
-        
-        return False
+    return False
+
 
 
 class MESH_OT_simple_edge_loop_cleaner(bpy.types.Operator):
@@ -494,8 +482,8 @@ class MESH_OT_simple_edge_loop_cleaner(bpy.types.Operator):
             selected_loop_edges.update(get_edge_loop(e))
         
         # Protect boundary edges and open geometry loops
-        edge_loops = self.group_edges_into_loops(selected_loop_edges)
-        loops_to_dissolve = [loop for loop in edge_loops if not self.touches_open_geometry(loop)]
+        edge_loops = group_edges_into_loops(selected_loop_edges)
+        loops_to_dissolve = [loop for loop in edge_loops if not touches_open_geometry(loop)]
         edges_to_dissolve = [e for loop in loops_to_dissolve for e in loop]
         
         for e in bm.edges:

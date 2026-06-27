@@ -41,6 +41,11 @@ class M8_SceneState(bpy.types.PropertyGroup):
         soft_max=1.0,
         unit='LENGTH'
     )
+    lock_aspect_ratio: bpy.props.BoolProperty(
+        name="等比例调整",
+        description="修改调节盒任意轴尺寸时，其他两轴按相同比例自动同步调整",
+        default=False
+    )
     clean: bpy.props.PointerProperty(type=M8_Clean_Props)
     custom_tools: bpy.props.PointerProperty(type=M8_CustomTools_Props)
     image_save_preset: bpy.props.PointerProperty(type=M8_ImageSavePresetProps)
