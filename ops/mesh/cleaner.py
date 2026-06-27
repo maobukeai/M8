@@ -6,6 +6,19 @@ from mathutils import Vector, Matrix
 import concurrent.futures
 from ...utils.bmesh_selection import get_edge_loop, get_edge_ring, sort_edge_loop, get_checker_deselect
 
+def safe_dissolve_edges(bm, mesh, edges_to_dissolve):
+    """安全地融并边，保护边界与非流形顶点不被删除以防止网格变形塌陷"""
+    if not edges_to_dissolve:
+        return
+    valid_edges = [e for e in edges_to_dissolve if e.is_valid and len(e.link_faces) >= 2]
+    if not valid_edges:
+        return
+    bmesh.ops.dissolve_edges(bm, edges=valid_edges, use_verts=False)
+    verts_to_dissolve = [v for v in bm.verts if v.is_valid and v.is_manifold and len(v.link_edges) == 2]
+    if verts_to_dissolve:
+        bmesh.ops.dissolve_verts(bm, verts=verts_to_dissolve)
+    bmesh.update_edit_mesh(mesh)
+
 # -------------------------------------------------------------------
 # Properties
 # -------------------------------------------------------------------
@@ -274,43 +287,41 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
         edge_loops = self.group_edges_into_loops(selected_edges)
         
         # Filter loops based on settings
-        filtered_loops = []
+        loops_to_dissolve = []
         
         for loop in edge_loops:
-            # Check if loop should be kept
-            keep_loop = True
+            should_dissolve = True
             
-            # Filter flat loops
+            # Filter flat loops (only dissolve if within flat threshold)
             if self.filter_flat_loops:
-                if self.is_flat_loop_range(loop, self.flat_threshold_min, self.flat_threshold_max):
-                    keep_loop = False
+                if not self.is_flat_loop_range(loop, self.flat_threshold_min, self.flat_threshold_max):
+                    should_dissolve = False
             
-            # Filter open geometry (always enabled)
+            # Protect open geometry (never dissolve loops touching open boundaries)
             if self.touches_open_geometry(loop):
-                keep_loop = False
+                should_dissolve = False
             
-            if keep_loop:
-                filtered_loops.append(loop)
+            if should_dissolve:
+                loops_to_dissolve.append(loop)
         
-        # Clear selection and select only filtered loops
-        bpy.ops.mesh.select_all(action='DESELECT')
+        edges_to_dissolve = [e for loop in loops_to_dissolve for e in loop]
         
-        for loop in filtered_loops:
-            for edge in loop:
-                edge.select = True
-        
-        # Update mesh
+        # Clear selection and select only loops to dissolve
+        for e in bm.edges:
+            e.select = False
+        for e in edges_to_dissolve:
+            e.select = True
         bmesh.update_edit_mesh(mesh)
         
         # Auto dissolve if enabled
         if self.auto_dissolve:
-            bpy.ops.mesh.dissolve_edges(use_verts=True)
+            safe_dissolve_edges(bm, mesh, edges_to_dissolve)
         
         # Restore hidden elements
         if self.hide_high_valence:
             self.restore_hidden_elements(hidden_vert_indices, hidden_edge_indices, hidden_face_indices)
         
-        self.report({'INFO'}, f"已从 {len(edge_loops)} 条循环边中选中 {len(filtered_loops)} 条")
+        self.report({'INFO'}, f"已从 {len(edge_loops)} 条循环边中成功清理 {len(loops_to_dissolve)} 条")
         
         return {'FINISHED'}
     
@@ -480,15 +491,20 @@ class MESH_OT_simple_edge_loop_cleaner(bpy.types.Operator):
         for e in ring_edges:
             selected_loop_edges.update(get_edge_loop(e))
         
+        # Protect boundary edges and open geometry loops
+        edge_loops = self.group_edges_into_loops(selected_loop_edges)
+        loops_to_dissolve = [loop for loop in edge_loops if not self.touches_open_geometry(loop)]
+        edges_to_dissolve = [e for loop in loops_to_dissolve for e in loop]
+        
         for e in bm.edges:
             e.select = False
-        for e in selected_loop_edges:
+        for e in edges_to_dissolve:
             e.select = True
         bmesh.update_edit_mesh(mesh)
         
         # Auto dissolve if enabled
         if self.auto_dissolve:
-            bpy.ops.mesh.dissolve_edges(use_verts=True)
+            safe_dissolve_edges(bm, mesh, edges_to_dissolve)
         
         self.report({'INFO'}, "简单边循环清理已完成")
         
