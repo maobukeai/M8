@@ -235,7 +235,7 @@ def draw_restart_blender_top_bar(self, context):
     except KeyError:
         ...
     
-    if getattr(pref, "activate_restart_blender", False) and is_draw:
+    if getattr(pref, "activate_restart_blender", True) and is_draw:
         row = self.layout.row(align=True)
         row.alert = True
         row.operator(

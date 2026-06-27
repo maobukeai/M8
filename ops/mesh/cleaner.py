@@ -35,6 +35,15 @@ def safe_dissolve_edges(bm, mesh, edges_to_dissolve):
         
     bmesh.update_edit_mesh(mesh)
 
+def is_safe_interior_edge(edge):
+    """检查边是否处于纯内部区域，避免融并紧邻开口/边界面的边线导致面塌陷与阴影错乱"""
+    if len(edge.link_faces) != 2:
+        return False
+    for f in edge.link_faces:
+        if any(len(fe.link_faces) < 2 for fe in f.edges):
+            return False
+    return True
+
 # -------------------------------------------------------------------
 # Properties
 # -------------------------------------------------------------------
@@ -320,7 +329,7 @@ class MESH_OT_smart_edge_loop_cleaner(bpy.types.Operator):
             if should_dissolve:
                 loops_to_dissolve.append(loop)
         
-        edges_to_dissolve = [e for loop in loops_to_dissolve for e in loop]
+        edges_to_dissolve = [e for loop in loops_to_dissolve for e in loop if is_safe_interior_edge(e)]
         
         # Clear selection and select only loops to dissolve
         for e in bm.edges:
@@ -484,7 +493,7 @@ class MESH_OT_simple_edge_loop_cleaner(bpy.types.Operator):
         # Protect boundary edges and open geometry loops
         edge_loops = group_edges_into_loops(selected_loop_edges)
         loops_to_dissolve = [loop for loop in edge_loops if not touches_open_geometry(loop)]
-        edges_to_dissolve = [e for loop in loops_to_dissolve for e in loop]
+        edges_to_dissolve = [e for loop in loops_to_dissolve for e in loop if is_safe_interior_edge(e)]
         
         for e in bm.edges:
             e.select = False

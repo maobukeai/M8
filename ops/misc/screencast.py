@@ -904,24 +904,24 @@ def register():
     bpy.utils.register_class(M8_OT_InternalScreencast)
     
     # Auto-start check on registration (startup)
-    # We can't access prefs directly here easily because context might not be ready.
-    # But we can use a timer to check shortly after load.
     def auto_start_screencast():
         try:
-            prefs = bpy.context.preferences.addons[__name__.split('.')[0]].preferences
+            prefs = _get_prefs()
+            if not prefs:
+                return 1.0
             if prefs.screencast_enabled and not M8_OT_InternalScreencast._running:
-                # We need to run it in a window context.
-                # Find a 3D view?
-                # Actually, operator is INVOKE_DEFAULT which might need context.
-                # But we can override.
-                for win in bpy.context.window_manager.windows:
-                    for area in win.screen.areas:
-                        if area.type == 'VIEW_3D':
-                            with bpy.context.temp_override(window=win, area=area):
-                                bpy.ops.m8.internal_screencast('INVOKE_DEFAULT')
-                            return
+                wm = getattr(bpy.context, "window_manager", None)
+                if wm:
+                    for win in wm.windows:
+                        for area in win.screen.areas:
+                            if area.type == 'VIEW_3D':
+                                with bpy.context.temp_override(window=win, area=area):
+                                    bpy.ops.m8.internal_screencast('INVOKE_DEFAULT')
+                                return None
+                    return 1.0
         except Exception:
-            pass
+            return 1.0
+        return None
 
     bpy.app.timers.register(auto_start_screencast, first_interval=1.0)
 

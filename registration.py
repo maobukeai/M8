@@ -95,7 +95,10 @@ from .ops.object.cage_tool import (
     OBJECT_OT_FinishAndClean,
     OBJECT_OT_RestoreFromSnapshot,
     OBJECT_OT_AutoAdjustZ,
-    OBJECT_OT_ClearSnapshot
+    OBJECT_OT_ScaleProportional,
+    OBJECT_OT_ClearSnapshot,
+    register as register_cage_tool,
+    unregister as unregister_cage_tool
 )
 from .ops.scene.utils import SCENE_OT_SwitchUnit, SCENE_OT_ResetSizeToolPadding
 from .ui.panel.main import VIEW3D_PT_SizeAdjustPanel, VIEW3D_PT_SizeToolToolboxPanel
@@ -386,6 +389,7 @@ CLASSES = [
     OBJECT_OT_FinishAndClean,
     OBJECT_OT_RestoreFromSnapshot,
     OBJECT_OT_AutoAdjustZ,
+    OBJECT_OT_ScaleProportional,
     OBJECT_OT_ClearSnapshot,
     SCENE_OT_SwitchUnit,
     SCENE_OT_ResetSizeToolPadding,
@@ -631,6 +635,20 @@ def _startup_apply():
         except Exception:
             pass
 
+        try:
+            if getattr(prefs, "screencast_enabled", False):
+                from .ops.misc.screencast import M8_OT_InternalScreencast
+                if not M8_OT_InternalScreencast._running:
+                    for win in bpy.context.window_manager.windows:
+                        for area in win.screen.areas:
+                            if area.type == 'VIEW_3D':
+                                with bpy.context.temp_override(window=win, area=area):
+                                    bpy.ops.m8.internal_screencast('INVOKE_DEFAULT')
+                                break
+                        if M8_OT_InternalScreencast._running: break
+        except Exception:
+            pass
+
         if keymap_ok and exclusive_ok:
             _startup_done = True  # all good, no need for further full inits
             try:
@@ -756,10 +774,20 @@ def register():
         import traceback
         traceback.print_exc()
 
+    try:
+        register_cage_tool()
+    except Exception:
+        pass
+
 def unregister():
     global _startup_timer_registered
     from .utils.logger import get_logger
     logger = get_logger()
+
+    try:
+        unregister_cage_tool()
+    except Exception:
+        pass
 
     _unregister_startup_timer()
     unregister_keymaps()

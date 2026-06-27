@@ -212,7 +212,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         default=5,
     )
     group_tool_hide_empty: bpy.props.BoolProperty(name="隐藏组空物体", default=False, description="创建组时自动隐藏组父物体")
-    activate_restart_blender: bpy.props.BoolProperty(name="启用重启 Blender 按钮", default=False)
+    activate_restart_blender: bpy.props.BoolProperty(name="启用重启 Blender 按钮", default=True)
 
     active_tab: bpy.props.EnumProperty(
         name="Tab",

@@ -47,9 +47,19 @@ class VIEW3D_PT_SizeAdjustPanel(bpy.types.Panel):
 
         if is_size_cage(obj):
             box = layout.box()
-            box.label(text=_T("调节盒控制中:"), icon='OBJECT_DATA')
+            header = box.row(align=True)
+            header.label(text=_T("调节盒控制中:"), icon='OBJECT_DATA')
+            header.prop(context.scene.m8, "lock_aspect_ratio", text=_T("等比例调整"), toggle=True, icon='LINKED')
+
             box.prop(obj, "dimensions", text="")
-            box.operator("object.auto_adjust_z", icon='CON_SIZELIMIT')
+
+            row = box.row(align=True)
+            op = row.operator("object.scale_proportional", text=_T("同步 X 轴比例"))
+            op.axis = 'X'
+            op = row.operator("object.scale_proportional", text=_T("同步 Y 轴比例"))
+            op.axis = 'Y'
+            op = row.operator("object.scale_proportional", text=_T("同步 Z 轴比例"))
+            op.axis = 'Z'
             layout.separator()
             layout.operator("object.update_size_snapshot", icon='FILE_TICK')
             layout.separator()

@@ -665,6 +665,49 @@ class OBJECT_OT_AutoAdjustZ(bpy.types.Operator):
         self.report({"INFO"}, f"已同步 Z 轴比例（平均缩放 {avg_scale:.3f}）")
         return {'FINISHED'}
 
+class OBJECT_OT_ScaleProportional(bpy.types.Operator):
+    bl_idname = "object.scale_proportional"
+    bl_label = "按比例同步"
+    bl_description = "根据所选基准轴的当前比例，自动同比例缩放其他轴"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    axis: bpy.props.EnumProperty(
+        items=[
+            ('X', "X轴", "以X轴比例同步Y和Z轴"),
+            ('Y', "Y轴", "以Y轴比例同步X和Z轴"),
+            ('Z', "Z轴", "以Z轴比例同步X和Y轴"),
+        ],
+        default='Z'
+    )
+
+    def execute(self, context):
+        cage = context.active_object
+        if not cage or CAGE_ORIG_SIZE_KEY not in cage:
+            self.report({"WARNING"}, "未找到原始尺寸数据")
+            return {'CANCELLED'}
+        orig_x, orig_y, orig_z = cage[CAGE_ORIG_SIZE_KEY]
+        curr_dims = cage.dimensions
+
+        if self.axis == 'X':
+            scale = curr_dims.x / orig_x if orig_x != 0 else 1.0
+            cage.dimensions.y = orig_y * scale
+            cage.dimensions.z = orig_z * scale
+            axis_name = "X"
+        elif self.axis == 'Y':
+            scale = curr_dims.y / orig_y if orig_y != 0 else 1.0
+            cage.dimensions.x = orig_x * scale
+            cage.dimensions.z = orig_z * scale
+            axis_name = "Y"
+        else:
+            scale = curr_dims.z / orig_z if orig_z != 0 else 1.0
+            cage.dimensions.x = orig_x * scale
+            cage.dimensions.y = orig_y * scale
+            axis_name = "Z"
+
+        cage["_last_cage_dims"] = tuple(cage.dimensions)
+        self.report({"INFO"}, f"已按 {axis_name} 轴同步全轴比例（缩放倍率 {scale:.3f}）")
+        return {'FINISHED'}
+
 class OBJECT_OT_ClearSnapshot(bpy.types.Operator):
     bl_idname = "object.clear_size_snapshot"
     bl_label = "清除快照"
@@ -691,3 +734,73 @@ class OBJECT_OT_ClearSnapshot(bpy.types.Operator):
 
         self.report({'INFO'}, f"已清除 {cleared} 个物体的快照")
         return {'FINISHED'}
+
+_is_internal_cage_updating = False
+
+@bpy.app.handlers.persistent
+def cage_depsgraph_update_handler(scene, depsgraph):
+    global _is_internal_cage_updating
+    if _is_internal_cage_updating:
+        return
+
+    m8 = getattr(scene, "m8", None)
+    if not m8 or not getattr(m8, "lock_aspect_ratio", False):
+        return
+
+    try:
+        ctx = bpy.context
+        obj = ctx.active_object
+    except Exception:
+        obj = None
+
+    if not obj or not is_size_cage(obj):
+        return
+
+    curr_dims = Vector(obj.dimensions)
+    last_dims_tuple = obj.get("_last_cage_dims")
+
+    if last_dims_tuple is None:
+        obj["_last_cage_dims"] = tuple(curr_dims)
+        return
+
+    last_dims = Vector(last_dims_tuple)
+
+    dx = abs(curr_dims.x - last_dims.x)
+    dy = abs(curr_dims.y - last_dims.y)
+    dz = abs(curr_dims.z - last_dims.z)
+
+    if dx < 1e-4 and dy < 1e-4 and dz < 1e-4:
+        return
+
+    rx = dx / last_dims.x if last_dims.x > 1e-5 else 0.0
+    ry = dy / last_dims.y if last_dims.y > 1e-5 else 0.0
+    rz = dz / last_dims.z if last_dims.z > 1e-5 else 0.0
+
+    _is_internal_cage_updating = True
+    try:
+        new_dims = Vector(curr_dims)
+        if rx >= ry and rx >= rz and rx > 1e-5:
+            scale = curr_dims.x / last_dims.x if last_dims.x > 1e-5 else 1.0
+            new_dims.y = last_dims.y * scale
+            new_dims.z = last_dims.z * scale
+        elif ry >= rx and ry >= rz and ry > 1e-5:
+            scale = curr_dims.y / last_dims.y if last_dims.y > 1e-5 else 1.0
+            new_dims.x = last_dims.x * scale
+            new_dims.z = last_dims.z * scale
+        elif rz > 1e-5:
+            scale = curr_dims.z / last_dims.z if last_dims.z > 1e-5 else 1.0
+            new_dims.x = last_dims.x * scale
+            new_dims.y = last_dims.y * scale
+
+        obj.dimensions = new_dims
+        obj["_last_cage_dims"] = tuple(new_dims)
+    finally:
+        _is_internal_cage_updating = False
+
+def register():
+    if cage_depsgraph_update_handler not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(cage_depsgraph_update_handler)
+
+def unregister():
+    if cage_depsgraph_update_handler in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(cage_depsgraph_update_handler)
