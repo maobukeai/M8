@@ -2,11 +2,12 @@ import bpy
 from ..ops.mesh.cleaner import M8_Clean_Props
 from ..ops.misc.custom_tools import M8_CustomTools_Props
 from ..ops.file.image_save_preset import M8_ImageSavePresetProps
+from ..utils.i18n import _T
 
 class M8_BakeRenamer_Props(bpy.types.PropertyGroup):
     """Encapsulated state for Baking Renaming tool"""
     language: bpy.props.EnumProperty(
-        items=[('CN', '中文', ''), ('EN', 'English', '')],
+        items=[('CN', _T('中文'), ''), ('EN', 'English', '')],
         default='CN',
         description="Switch Interface Language"
     )
@@ -34,16 +35,16 @@ class M8_BakeRenamer_Props(bpy.types.PropertyGroup):
 class M8_SceneState(bpy.types.PropertyGroup):
     """Encapsulated state for M8 Scene-level properties"""
     size_tool_padding: bpy.props.FloatProperty(
-        name="间距",
-        description="创建调节盒时的外扩间距",
+        name=_T("间距"),
+        description=_T("创建调节盒时的外扩间距"),
         default=0.0,
         min=0.0,
         soft_max=1.0,
         unit='LENGTH'
     )
     lock_aspect_ratio: bpy.props.BoolProperty(
-        name="等比例调整",
-        description="修改调节盒任意轴尺寸时，其他两轴按相同比例自动同步调整",
+        name=_T("等比例调整"),
+        description=_T("修改调节盒任意轴尺寸时，其他两轴按相同比例自动同步调整"),
         default=False
     )
     clean: bpy.props.PointerProperty(type=M8_Clean_Props)

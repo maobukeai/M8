@@ -5,6 +5,7 @@ import bpy
 from mathutils import Vector
 
 from ...utils import get_operator_bl_idname
+from ...utils.i18n import _T
 
 UV_ALIGN_MODE_ENUMS = [
     ("MAX", "Max", "Select Max uv"),
@@ -18,7 +19,7 @@ IDENTIFIER_LIST = [i[0] for i in UV_ALIGN_MODE_ENUMS]
 
 class AlignUV(bpy.types.Operator):
     bl_idname = get_operator_bl_idname("align_uv")
-    bl_label = "对齐 UV"
+    bl_label = _T("对齐 UV")
     bl_options = {"REGISTER", "UNDO"}
 
     align_uv: bpy.props.EnumProperty(items=[
@@ -81,7 +82,7 @@ class AlignUV(bpy.types.Operator):
             pass
         self.init_uv_data(context, bm, layer)
         if not self.loops:
-            self.report({"WARNING"}, "未选中任何 UV")
+            self.report({"WARNING"}, _T("未选中任何 UV"))
             return {"CANCELLED"}
         for loop in self.loops:
             loop[layer].uv = self.mix_uv_co(loop[layer].uv)

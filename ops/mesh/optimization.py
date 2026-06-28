@@ -1,37 +1,39 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 class VIEW3D_MT_M8MeshOptimizationPie(bpy.types.Menu):
-    bl_label = "优化"
+    bl_label = _T("优化")
     bl_idname = "VIEW3D_MT_m8_mesh_optimization_pie"
 
     def draw(self, context):
         pie = self.layout.menu_pie()
 
-        op = pie.operator("m8.mesh_merge_by_distance", text="合并(小)", icon="AUTOMERGE_ON")
+        op = pie.operator("m8.mesh_merge_by_distance", text=_T("合并(小)"), icon="AUTOMERGE_ON")
         op.distance = 0.0001
 
-        pie.operator("m8.mesh_limited_dissolve", text="有限融并", icon="MOD_DECIM")
+        pie.operator("m8.mesh_limited_dissolve", text=_T("有限融并"), icon="MOD_DECIM")
 
-        pie.operator("m8.mesh_delete_loose", text="删除游离", icon="X")
+        pie.operator("m8.mesh_delete_loose", text=_T("删除游离"), icon="X")
 
-        op = pie.operator("m8.mesh_recalc_normals", text="重算法线(外)", icon="NORMALS_FACE")
+        op = pie.operator("m8.mesh_recalc_normals", text=_T("重算法线(外)"), icon="NORMALS_FACE")
         op.inside = False
 
-        pie.operator("mesh.select_non_manifold", text="非流形", icon="SELECT_SET")
+        pie.operator("mesh.select_non_manifold", text=_T("非流形"), icon="SELECT_SET")
 
-        op = pie.operator("m8.mesh_recalc_normals", text="重算法线(内)", icon="NORMALS_FACE")
+        op = pie.operator("m8.mesh_recalc_normals", text=_T("重算法线(内)"), icon="NORMALS_FACE")
         op.inside = True
 
-        pie.operator("mesh.tris_convert_to_quads", text="三角转四边", icon="MOD_TRIANGULATE")
+        pie.operator("mesh.tris_convert_to_quads", text=_T("三角转四边"), icon="MOD_TRIANGULATE")
 
-        op = pie.operator("m8.mesh_merge_by_distance", text="合并(大)", icon="AUTOMERGE_OFF")
+        op = pie.operator("m8.mesh_merge_by_distance", text=_T("合并(大)"), icon="AUTOMERGE_OFF")
         op.distance = 0.001
 
 
 class M8_OT_MeshOptimizationMenu(bpy.types.Operator):
     bl_idname = "m8.mesh_optimization_menu"
-    bl_label = "优化"
+    bl_label = _T("优化")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -45,7 +47,7 @@ class M8_OT_MeshOptimizationMenu(bpy.types.Operator):
 
 class M8_OT_MeshMergeByDistance(bpy.types.Operator):
     bl_idname = "m8.mesh_merge_by_distance"
-    bl_label = "按距离合并"
+    bl_label = _T("按距离合并")
     bl_options = {"REGISTER", "UNDO"}
 
     distance: bpy.props.FloatProperty(name="Distance", default=0.0001, min=0.0, soft_max=0.1, precision=6)
@@ -59,15 +61,15 @@ class M8_OT_MeshMergeByDistance(bpy.types.Operator):
             bpy.ops.mesh.merge_by_distance(distance=self.distance)
         except Exception:
             # Fallback or just fail silently if op is not available (unlikely in 4.4)
-            self.report({"WARNING"}, "按距离合并失败")
+            self.report({"WARNING"}, _T("按距离合并失败"))
             return {"CANCELLED"}
-        self.report({"INFO"}, f"已按距离合并（{self.distance:.6f}）")
+        self.report({"INFO"}, f"{_T('已按距离合并（')}{self.distance:.6f}{_T('）')}")
         return {"FINISHED"}
 
 
 class M8_OT_MeshDeleteLoose(bpy.types.Operator):
     bl_idname = "m8.mesh_delete_loose"
-    bl_label = "删除松散元素"
+    bl_label = _T("删除松散元素")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -84,7 +86,7 @@ class M8_OT_MeshDeleteLoose(bpy.types.Operator):
 
 class M8_OT_MeshRecalcNormals(bpy.types.Operator):
     bl_idname = "m8.mesh_recalc_normals"
-    bl_label = "重计算法线"
+    bl_label = _T("重计算法线")
     bl_options = {"REGISTER", "UNDO"}
 
     inside: bpy.props.BoolProperty(name="Inside", default=False)
@@ -96,16 +98,16 @@ class M8_OT_MeshRecalcNormals(bpy.types.Operator):
     def execute(self, context):
         try:
             bpy.ops.mesh.normals_make_consistent(inside=self.inside)
-            self.report({"INFO"}, f"已重计算法线（{'向内' if self.inside else '向外'}）")
+            self.report({"INFO"}, f"{_T('已重计算法线（')}{(_T('向内') if self.inside else _T('向外'))}{_T('）')}")
             return {"FINISHED"}
         except Exception:
-            self.report({"WARNING"}, "重计算法线失败")
+            self.report({"WARNING"}, _T("重计算法线失败"))
             return {"CANCELLED"}
 
 
 class M8_OT_MeshLimitedDissolve(bpy.types.Operator):
     bl_idname = "m8.mesh_limited_dissolve"
-    bl_label = "有限融并"
+    bl_label = _T("有限融并")
     bl_options = {"REGISTER", "UNDO"}
 
     angle_limit: bpy.props.FloatProperty(name="Angle Limit", default=0.0872665, min=0.0, soft_max=3.14159, subtype="ANGLE")
@@ -117,17 +119,17 @@ class M8_OT_MeshLimitedDissolve(bpy.types.Operator):
     def execute(self, context):
         try:
             bpy.ops.mesh.dissolve_limited(angle_limit=self.angle_limit)
-            self.report({"INFO"}, "已执行有限融并")
+            self.report({"INFO"}, _T("已执行有限融并"))
             return {"FINISHED"}
         except Exception:
-            self.report({"WARNING"}, "有限融并失败")
+            self.report({"WARNING"}, _T("有限融并失败"))
             return {"CANCELLED"}
 
 
 class M8_OT_SmartDissolve(bpy.types.Operator):
     bl_idname = "m8.smart_dissolve"
-    bl_label = "智能融并"
-    bl_description = "根据当前选择模式智能融并点、线或面"
+    bl_label = _T("智能融并")
+    bl_description = _T("根据当前选择模式智能融并点、线或面")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -149,7 +151,7 @@ class M8_OT_SmartDissolve(bpy.types.Operator):
                 # Should not happen in standard edit mode usually
                 return {'CANCELLED'}
         except Exception as e:
-            self.report({'WARNING'}, f"融并失败: {e}")
+            self.report({'WARNING'}, f"{_T('融并失败')}: {e}")
             return {'CANCELLED'}
             
         return {'FINISHED'}

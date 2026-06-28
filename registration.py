@@ -725,6 +725,11 @@ def register():
         mp7_translate.register()
     except Exception as e:
         logger.error(f"Failed to register mp7_translate: {e}", exc_info=True)
+    try:
+        from .translations import register_translations
+        register_translations()
+    except Exception as e:
+        logger.error(f"Failed to register translations: {e}", exc_info=True)
     register_keymaps()
     try:
         if prefs and getattr(prefs, "activate_subdivision_shortcuts", False):
@@ -807,6 +812,11 @@ def unregister():
         mp7_translate.unregister()
     except Exception as e:
         logger.error(f"Failed to unregister mp7_translate: {e}", exc_info=True)
+    try:
+        from .translations import unregister_translations
+        unregister_translations()
+    except Exception as e:
+        logger.error(f"Failed to unregister translations: {e}", exc_info=True)
     try:
         mp7_icons.unregister()
     except Exception as e:

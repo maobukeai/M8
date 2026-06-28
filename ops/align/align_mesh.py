@@ -6,6 +6,7 @@ from mathutils import Vector
 from .mesh_ways.bmesh_measure import BmeshMeasure
 from .mesh_ways.operator_property import OperatorProperty
 from ...utils import get_operator_bl_idname
+from ...utils.i18n import _T
 from ...utils.items import AXIS
 from ...utils.translate import translate_lines_text
 
@@ -38,7 +39,7 @@ class AlignMesh(
     UI
 ):
     bl_idname = get_operator_bl_idname("align_mesh")
-    bl_label = "对齐网格"
+    bl_label = _T("对齐网格")
     bl_options = {"REGISTER", "UNDO"}
     measure: BmeshMeasure
 

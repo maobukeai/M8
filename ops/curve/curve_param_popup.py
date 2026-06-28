@@ -1,9 +1,10 @@
 import bpy
+from ...utils.i18n import _T
 
 
 class M8_OT_CurveParamPopup(bpy.types.Operator):
     bl_idname = "m8.curve_param_popup"
-    bl_label = "曲线参数"
+    bl_label = _T("曲线参数")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -35,7 +36,7 @@ class M8_OT_CurveParamPopup(bpy.types.Operator):
             box.prop(data, "use_fill_caps")
 
         box = layout.box()
-        box.label(text="挤出/倒角", icon="MOD_SOLIDIFY")
+        box.label(text=_T("挤出/倒角"), icon="MOD_SOLIDIFY")
         box.use_property_split = True
         box.use_property_decorate = False
 

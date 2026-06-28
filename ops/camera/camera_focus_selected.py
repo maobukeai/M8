@@ -1,10 +1,12 @@
 import bpy
 from mathutils import Vector
 
+from ...utils.i18n import _T
+
 
 class M8_OT_CameraFocusSelected(bpy.types.Operator):
     bl_idname = "m8.camera_focus_selected"
-    bl_label = "对焦到选中"
+    bl_label = _T("对焦到选中")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -31,7 +33,7 @@ class M8_OT_CameraFocusSelected(bpy.types.Operator):
             cam_obj = context.scene.camera
             
         if not cam_obj or cam_obj.type != 'CAMERA':
-            self.report({"ERROR"}, "未找到相机对象")
+            self.report({"ERROR"}, _T("未找到相机对象"))
             return {"CANCELLED"}
 
         # 2. Find Target Object
@@ -50,7 +52,7 @@ class M8_OT_CameraFocusSelected(bpy.types.Operator):
                     break
         
         if not target:
-            self.report({"WARNING"}, "未找到目标物体，请选中除摄像机外的物体")
+            self.report({"WARNING"}, _T("未找到目标物体，请选中除摄像机外的物体"))
             return {"CANCELLED"}
 
         # 3. Perform Focus
@@ -78,10 +80,10 @@ class M8_OT_CameraFocusSelected(bpy.types.Operator):
             # Set focus distance (ensure positive)
             cam.dof.focus_distance = abs(dist)
             
-            self.report({"INFO"}, f"已对焦到: {target.name} (距离: {abs(dist):.2f}m)")
+            self.report({"INFO"}, f"{_T('已对焦到')}: {target.name} ({_T('距离')}: {abs(dist):.2f}m)")
             
         except Exception as e:
-            self.report({"ERROR"}, f"对焦失败: {str(e)}")
+            self.report({"ERROR"}, f"{_T('对焦失败')}: {str(e)}")
             import traceback
             traceback.print_exc()
             return {"CANCELLED"}

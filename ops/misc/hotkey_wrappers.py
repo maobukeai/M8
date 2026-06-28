@@ -1,5 +1,6 @@
 import bpy
 from ...utils.logger import get_logger
+from ...utils.i18n import _T
 
 logger = get_logger()
 
@@ -16,7 +17,7 @@ class M8_OT_SmartPassThroughWrapper(bpy.types.Operator):
     other addons (like HardOps/Boxcutter) to handle the event.
     """
     bl_idname = "m8.smart_passthrough_wrapper"
-    bl_label = "M8 智能快捷键包装器"
+    bl_label = _T("M8 智能快捷键包装器")
     bl_options = {'INTERNAL'}
 
     # Properties to tell the wrapper what menu or operator to call if successful

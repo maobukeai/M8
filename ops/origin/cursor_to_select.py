@@ -5,11 +5,12 @@ from .public_origin import PublicOrigin
 from ...hub import hub_matrix
 from ...utils import get_operator_bl_idname
 from ...utils.math import from_edit_bone_get_matrix, from_curve_get_matrix, from_pose_bone_get_matrix
+from ...utils.i18n import _T
 
 
 class CursorToSelect(PublicOrigin):
     bl_idname = get_operator_bl_idname("cursor_to_select")
-    bl_label = "到选择项"
+    bl_label = _T("到选择项")
     bl_options = {"REGISTER", "UNDO"}
     is_remember_matrix = False
 
@@ -17,7 +18,7 @@ class CursorToSelect(PublicOrigin):
         tm = self.synthetics_matrix(context.scene.cursor.matrix, self.to_matrix(context))  # 最终变换的
         hub_matrix("CURSOR_TO_SELECT", [tm, ])
         context.scene.cursor.matrix = tm
-        self.report({"INFO"}, "已将游标移动到选择项")
+        self.report({"INFO"}, _T("已将游标移动到选择项"))
         return {"FINISHED"}
 
     @classmethod

@@ -2,10 +2,12 @@ from math import radians
 
 import bpy
 
+from ...utils.i18n import _T
+
 
 class M8_OT_AutoSmooth(bpy.types.Operator):
     bl_idname = "m8.auto_smooth"
-    bl_label = "自动平滑"
+    bl_label = _T("自动平滑")
     bl_options = {"REGISTER", "UNDO"}
 
     angle: bpy.props.IntProperty(
@@ -90,9 +92,9 @@ class M8_OT_AutoSmooth(bpy.types.Operator):
 
         count = sum(1 for o in selected if o.type == "MESH")
         if disable_auto_smooth:
-            self.report({"INFO"}, f"已对 {count} 个物体关闭自动平滑")
+            self.report({"INFO"}, f"{_T('已对 ')}{count}{_T(' 个物体关闭自动平滑')}")
         else:
-            self.report({"INFO"}, f"已对 {count} 个物体应用自动平滑（{self.angle}°）")
+            self.report({"INFO"}, f"{_T('已对 ')}{count}{_T(' 个物体应用自动平滑（')}{self.angle}°{_T('）')}")
         return {"FINISHED"}
 
 
@@ -102,7 +104,7 @@ def draw_auto_smooth(context: bpy.types.Context, layout: bpy.types.UILayout):
     column.scale_y = 1.2
 
     row = column.split(factor=0.75, align=True)
-    row.operator(M8_OT_AutoSmooth.bl_idname, text="自动平滑(60°)").angle = 60
+    row.operator(M8_OT_AutoSmooth.bl_idname, text=_T("自动平滑(60°)")).angle = 60
     row.operator(M8_OT_AutoSmooth.bl_idname, text="", icon="PANEL_CLOSE").angle = 0
 
     row = column.row(align=True)

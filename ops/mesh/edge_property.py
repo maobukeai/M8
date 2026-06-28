@@ -1,6 +1,8 @@
 import bmesh
 import bpy
 
+from ...utils.i18n import _T
+
 
 def _iter_bm_selected_verts(context):
     for obj in context.objects_in_mode:
@@ -24,7 +26,7 @@ def _iter_bm_selected_edges(context):
 
 class M8_OT_VertCrease(bpy.types.Operator):
     bl_idname = "m8.vert_crease"
-    bl_label = "顶点折痕"
+    bl_label = _T("顶点折痕")
     bl_options = {"REGISTER", "UNDO"}
 
     value: bpy.props.FloatProperty(name="Value")
@@ -38,13 +40,13 @@ class M8_OT_VertCrease(bpy.types.Operator):
     def execute(self, context):
         bpy.ops.transform.vert_crease(value=-1)
         bpy.ops.transform.vert_crease(value=self.value)
-        self.report({"INFO"}, f"已设置顶点折痕为 {self.value:.2f}")
+        self.report({"INFO"}, f"{_T('已设置顶点折痕为')} {self.value:.2f}")
         return {"FINISHED"}
 
 
 class M8_OT_VertBevelWeight(bpy.types.Operator):
     bl_idname = "m8.vert_bevel_weight"
-    bl_label = "顶点倒角权重"
+    bl_label = _T("顶点倒角权重")
     bl_options = {"REGISTER", "UNDO"}
 
     value: bpy.props.FloatProperty(name="Value")
@@ -67,13 +69,13 @@ class M8_OT_VertBevelWeight(bpy.types.Operator):
                 if vert.select:
                     vert[layer] = self.value
             bmesh.update_edit_mesh(obj.data)
-        self.report({"INFO"}, f"已设置顶点倒角权重为 {self.value:.2f}")
+        self.report({"INFO"}, f"{_T('已设置顶点倒角权重为')} {self.value:.2f}")
         return {"FINISHED"}
 
 
 class M8_OT_EdgeCrease(bpy.types.Operator):
     bl_idname = "m8.edge_crease"
-    bl_label = "边折痕"
+    bl_label = _T("边折痕")
     bl_options = {"REGISTER", "UNDO"}
 
     value: bpy.props.FloatProperty(name="Value")
@@ -87,13 +89,13 @@ class M8_OT_EdgeCrease(bpy.types.Operator):
     def execute(self, context):
         bpy.ops.transform.edge_crease(value=-1)
         bpy.ops.transform.edge_crease(value=self.value)
-        self.report({"INFO"}, f"已设置边折痕为 {self.value:.2f}")
+        self.report({"INFO"}, f"{_T('已设置边折痕为')} {self.value:.2f}")
         return {"FINISHED"}
 
 
 class M8_OT_EdgeBevelWeight(bpy.types.Operator):
     bl_idname = "m8.edge_bevel_weight"
-    bl_label = "边倒角权重"
+    bl_label = _T("边倒角权重")
     bl_options = {"REGISTER", "UNDO"}
 
     value: bpy.props.FloatProperty(name="Value")
@@ -107,13 +109,13 @@ class M8_OT_EdgeBevelWeight(bpy.types.Operator):
     def execute(self, context):
         bpy.ops.transform.edge_bevelweight(value=-1)
         bpy.ops.transform.edge_bevelweight(value=self.value)
-        self.report({"INFO"}, f"已设置边倒角权重为 {self.value:.2f}")
+        self.report({"INFO"}, f"{_T('已设置边倒角权重为')} {self.value:.2f}")
         return {"FINISHED"}
 
 
 class M8_OT_ClearAllEdgeProperty(bpy.types.Operator):
     bl_idname = "m8.clear_all_edge_property"
-    bl_label = "清除所有边属性"
+    bl_label = _T("清除所有边属性")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -128,6 +130,6 @@ class M8_OT_ClearAllEdgeProperty(bpy.types.Operator):
         bpy.ops.mesh.mark_seam(clear=True)
         bpy.ops.mesh.mark_sharp(clear=True, use_verts=False)
         bpy.ops.mesh.mark_freestyle_edge(clear=True)
-        self.report({"INFO"}, "已清除所有边属性")
+        self.report({"INFO"}, _T("已清除所有边属性"))
         return {"FINISHED"}
 

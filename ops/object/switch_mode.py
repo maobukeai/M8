@@ -2,6 +2,7 @@ import time
 import bpy
 
 from ...utils import ensure_object_mode
+from ...utils.i18n import _T
 
 edit_mode_list = {
     "SURFACE",
@@ -35,7 +36,7 @@ def check_image_editor(context) -> bool:
 
 class M8_OT_SwitchBoneMode(bpy.types.Operator):
     bl_idname = "m8.switch_bone_mode"
-    bl_label = "切换骨骼模式"
+    bl_label = _T("切换骨骼模式")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -49,14 +50,14 @@ class M8_OT_SwitchBoneMode(bpy.types.Operator):
         obj = context.object
         if obj and obj.mode == "POSE" and obj.data.pose_position == "REST":
             obj.data.pose_position = "POSE"
-            self.report({"INFO"}, "已切换为姿态位置")
+            self.report({"INFO"}, _T("已切换为姿态位置"))
         return {"FINISHED"}
 
 
 class OBJECT_OT_SwitchMode(bpy.types.Operator):
     bl_idname = "object.switch_mode"
-    bl_label = "切换模式"
-    bl_description = "根据活动物体和当前模式显示对应菜单或进入编辑模式"
+    bl_label = _T("切换模式")
+    bl_description = _T("根据活动物体和当前模式显示对应菜单或进入编辑模式")
     bl_options = {"REGISTER", "UNDO"}
 
     _timer = None

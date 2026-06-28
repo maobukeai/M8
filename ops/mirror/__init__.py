@@ -11,6 +11,7 @@ from .mesh import MirrorMesh
 from .armature import MirrorArmature
 from .status_bar import StatusBar
 from ...utils import get_operator_bl_idname, get_pref, get_pref_value
+from ...utils.i18n import _T
 from ...utils.items import ENUM_AXIS, AXIS
 
 
@@ -70,7 +71,7 @@ class Mirror(
     MirrorArmature,
 ):
     bl_idname = get_operator_bl_idname("mirror")
-    bl_label = "M8 镜像"
+    bl_label = _T("M8 镜像")
     bl_options = {"REGISTER", "UNDO", "UNDO_GROUPED"}
 
     mirror_mode = None

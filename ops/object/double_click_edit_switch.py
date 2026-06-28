@@ -4,11 +4,12 @@ from mathutils import Vector
 
 from ...utils.ray_cast import mouse_2d_ray_cast
 from ...utils.bmesh_selection import get_edge_loop
+from ...utils.i18n import _T
 
 
 class M8_OT_DoubleClickEditSwitch(bpy.types.Operator):
     bl_idname = "m8.double_click_edit_switch"
-    bl_label = "双击编辑切换"
+    bl_label = _T("双击编辑切换")
     bl_options = {"REGISTER", "UNDO"}
 
     def _get_pref(self):

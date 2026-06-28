@@ -1,5 +1,6 @@
 import bpy
 from bpy.app.translations import pgettext_iface as _p
+from ...utils.i18n import _T
 
 
 def _tr(text):
@@ -56,8 +57,8 @@ def _wave_frame_values(mod):
 
 class M8_OT_WaveSetLoopAnimation(bpy.types.Operator):
     bl_idname = "m8.wave_set_loop_animation"
-    bl_label = "设置循环动画"
-    bl_description = "设置循环动画"
+    bl_label = _T("设置循环动画")
+    bl_description = _T("设置循环动画")
     bl_options = {"REGISTER", "UNDO"}
 
     modifier_name: bpy.props.StringProperty(options={"HIDDEN"})
@@ -91,14 +92,14 @@ class M8_OT_WaveSetLoopAnimation(bpy.types.Operator):
         if hasattr(mod, "use_cyclic"):
             mod.use_cyclic = True
 
-        self.report({"INFO"}, f"已设置循环动画（{frame_start}-{frame_end}，共 {frame_count} 帧）")
+        self.report({"INFO"}, f"{_T('已设置循环动画（')}{frame_start}-{frame_end}{_T('，共 ')}{frame_count}{_T(' 帧）')}")
         return {"FINISHED"}
 
 
 class M8_OT_WaveQuickSet(bpy.types.Operator):
     bl_idname = "m8.wave_quick_set"
-    bl_label = "波形修改"
-    bl_description = "调整波形修改器"
+    bl_label = _T("波形修改")
+    bl_description = _T("调整波形修改器")
     bl_options = {"REGISTER", "UNDO"}
 
     action: bpy.props.EnumProperty(
@@ -132,7 +133,7 @@ class M8_OT_WaveQuickSet(bpy.types.Operator):
             speed = getattr(mod, "speed", 0.25)
             speed = abs(speed) if abs(speed) > 0.00001 else 0.25
             mod.speed = speed if self.action == "DIFFUSION" else -speed
-            self.report({"INFO"}, f"已{'设置扩散' if self.action == 'DIFFUSION' else '设置收缩'}（速度 {mod.speed:.2f}）")
+            self.report({"INFO"}, f"{_T('已设置扩散') if self.action == 'DIFFUSION' else _T('已设置收缩')}{_T('（速度 ')}{mod.speed:.2f}{_T('）')}")
             return {"FINISHED"}
 
         current = int(getattr(context.scene, "frame_current", 1))
@@ -140,14 +141,14 @@ class M8_OT_WaveQuickSet(bpy.types.Operator):
 
         if self.action == "FRAME_ZERO" and hasattr(mod, "time_offset"):
             mod.time_offset = current
-            self.report({"INFO"}, f"已设置起始帧为 {current}")
+            self.report({"INFO"}, f"{_T('已设置起始帧为')} {current}")
         elif self.action == "FRAME_STOP" and hasattr(mod, "lifetime"):
             mod.lifetime = max(1, current - offset)
-            self.report({"INFO"}, f"已设置停止帧为 {current}（持续 {mod.lifetime} 帧）")
+            self.report({"INFO"}, f"{_T('已设置停止帧为')} {current}{_T('（持续 ')}{mod.lifetime}{_T(' 帧）')}")
         elif self.action == "FULL_STOP" and hasattr(mod, "damping_time"):
             lifetime = int(getattr(mod, "lifetime", 0))
             mod.damping_time = max(0, current - offset - lifetime)
-            self.report({"INFO"}, f"已设置完全停止（阻尼 {mod.damping_time}）")
+            self.report({"INFO"}, f"{_T('已设置完全停止（阻尼 ')}{mod.damping_time}{_T('）')}")
         else:
             return {"CANCELLED"}
 
@@ -196,9 +197,9 @@ class VIEW3D_PT_M8_WaveHelper(bpy.types.Panel):
         box.label(text=_tr("Motion"), icon="MOD_WAVE")
         col = box.column(align=True)
         _prop(col, mod, "height")
-        _prop(col, mod, "width", text="宽度")
-        _prop(col, mod, "narrowness", text="波间距")
-        _prop(col, mod, "speed", text="频率")
+        _prop(col, mod, "width", text=_T("宽度"))
+        _prop(col, mod, "narrowness", text=_T("波间距"))
+        _prop(col, mod, "speed", text=_T("频率"))
 
         row = box.row(align=True)
         row.use_property_split = False
@@ -225,7 +226,7 @@ class VIEW3D_PT_M8_WaveHelper(bpy.types.Panel):
         box.label(text=_tr("Falloff"), icon="SMOOTHCURVE")
         col = box.column(align=True)
         _prop(col, mod, "falloff_radius")
-        _prop(col, mod, "vertex_group", text="顶点组")
+        _prop(col, mod, "vertex_group", text=_T("顶点组"))
         if hasattr(mod, "use_normal"):
             col.prop(mod, "use_normal", text=_tr("Along Normals"))
 

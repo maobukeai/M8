@@ -1,5 +1,7 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 def _get_addon_prefs(context):
     root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
@@ -18,7 +20,7 @@ def _status_icon(status):
 
 
 class VIEW3D_PT_M8_Diagnostics(bpy.types.Panel):
-    bl_label = "M8 诊断"
+    bl_label = _T("M8 诊断")
     bl_idname = "VIEW3D_PT_m8_diagnostics"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
@@ -36,14 +38,14 @@ class VIEW3D_PT_M8_Diagnostics(bpy.types.Panel):
         wm_state = getattr(context.window_manager, "m8", None)
 
         row = layout.row(align=True)
-        row.operator("m8.run_health_check", text="运行", icon="FILE_REFRESH")
-        op = row.operator("m8.run_full_system_check", text="完整")
+        row.operator("m8.run_health_check", text=_T("运行"), icon="FILE_REFRESH")
+        op = row.operator("m8.run_full_system_check", text=_T("完整"))
         op.scene_scope = "VISIBLE"
         row.operator("m8.copy_health_report", text="", icon="COPYDOWN")
         row.operator("m8.copy_full_system_report", text="", icon="COPY_ID")
 
         if not wm_state:
-            layout.label(text="M8 状态未就绪", icon="ERROR")
+            layout.label(text=_T("M8 状态未就绪"), icon="ERROR")
             return
 
         status = getattr(wm_state, "health_status", "UNKNOWN")

@@ -7,6 +7,7 @@ import time
 
 import bpy
 
+from ...utils.i18n import _T
 from ...utils.logger import get_logger
 
 
@@ -398,12 +399,12 @@ def collect_full_system_report(context, scene_scope="VISIBLE", high_poly_thresho
 
 class M8_OT_RunHealthCheck(bpy.types.Operator):
     bl_idname = "m8.run_health_check"
-    bl_label = "运行 M8 健康检查"
-    bl_description = "检查 M8 注册、快捷键、状态属性、图标及失效路径"
+    bl_label = _T("运行 M8 健康检查")
+    bl_description = _T("检查 M8 注册、快捷键、状态属性、图标及失效路径")
     bl_options = {"REGISTER"}
 
     copy_to_clipboard: bpy.props.BoolProperty(
-        name="复制报告",
+        name=_T("复制报告"),
         default=False,
         options={"SKIP_SAVE"},
     )
@@ -419,14 +420,14 @@ class M8_OT_RunHealthCheck(bpy.types.Operator):
             return {"FINISHED"}
         except Exception as exc:
             logger.error(f"M8 health check failed: {exc}", exc_info=True)
-            self.report({"ERROR"}, f"M8 健康检查失败：{exc}")
+            self.report({"ERROR"}, f"{_T('M8 健康检查失败：')}{exc}")
             return {"CANCELLED"}
 
 
 class M8_OT_CopyHealthReport(bpy.types.Operator):
     bl_idname = "m8.copy_health_report"
-    bl_label = "复制 M8 健康报告"
-    bl_description = "将最新的 M8 健康报告复制到剪贴板"
+    bl_label = _T("复制 M8 健康报告")
+    bl_description = _T("将最新的 M8 健康报告复制到剪贴板")
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -437,35 +438,35 @@ class M8_OT_CopyHealthReport(bpy.types.Operator):
             store_health_report(context, report)
             details = report["details"]
         context.window_manager.clipboard = details
-        self.report({"INFO"}, "已复制 M8 健康报告")
+        self.report({"INFO"}, _T("已复制 M8 健康报告"))
         return {"FINISHED"}
 
 
 class M8_OT_RunFullSystemCheck(bpy.types.Operator):
     bl_idname = "m8.run_full_system_check"
-    bl_label = "运行 M8 全系统检查"
-    bl_description = "一次性运行 M8 健康、场景审计及备份清单检查"
+    bl_label = _T("运行 M8 全系统检查")
+    bl_description = _T("一次性运行 M8 健康、场景审计及备份清单检查")
     bl_options = {"REGISTER"}
 
     scene_scope: bpy.props.EnumProperty(
-        name="场景范围",
+        name=_T("场景范围"),
         items=[
-            ("SELECTED", "已选中", "审计选中的网格物体"),
-            ("VISIBLE", "可见", "审计可见的网格物体"),
-            ("ALL", "场景", "审计场景中所有网格物体"),
+            ("SELECTED", _T("已选中"), _T("审计选中的网格物体")),
+            ("VISIBLE", _T("可见"), _T("审计可见的网格物体")),
+            ("ALL", _T("场景"), _T("审计场景中所有网格物体")),
         ],
         default="VISIBLE",
         options={"SKIP_SAVE"},
     )
     high_poly_threshold: bpy.props.IntProperty(
-        name="高面数阈值",
+        name=_T("高面数阈值"),
         default=100000,
         min=100,
         soft_max=1000000,
         options={"SKIP_SAVE"},
     )
     copy_to_clipboard: bpy.props.BoolProperty(
-        name="复制报告",
+        name=_T("复制报告"),
         default=False,
         options={"SKIP_SAVE"},
     )
@@ -486,14 +487,14 @@ class M8_OT_RunFullSystemCheck(bpy.types.Operator):
             return {"FINISHED"}
         except Exception as exc:
             logger.error(f"M8 full system check failed: {exc}", exc_info=True)
-            self.report({"ERROR"}, f"M8 全系统检查失败：{exc}")
+            self.report({"ERROR"}, f"{_T('M8 全系统检查失败：')}{exc}")
             return {"CANCELLED"}
 
 
 class M8_OT_CopyFullSystemReport(bpy.types.Operator):
     bl_idname = "m8.copy_full_system_report"
-    bl_label = "复制 M8 全系统报告"
-    bl_description = "将最新的 M8 全系统报告复制到剪贴板"
+    bl_label = _T("复制 M8 全系统报告")
+    bl_description = _T("将最新的 M8 全系统报告复制到剪贴板")
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -505,5 +506,5 @@ class M8_OT_CopyFullSystemReport(bpy.types.Operator):
             store_full_system_report(context, report)
             details = report["details"]
         context.window_manager.clipboard = details
-        self.report({"INFO"}, "已复制 M8 全系统报告")
+        self.report({"INFO"}, _T("已复制 M8 全系统报告"))
         return {"FINISHED"}

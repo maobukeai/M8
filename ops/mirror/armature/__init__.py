@@ -3,6 +3,7 @@ from mathutils import Vector, Matrix
 
 from ....hub import Hub3DItem, hub_3d, clear_hub
 from ....utils.items import AXIS
+from ....utils.i18n import _T
 
 
 class MirrorArmature:
@@ -92,7 +93,7 @@ class MirrorArmature:
 
         opt = col.box()
         opt.use_property_split = False
-        opt.prop(self, "is_negative_axis", text="反向")
+        opt.prop(self, "is_negative_axis", text=_T("反向"))
 
     def update_armature_hub(self, context):
         ...
@@ -140,7 +141,7 @@ class MirrorArmature:
                 except Exception as e:
                     self.report({"WARNING"}, str(e))
             else:
-                self.report({"INFO"}, "未找到可镜像的骨骼")
+                self.report({"INFO"}, _T("未找到可镜像的骨骼"))
 
             return {"FINISHED"}
 
@@ -199,7 +200,7 @@ class MirrorArmature:
             name_map[eb.name] = tb.name
 
         if not pairs:
-            self.report({"INFO"}, "未找到可镜像的骨骼")
+            self.report({"INFO"}, _T("未找到可镜像的骨骼"))
             return {"FINISHED"}
 
         for tb, h, t, src, is_new in pairs:

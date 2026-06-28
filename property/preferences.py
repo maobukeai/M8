@@ -3,6 +3,22 @@ from ..utils.logger import get_logger
 from ..utils.i18n import _T
 from ..utils.adapter import get_adapter_blender_icon as _ICON
 
+
+def _on_language_changed():
+    """Re-register translations when the addon language preference changes."""
+    try:
+        from ..translations import register_translations
+        register_translations()
+    except Exception:
+        pass
+    try:
+        from ..src import translate as mp7_translate
+        mp7_translate.unregister()
+        mp7_translate.register()
+    except Exception:
+        pass
+
+
 from .keymap_constants import *
 from .keymap_helpers import (
     _get_addon_prefs,
@@ -16,9 +32,9 @@ from .keymap_helpers import (
     _clean_up_affect_items,
     _switch_mode_tab_behavior_items,
     _screencast_align_items,
-    _screencast_style_items,
     _screencast_operator_label_mode_items,
     _screencast_stack_direction_items,
+    _screencast_mouse_display_items,
     _addon_language_items,
     _smart_edge_mode_items,
     _group_tool_empty_type_items,
@@ -111,8 +127,8 @@ def _on_rename_update(self, context):
 
 class M8_OT_Dummy(bpy.types.Operator):
     bl_idname = "m8.dummy"
-    bl_label = "未开发"
-    bl_description = "该功能暂时未开发"
+    bl_label = _T("未开发")
+    bl_description = _T("该功能暂时未开发")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
@@ -122,97 +138,98 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     bl_idname = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
 
     addon_language: bpy.props.EnumProperty(
-        name="界面语言",
+        name=_T("界面语言"),
         items=_addon_language_items,
         default=0,
+        update=lambda self, context: _on_language_changed(),
     )
 
     auto_error_report: bpy.props.BoolProperty(
-        name="自动发送错误报告",
-        description="当插件运行出错时自动上报Traceback到服务器以利于后续修复",
+        name=_T("自动发送错误报告"),
+        description=_T("当插件运行出错时自动上报Traceback到服务器以利于后续修复"),
         default=True
     )
 
-    backup_suffix: bpy.props.StringProperty(name="备用盒后缀", default="_Backup")
-    backup_collection_name: bpy.props.StringProperty(name="备用盒集合名", default="SizeTool_Backups")
-    default_padding: bpy.props.FloatProperty(name="默认 Padding", default=0.0, min=0.0, unit='LENGTH')
-    archive_default_bake: bpy.props.BoolProperty(name="备用盒默认烘焙", default=False)
-    enable_transform_pie: bpy.props.BoolProperty(name="启用变换辅助饼菜单", default=True, update=_on_transform_update)
-    activate_switch_mode: bpy.props.BoolProperty(name="启用模式切换(Tab)", default=True, update=_on_switch_mode_update)
-    activate_quick_delete: bpy.props.BoolProperty(name="快速删除(无确认)", default=True, update=_on_quick_delete_update)
-    activate_delete_pie: bpy.props.BoolProperty(name="启用删除饼菜单(Edit)", default=True, update=_on_delete_pie_update)
-    activate_align_pie: bpy.props.BoolProperty(name="启用对齐饼菜单 (Alt+A)", default=True, update=_on_align_update)
-    activate_shading_pie: bpy.props.BoolProperty(name="启用着色饼菜单 (Z)", default=True, update=_on_shading_update)
-    activate_save_pie: bpy.props.BoolProperty(name="启用保存饼菜单 (Ctrl+S)", default=True, update=_on_save_update)
-    activate_advanced_rename: bpy.props.BoolProperty(name="启用高级重命名 (F2)", default=True, update=_on_rename_update)
-    activate_mirror: bpy.props.BoolProperty(name="启用镜像 (Shift+Alt+X)", default=True, update=_on_mirror_update)
-    activate_group_tool: bpy.props.BoolProperty(name="启用打组 (Ctrl+G)", default=True, update=_on_group_tool_update)
-    activate_smart_pie: bpy.props.BoolProperty(name="启用智能饼菜单 (1)", default=True, update=_on_smart_pie_update)
+    backup_suffix: bpy.props.StringProperty(name=_T("备用盒后缀"), default="_Backup")
+    backup_collection_name: bpy.props.StringProperty(name=_T("备用盒集合名"), default="SizeTool_Backups")
+    default_padding: bpy.props.FloatProperty(name=_T("默认 Padding"), default=0.0, min=0.0, unit='LENGTH')
+    archive_default_bake: bpy.props.BoolProperty(name=_T("备用盒默认烘焙"), default=False)
+    enable_transform_pie: bpy.props.BoolProperty(name=_T("启用变换辅助饼菜单"), default=True, update=_on_transform_update)
+    activate_switch_mode: bpy.props.BoolProperty(name=_T("启用模式切换(Tab)"), default=True, update=_on_switch_mode_update)
+    activate_quick_delete: bpy.props.BoolProperty(name=_T("快速删除(无确认)"), default=True, update=_on_quick_delete_update)
+    activate_delete_pie: bpy.props.BoolProperty(name=_T("启用删除饼菜单(Edit)"), default=True, update=_on_delete_pie_update)
+    activate_align_pie: bpy.props.BoolProperty(name=_T("启用对齐饼菜单 (Alt+A)"), default=True, update=_on_align_update)
+    activate_shading_pie: bpy.props.BoolProperty(name=_T("启用着色饼菜单 (Z)"), default=True, update=_on_shading_update)
+    activate_save_pie: bpy.props.BoolProperty(name=_T("启用保存饼菜单 (Ctrl+S)"), default=True, update=_on_save_update)
+    activate_advanced_rename: bpy.props.BoolProperty(name=_T("启用高级重命名 (F2)"), default=True, update=_on_rename_update)
+    activate_mirror: bpy.props.BoolProperty(name=_T("启用镜像 (Shift+Alt+X)"), default=True, update=_on_mirror_update)
+    activate_group_tool: bpy.props.BoolProperty(name=_T("启用打组 (Ctrl+G)"), default=True, update=_on_group_tool_update)
+    activate_smart_pie: bpy.props.BoolProperty(name=_T("启用智能饼菜单 (1)"), default=True, update=_on_smart_pie_update)
 
-    activate_switch_editor_pie: bpy.props.BoolProperty(name="启用切换窗口饼菜单 (F12)", default=True, update=_on_switch_editor_update)
-    ui_show_switch_editor_keymap: bpy.props.BoolProperty(name="显示快捷键详情(切换窗口)", default=False)
-    activate_subdivision_shortcuts: bpy.props.BoolProperty(name="启用细分快捷键 (Ctrl+0..4)", default=True, update=_on_subdivision_update)
-    ui_show_subdivision_keymap: bpy.props.BoolProperty(name="显示快捷键详情(细分级别)", default=False)
-    switch_editor_pie_left: bpy.props.EnumProperty(name="左", items=_switch_editor_items, default=4)
-    switch_editor_pie_right: bpy.props.EnumProperty(name="右", items=_switch_editor_items, default=24)
-    switch_editor_pie_bottom: bpy.props.EnumProperty(name="下", items=_switch_editor_items, default=3)
-    switch_editor_pie_top: bpy.props.EnumProperty(name="上", items=_switch_editor_items, default=1)
-    switch_editor_pie_top_left: bpy.props.EnumProperty(name="左上", items=_switch_editor_items, default=3)
-    switch_editor_pie_top_right: bpy.props.EnumProperty(name="右上", items=_switch_editor_items, default=7)
-    switch_editor_pie_bottom_left: bpy.props.EnumProperty(name="左下", items=_switch_editor_items, default=6)
-    switch_editor_pie_bottom_right: bpy.props.EnumProperty(name="右下", items=_switch_editor_items, default=13)
+    activate_switch_editor_pie: bpy.props.BoolProperty(name=_T("启用切换窗口饼菜单 (F12)"), default=True, update=_on_switch_editor_update)
+    ui_show_switch_editor_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(切换窗口)"), default=False)
+    activate_subdivision_shortcuts: bpy.props.BoolProperty(name=_T("启用细分快捷键 (Ctrl+0..4)"), default=True, update=_on_subdivision_update)
+    ui_show_subdivision_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(细分级别)"), default=False)
+    switch_editor_pie_left: bpy.props.EnumProperty(name=_T("左"), items=_switch_editor_items, default=4)
+    switch_editor_pie_right: bpy.props.EnumProperty(name=_T("右"), items=_switch_editor_items, default=24)
+    switch_editor_pie_bottom: bpy.props.EnumProperty(name=_T("下"), items=_switch_editor_items, default=3)
+    switch_editor_pie_top: bpy.props.EnumProperty(name=_T("上"), items=_switch_editor_items, default=1)
+    switch_editor_pie_top_left: bpy.props.EnumProperty(name=_T("左上"), items=_switch_editor_items, default=3)
+    switch_editor_pie_top_right: bpy.props.EnumProperty(name=_T("右上"), items=_switch_editor_items, default=7)
+    switch_editor_pie_bottom_left: bpy.props.EnumProperty(name=_T("左下"), items=_switch_editor_items, default=6)
+    switch_editor_pie_bottom_right: bpy.props.EnumProperty(name=_T("右下"), items=_switch_editor_items, default=13)
 
     
     # --- Toggle Area ---
-    activate_toggle_area: bpy.props.BoolProperty(name="启用区域切换 (T)", default=True, update=_on_toggle_area_update)
-    toggle_area_close_range: bpy.props.FloatProperty(name="关闭范围 (%)", default=30.0, min=0.0, max=100.0, description="以区域宽/高的百分比表示与边界的接近度")
-    toggle_area_prefer_left_right: bpy.props.BoolProperty(name="首选左/右切换", default=True, description="在使用 Close Range 确定是否切换另一对之前，首选左/右切换，而不是 下/上")
-    toggle_area_asset_shelf: bpy.props.BoolProperty(name="切换资产架", default=True, description="如果可用，则切换“资产工具架”而不是“浏览器”")
-    toggle_area_asset_browser_top: bpy.props.BoolProperty(name="切换资产浏览器到顶部", default=True)
-    toggle_area_asset_browser_bottom: bpy.props.BoolProperty(name="切换资产浏览器到底部", default=True)
-    toggle_area_split_factor: bpy.props.FloatProperty(name="分割比例", default=0.25, min=0.1, max=0.8, description="切换出的资产浏览器占区域高度的比例")
-    toggle_area_wrap_mouse: bpy.props.BoolProperty(name="鼠标跟随", default=False, description="将鼠标包围到资源浏览器边框")
-    ui_show_toggle_area_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Toggle Area)", default=False)
+    activate_toggle_area: bpy.props.BoolProperty(name=_T("启用区域切换 (T)"), default=True, update=_on_toggle_area_update)
+    toggle_area_close_range: bpy.props.FloatProperty(name=_T("关闭范围 (%)"), default=30.0, min=0.0, max=100.0, description=_T("以区域宽/高的百分比表示与边界的接近度"))
+    toggle_area_prefer_left_right: bpy.props.BoolProperty(name=_T("首选左/右切换"), default=True, description=_T("在使用 Close Range 确定是否切换另一对之前，首选左/右切换，而不是 下/上"))
+    toggle_area_asset_shelf: bpy.props.BoolProperty(name=_T("切换资产架"), default=True, description=_T("如果可用，则切换“资产工具架”而不是“浏览器”"))
+    toggle_area_asset_browser_top: bpy.props.BoolProperty(name=_T("切换资产浏览器到顶部"), default=True)
+    toggle_area_asset_browser_bottom: bpy.props.BoolProperty(name=_T("切换资产浏览器到底部"), default=True)
+    toggle_area_split_factor: bpy.props.FloatProperty(name=_T("分割比例"), default=0.25, min=0.1, max=0.8, description=_T("切换出的资产浏览器占区域高度的比例"))
+    toggle_area_wrap_mouse: bpy.props.BoolProperty(name=_T("鼠标跟随"), default=False, description=_T("将鼠标包围到资源浏览器边框"))
+    ui_show_toggle_area_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Toggle Area)"), default=False)
 
-    ui_show_smart_pie_keymap: bpy.props.BoolProperty(name="显示快捷键详情(智能饼菜单)", default=False)
+    ui_show_smart_pie_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(智能饼菜单)"), default=False)
     smart_edge_mode: bpy.props.EnumProperty(
-        name="Smart Edge 模式",
+        name=_T("Smart Edge 模式"),
         items=_smart_edge_mode_items,
         default=0,
     )
-    smart_face_focus_mode: bpy.props.BoolProperty(name="Smart Face: 聚焦模式", default=False)
-    smart_face_stay_on_original: bpy.props.BoolProperty(name="Smart Face: 停留在原始对象", default=False)
+    smart_face_focus_mode: bpy.props.BoolProperty(name=_T("Smart Face: 聚焦模式"), default=False)
+    smart_face_stay_on_original: bpy.props.BoolProperty(name=_T("Smart Face: 停留在原始对象"), default=False)
     smart_face_action: bpy.props.EnumProperty(
-        name="Smart Face 默认动作",
+        name=_T("Smart Face 默认动作"),
         items=_smart_face_action_items,
         default=0,
     )
-    clean_up_merge_distance: bpy.props.FloatProperty(name="合并距离", default=0.0001, min=0.0)
+    clean_up_merge_distance: bpy.props.FloatProperty(name=_T("合并距离"), default=0.0001, min=0.0)
     clean_up_affect: bpy.props.EnumProperty(
-        name="影响范围",
+        name=_T("影响范围"),
         items=_clean_up_affect_items,
         default=0,
     )
-    clean_up_do_merge_by_distance: bpy.props.BoolProperty(name="合并重复点", default=True)
-    clean_up_do_dissolve_degenerate: bpy.props.BoolProperty(name="溶解退化几何", default=True)
-    clean_up_degenerate_dist: bpy.props.FloatProperty(name="退化阈值", default=0.00001, min=0.0)
-    clean_up_do_limited_dissolve: bpy.props.BoolProperty(name="有限溶解", default=False)
-    clean_up_limited_dissolve_angle: bpy.props.FloatProperty(name="有限溶解角度", default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
-    clean_up_do_make_planar: bpy.props.BoolProperty(name="平坦化面", default=False)
-    clean_up_planar_iterations: bpy.props.IntProperty(name="平坦化迭代", default=1, min=1, max=10)
-    clean_up_do_delete_interior_faces: bpy.props.BoolProperty(name="删除内部面", default=False)
-    clean_up_do_delete_loose_edges: bpy.props.BoolProperty(name="删除孤立边", default=True)
-    clean_up_do_delete_loose_verts: bpy.props.BoolProperty(name="删除孤立点", default=True)
-    clean_up_recalc_normals: bpy.props.BoolProperty(name="重算法线", default=False)
-    activate_double_click_select_group: bpy.props.BoolProperty(name="双击选择组", default=False, update=_on_prefs_update)
-    group_tool_radius: bpy.props.FloatProperty(name="组半径", default=1.0, min=0.1, unit='LENGTH')
+    clean_up_do_merge_by_distance: bpy.props.BoolProperty(name=_T("合并重复点"), default=True)
+    clean_up_do_dissolve_degenerate: bpy.props.BoolProperty(name=_T("溶解退化几何"), default=True)
+    clean_up_degenerate_dist: bpy.props.FloatProperty(name=_T("退化阈值"), default=0.00001, min=0.0)
+    clean_up_do_limited_dissolve: bpy.props.BoolProperty(name=_T("有限溶解"), default=False)
+    clean_up_limited_dissolve_angle: bpy.props.FloatProperty(name=_T("有限溶解角度"), default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
+    clean_up_do_make_planar: bpy.props.BoolProperty(name=_T("平坦化面"), default=False)
+    clean_up_planar_iterations: bpy.props.IntProperty(name=_T("平坦化迭代"), default=1, min=1, max=10)
+    clean_up_do_delete_interior_faces: bpy.props.BoolProperty(name=_T("删除内部面"), default=False)
+    clean_up_do_delete_loose_edges: bpy.props.BoolProperty(name=_T("删除孤立边"), default=True)
+    clean_up_do_delete_loose_verts: bpy.props.BoolProperty(name=_T("删除孤立点"), default=True)
+    clean_up_recalc_normals: bpy.props.BoolProperty(name=_T("重算法线"), default=False)
+    activate_double_click_select_group: bpy.props.BoolProperty(name=_T("双击选择组"), default=False, update=_on_prefs_update)
+    group_tool_radius: bpy.props.FloatProperty(name=_T("组半径"), default=1.0, min=0.1, unit='LENGTH')
     group_tool_empty_type: bpy.props.EnumProperty(
-        name="空物体类型",
+        name=_T("空物体类型"),
         items=_group_tool_empty_type_items,
         default=5,
     )
-    group_tool_hide_empty: bpy.props.BoolProperty(name="隐藏组空物体", default=False, description="创建组时自动隐藏组父物体")
-    activate_restart_blender: bpy.props.BoolProperty(name="启用重启 Blender 按钮", default=True)
+    group_tool_hide_empty: bpy.props.BoolProperty(name=_T("隐藏组空物体"), default=False, description=_T("创建组时自动隐藏组父物体"))
+    activate_restart_blender: bpy.props.BoolProperty(name=_T("启用重启 Blender 按钮"), default=True)
 
     active_tab: bpy.props.EnumProperty(
         name="Tab",
@@ -223,86 +240,86 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     navigation_tab: bpy.props.EnumProperty(
         name="Navigation",
         items=[
-            ("TRANSFORM", "变换", "Transform Pie"),
-            ("SWITCH_MODE", "切换模式", "Switch Mode"),
-            ("DELETE", "删除", "Delete Tools"),
-            ("EDGE_PROPERTY", "边属性", "Edge Property"),
-            ("ALIGN", "对齐", "Align Pie"),
-            ("SHADING", "着色", "Shading Pie"),
-            ("SAVE", "保存", "Save Pie"),
-            ("RENAME", "重命名", "Advanced Rename"),
-            ("MIRROR", "镜像", "Mirror Tool"),
-            ("GROUP", "打组", "Group Tool"),
-            ("SMART_PIE", "智能饼菜单", "Smart Pie (1)"),
-            ("TOGGLE_AREA", "区域切换", "Toggle Area (T)"),
-            ("SWITCH_EDITOR", "切换窗口", "Switch Editor Pie (F12)"),
-            ("SUBDIVISION", "细分级别", "Subdivision Set"),
-            ("SCREENCAST", "按键显示", "Screencast"),
-            ("OTHER", "其它设置", "Other Settings"),
-            ("ABOUT", "关于", "About"),
+            ("TRANSFORM", _T("变换"), "Transform Pie"),
+            ("SWITCH_MODE", _T("切换模式"), "Switch Mode"),
+            ("DELETE", _T("删除"), "Delete Tools"),
+            ("EDGE_PROPERTY", _T("边属性"), "Edge Property"),
+            ("ALIGN", _T("对齐"), "Align Pie"),
+            ("SHADING", _T("着色"), "Shading Pie"),
+            ("SAVE", _T("保存"), "Save Pie"),
+            ("RENAME", _T("重命名"), "Advanced Rename"),
+            ("MIRROR", _T("镜像"), "Mirror Tool"),
+            ("GROUP", _T("打组"), "Group Tool"),
+            ("SMART_PIE", _T("智能饼菜单"), "Smart Pie (1)"),
+            ("TOGGLE_AREA", _T("区域切换"), "Toggle Area (T)"),
+            ("SWITCH_EDITOR", _T("切换窗口"), "Switch Editor Pie (F12)"),
+            ("SUBDIVISION", _T("细分级别"), "Subdivision Set"),
+            ("SCREENCAST", _T("按键显示"), "Screencast"),
+            ("OTHER", _T("其它设置"), "Other Settings"),
+            ("ABOUT", _T("关于"), "About"),
         ],
         default="TRANSFORM",
     )
 
-    ui_show_all_settings: bpy.props.BoolProperty(name="显示全部", default=False)
-    show_diagnostics_panels: bpy.props.BoolProperty(name="显示诊断/场景审计面板", default=False)
+    ui_show_all_settings: bpy.props.BoolProperty(name=_T("显示全部"), default=False)
+    show_diagnostics_panels: bpy.props.BoolProperty(name=_T("显示诊断/场景审计面板"), default=False)
 
-    fbx_export_unity_preset: bpy.props.BoolProperty(name="FBX 导出使用 Unity 预设", default=True)
-    unity_fbx_use_selection: bpy.props.BoolProperty(name="Unity FBX: 仅导出选择", default=True)
-    unity_fbx_global_scale: bpy.props.FloatProperty(name="Unity FBX: 全局缩放", default=100.0, min=0.001, max=1000.0)
-    unity_fbx_apply_unit_scale: bpy.props.BoolProperty(name="Unity FBX: 应用单位", default=True)
+    fbx_export_unity_preset: bpy.props.BoolProperty(name=_T("FBX 导出使用 Unity 预设"), default=True)
+    unity_fbx_use_selection: bpy.props.BoolProperty(name=_T("Unity FBX: 仅导出选择"), default=True)
+    unity_fbx_global_scale: bpy.props.FloatProperty(name=_T("Unity FBX: 全局缩放"), default=100.0, min=0.001, max=1000.0)
+    unity_fbx_apply_unit_scale: bpy.props.BoolProperty(name=_T("Unity FBX: 应用单位"), default=True)
     unity_fbx_apply_scale_options: bpy.props.EnumProperty(
         name="Unity FBX: Apply Scalings",
         items=_unity_fbx_apply_scale_options_items,
         default=3,
     )
-    unity_fbx_use_triangles: bpy.props.BoolProperty(name="Unity FBX: 三角化", default=True)
-    unity_fbx_use_tspace: bpy.props.BoolProperty(name="Unity FBX: 导出切线", default=True)
-    unity_fbx_bake_anim: bpy.props.BoolProperty(name="Unity FBX: 导出动画", default=False)
-    unity_fbx_export_dir: bpy.props.StringProperty(name="Unity FBX: 导出目录", default="", subtype="DIR_PATH")
-    unity_fbx_use_blend_dir: bpy.props.BoolProperty(name="Unity FBX: 使用 .blend 同目录", default=True)
-    unity_fbx_open_folder_after_export: bpy.props.BoolProperty(name="Unity FBX: 导出后打开文件夹", default=False)
-    unity_fbx_reveal_after_export: bpy.props.BoolProperty(name="Unity FBX: 导出后定位文件", default=True)
-    ui_show_unity_fbx_advanced: bpy.props.BoolProperty(name="Unity FBX: 高级", default=False)
+    unity_fbx_use_triangles: bpy.props.BoolProperty(name=_T("Unity FBX: 三角化"), default=True)
+    unity_fbx_use_tspace: bpy.props.BoolProperty(name=_T("Unity FBX: 导出切线"), default=True)
+    unity_fbx_bake_anim: bpy.props.BoolProperty(name=_T("Unity FBX: 导出动画"), default=False)
+    unity_fbx_export_dir: bpy.props.StringProperty(name=_T("Unity FBX: 导出目录"), default="", subtype="DIR_PATH")
+    unity_fbx_use_blend_dir: bpy.props.BoolProperty(name=_T("Unity FBX: 使用 .blend 同目录"), default=True)
+    unity_fbx_open_folder_after_export: bpy.props.BoolProperty(name=_T("Unity FBX: 导出后打开文件夹"), default=False)
+    unity_fbx_reveal_after_export: bpy.props.BoolProperty(name=_T("Unity FBX: 导出后定位文件"), default=True)
+    ui_show_unity_fbx_advanced: bpy.props.BoolProperty(name=_T("Unity FBX: 高级"), default=False)
 
-    auto_pack_resources_on_save: bpy.props.BoolProperty(name="保存时自动打包资源", default=False, update=_on_autopack_update)
-    auto_purge_unused_materials_on_save: bpy.props.BoolProperty(name="保存时自动清除孤立数据", default=False, update=_on_autopack_update)
-    
-    auto_new_object_origin_bottom: bpy.props.BoolProperty(name="新建物体默认原点到底部", default=False, update=_on_autoorigin_update)
-    auto_new_object_snap_to_floor: bpy.props.BoolProperty(name="新建物体自动落地 (Z=0)", default=False, update=_on_autoorigin_update)
-    auto_exclusive_shift_s_on_startup: bpy.props.BoolProperty(name="启动时自动独占所有快捷键", default=False)
-    auto_exclusive_shift_s_include_user: bpy.props.BoolProperty(name="同时处理用户键位冲突", default=True)
+    auto_pack_resources_on_save: bpy.props.BoolProperty(name=_T("保存时自动打包资源"), default=False, update=_on_autopack_update)
+    auto_purge_unused_materials_on_save: bpy.props.BoolProperty(name=_T("保存时自动清除孤立数据"), default=False, update=_on_autopack_update)
+
+    auto_new_object_origin_bottom: bpy.props.BoolProperty(name=_T("新建物体默认原点到底部"), default=False, update=_on_autoorigin_update)
+    auto_new_object_snap_to_floor: bpy.props.BoolProperty(name=_T("新建物体自动落地 (Z=0)"), default=False, update=_on_autoorigin_update)
+    auto_exclusive_shift_s_on_startup: bpy.props.BoolProperty(name=_T("启动时自动独占所有快捷键"), default=False)
+    auto_exclusive_shift_s_include_user: bpy.props.BoolProperty(name=_T("同时处理用户键位冲突"), default=True)
 
     # --- MP7Tools Integration Properties ---
     init: bpy.props.BoolProperty(name="Init", default=True, options={"SKIP_SAVE"})
     panel_name: bpy.props.StringProperty(name="Panel Name", default="M8")
     
     # MP7 Hub/Gizmo Settings
-    hub_text_color: bpy.props.FloatVectorProperty(name="文本颜色", subtype='COLOR', default=(1, 1, 1, 1), size=4)
-    hub_3d_color: bpy.props.FloatVectorProperty(name="轴向颜色", subtype='COLOR', default=(0.2, 0.6, 1, 0.8), size=4)
-    hub_area_color: bpy.props.FloatVectorProperty(name="区域颜色", subtype='COLOR', default=(0.2, 0.6, 1, 0.2), size=4)
-    hub_line_width: bpy.props.IntProperty(name="线宽", default=2, min=1, max=10)
-    hub_vert_size: bpy.props.IntProperty(name="点大小", default=6, min=1, max=20)
-    hub_matrix_line_width: bpy.props.IntProperty(name="轴线宽", default=3, min=1, max=10)
-    hub_scale: bpy.props.FloatProperty(name="Gizmo 缩放", default=0.35, min=0.1, max=5.0)
+    hub_text_color: bpy.props.FloatVectorProperty(name=_T("文本颜色"), subtype='COLOR', default=(1, 1, 1, 1), size=4)
+    hub_3d_color: bpy.props.FloatVectorProperty(name=_T("轴向颜色"), subtype='COLOR', default=(0.2, 0.6, 1, 0.8), size=4)
+    hub_area_color: bpy.props.FloatVectorProperty(name=_T("区域颜色"), subtype='COLOR', default=(0.2, 0.6, 1, 0.2), size=4)
+    hub_line_width: bpy.props.IntProperty(name=_T("线宽"), default=2, min=1, max=10)
+    hub_vert_size: bpy.props.IntProperty(name=_T("点大小"), default=6, min=1, max=20)
+    hub_matrix_line_width: bpy.props.IntProperty(name=_T("轴线宽"), default=3, min=1, max=10)
+    hub_scale: bpy.props.FloatProperty(name=_T("Gizmo 缩放"), default=0.35, min=0.1, max=5.0)
     hub_fps: bpy.props.FloatProperty(name="FPS", default=60.0)
-    
+
     # Mirror Preview Properties
-    mirror_show_preview: bpy.props.BoolProperty(name="显示网格预览", default=False, description="在操作时显示镜像后的网格预览（可能会影响性能）")
-    mirror_preview_vert_size: bpy.props.IntProperty(name="预览点大小", default=6, min=1, max=20)
-    mirror_preview_edge_width: bpy.props.IntProperty(name="预览线宽", default=2, min=1, max=10)
-    mirror_preview_max_edge_count: bpy.props.IntProperty(name="最大边数优化", default=10000, description="当物体边数超过此值时简化预览以提高性能")
-    mirror_preview_optimize: bpy.props.BoolProperty(name="强制简化预览", default=False)
-    mirror_preview_alpha: bpy.props.FloatProperty(name="预览透明度", default=0.5, min=0.0, max=1.0)
-    mirror_preview_edge_color: bpy.props.FloatVectorProperty(name="预览线颜色", subtype='COLOR', default=(0.2, 0.8, 1.0, 1.0), size=4)
-    
-    mirror_use_mouse_pos: bpy.props.BoolProperty(name="Gizmo 跟随鼠标", default=True, description="启动时 Gizmo 出现在鼠标位置，而非物体原点")
-    mirror_auto_confirm: bpy.props.BoolProperty(name="松开即确认", default=True, description="松开快捷键时自动执行镜像，无需点击左键")
-    mirror_sensitivity: bpy.props.FloatProperty(name="感应灵敏度", default=2.0, min=0.1, max=5.0, description="Gizmo 触发距离的缩放系数")
-    mirror_use_fixed_scale: bpy.props.BoolProperty(name="使用固定大小", default=False, description="Gizmo 使用固定大小，不随视图缩放变化")
-    mirror_fixed_scale_value: bpy.props.FloatProperty(name="固定大小值", default=1.0, min=0.01, max=1000.0)
-    
-    activate_face_groups: bpy.props.BoolProperty(name="启用面组", default=True)
+    mirror_show_preview: bpy.props.BoolProperty(name=_T("显示网格预览"), default=False, description=_T("在操作时显示镜像后的网格预览（可能会影响性能）"))
+    mirror_preview_vert_size: bpy.props.IntProperty(name=_T("预览点大小"), default=6, min=1, max=20)
+    mirror_preview_edge_width: bpy.props.IntProperty(name=_T("预览线宽"), default=2, min=1, max=10)
+    mirror_preview_max_edge_count: bpy.props.IntProperty(name=_T("最大边数优化"), default=10000, description=_T("当物体边数超过此值时简化预览以提高性能"))
+    mirror_preview_optimize: bpy.props.BoolProperty(name=_T("强制简化预览"), default=False)
+    mirror_preview_alpha: bpy.props.FloatProperty(name=_T("预览透明度"), default=0.5, min=0.0, max=1.0)
+    mirror_preview_edge_color: bpy.props.FloatVectorProperty(name=_T("预览线颜色"), subtype='COLOR', default=(0.2, 0.8, 1.0, 1.0), size=4)
+
+    mirror_use_mouse_pos: bpy.props.BoolProperty(name=_T("Gizmo 跟随鼠标"), default=True, description=_T("启动时 Gizmo 出现在鼠标位置，而非物体原点"))
+    mirror_auto_confirm: bpy.props.BoolProperty(name=_T("松开即确认"), default=True, description=_T("松开快捷键时自动执行镜像，无需点击左键"))
+    mirror_sensitivity: bpy.props.FloatProperty(name=_T("感应灵敏度"), default=2.0, min=0.1, max=5.0, description=_T("Gizmo 触发距离的缩放系数"))
+    mirror_use_fixed_scale: bpy.props.BoolProperty(name=_T("使用固定大小"), default=False, description=_T("Gizmo 使用固定大小，不随视图缩放变化"))
+    mirror_fixed_scale_value: bpy.props.FloatProperty(name=_T("固定大小值"), default=1.0, min=0.01, max=1000.0)
+
+    activate_face_groups: bpy.props.BoolProperty(name=_T("启用面组"), default=True)
     origin_default_operator_types: bpy.props.EnumProperty(
         name="Default Origin Operator",
         description="Shift Add Selection",
@@ -320,48 +337,48 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     )
     draw_property: bpy.props.PointerProperty(type=M8_MP7_MockDrawProperty)
 
-    ui_show_tab_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Tab)", default=False)
-    ui_show_shift_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Shift+S)", default=False)
-    ui_show_switch_mode_mapping: bpy.props.BoolProperty(name="显示方向映射", default=False)
-    ui_show_shift_s_advanced: bpy.props.BoolProperty(name="显示高级(Shift+S)", default=False)
-    ui_show_other_settings: bpy.props.BoolProperty(name="显示其它设置", default=False)
-    ui_show_delete_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Delete)", default=False)
-    ui_show_delete_mapping: bpy.props.BoolProperty(name="显示方向映射(Delete)", default=False)
-    ui_show_align_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Align)", default=False)
-    ui_show_align_advanced: bpy.props.BoolProperty(name="显示高级(Align)", default=False)
-    ui_show_shading_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Shading)", default=False)
-    ui_show_save_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Save)", default=False)
-    ui_show_save_advanced: bpy.props.BoolProperty(name="显示高级(Save)", default=False)
+    ui_show_tab_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Tab)"), default=False)
+    ui_show_shift_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Shift+S)"), default=False)
+    ui_show_switch_mode_mapping: bpy.props.BoolProperty(name=_T("显示方向映射"), default=False)
+    ui_show_shift_s_advanced: bpy.props.BoolProperty(name=_T("显示高级(Shift+S)"), default=False)
+    ui_show_other_settings: bpy.props.BoolProperty(name=_T("显示其它设置"), default=False)
+    ui_show_delete_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Delete)"), default=False)
+    ui_show_delete_mapping: bpy.props.BoolProperty(name=_T("显示方向映射(Delete)"), default=False)
+    ui_show_align_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Align)"), default=False)
+    ui_show_align_advanced: bpy.props.BoolProperty(name=_T("显示高级(Align)"), default=False)
+    ui_show_shading_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Shading)"), default=False)
+    ui_show_save_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Save)"), default=False)
+    ui_show_save_advanced: bpy.props.BoolProperty(name=_T("显示高级(Save)"), default=False)
 
-    ui_show_section_switch_mode: bpy.props.BoolProperty(name="切换模式 (Tab)", default=False)
-    ui_show_section_transform_pie: bpy.props.BoolProperty(name="变换辅助 (Shift+S)", default=False)
-    ui_show_section_delete: bpy.props.BoolProperty(name="删除 (X)", default=False)
-    ui_show_section_align_pie: bpy.props.BoolProperty(name="对齐 (Alt+A)", default=False)
-    ui_show_section_shading_pie: bpy.props.BoolProperty(name="着色 (Z)", default=False)
-    ui_show_section_save_pie: bpy.props.BoolProperty(name="保存 (Ctrl+S)", default=False)
-    ui_show_section_rename: bpy.props.BoolProperty(name="重命名 (F2)", default=False)
-    ui_show_section_mirror: bpy.props.BoolProperty(name="镜像 (Shift+Alt+X)", default=False)
-    ui_show_section_other: bpy.props.BoolProperty(name="其它设置", default=False)
-    ui_show_section_screencast: bpy.props.BoolProperty(name="Screencast (投射)", default=False)
+    ui_show_section_switch_mode: bpy.props.BoolProperty(name=_T("切换模式 (Tab)"), default=False)
+    ui_show_section_transform_pie: bpy.props.BoolProperty(name=_T("变换辅助 (Shift+S)"), default=False)
+    ui_show_section_delete: bpy.props.BoolProperty(name=_T("删除 (X)"), default=False)
+    ui_show_section_align_pie: bpy.props.BoolProperty(name=_T("对齐 (Alt+A)"), default=False)
+    ui_show_section_shading_pie: bpy.props.BoolProperty(name=_T("着色 (Z)"), default=False)
+    ui_show_section_save_pie: bpy.props.BoolProperty(name=_T("保存 (Ctrl+S)"), default=False)
+    ui_show_section_rename: bpy.props.BoolProperty(name=_T("重命名 (F2)"), default=False)
+    ui_show_section_mirror: bpy.props.BoolProperty(name=_T("镜像 (Shift+Alt+X)"), default=False)
+    ui_show_section_other: bpy.props.BoolProperty(name=_T("其它设置"), default=False)
+    ui_show_section_screencast: bpy.props.BoolProperty(name=_T("Screencast (投射)"), default=False)
 
     # --- Edge Property Properties ---
-    activate_edge_property_pie: bpy.props.BoolProperty(name="启用 Edge Property Pie", default=True, update=_on_edge_property_update)
-    ui_show_edge_property_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Edge Property)", default=False)
-    ui_show_edge_property_advanced: bpy.props.BoolProperty(name="显示高级(Edge Property)", default=False)
+    activate_edge_property_pie: bpy.props.BoolProperty(name=_T("启用 Edge Property Pie"), default=True, update=_on_edge_property_update)
+    ui_show_edge_property_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Edge Property)"), default=False)
+    ui_show_edge_property_advanced: bpy.props.BoolProperty(name=_T("显示高级(Edge Property)"), default=False)
 
     # --- Mirror Properties ---
-    ui_show_mirror_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Mirror)", default=False)
-    ui_show_mirror_advanced: bpy.props.BoolProperty(name="显示高级(Mirror)", default=False)
-    ui_show_group_keymap: bpy.props.BoolProperty(name="显示快捷键详情(Group)", default=False)
-    ui_show_group_advanced: bpy.props.BoolProperty(name="显示高级(Group)", default=False)
+    ui_show_mirror_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Mirror)"), default=False)
+    ui_show_mirror_advanced: bpy.props.BoolProperty(name=_T("显示高级(Mirror)"), default=False)
+    ui_show_group_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Group)"), default=False)
+    ui_show_group_advanced: bpy.props.BoolProperty(name=_T("显示高级(Group)"), default=False)
 
     # --- Additional UI toggle properties ---
-    ui_show_shading_advanced: bpy.props.BoolProperty(name="高级(Shading)", default=False)
-    ui_show_smart_pie_advanced: bpy.props.BoolProperty(name="高级(SmartPie)", default=False)
-    ui_show_toggle_area_advanced: bpy.props.BoolProperty(name="高级(ToggleArea)", default=False)
-    ui_show_switch_editor_advanced: bpy.props.BoolProperty(name="映射(SwitchEditor)", default=False)
-    ui_show_subdivision_advanced: bpy.props.BoolProperty(name="高级(Subdivision)", default=False)
-    ui_show_rename_keymap: bpy.props.BoolProperty(name="快捷键(Rename)", default=False)
+    ui_show_shading_advanced: bpy.props.BoolProperty(name=_T("高级(Shading)"), default=False)
+    ui_show_smart_pie_advanced: bpy.props.BoolProperty(name=_T("高级(SmartPie)"), default=False)
+    ui_show_toggle_area_advanced: bpy.props.BoolProperty(name=_T("高级(ToggleArea)"), default=False)
+    ui_show_switch_editor_advanced: bpy.props.BoolProperty(name=_T("映射(SwitchEditor)"), default=False)
+    ui_show_subdivision_advanced: bpy.props.BoolProperty(name=_T("高级(Subdivision)"), default=False)
+    ui_show_rename_keymap: bpy.props.BoolProperty(name=_T("快捷键(Rename)"), default=False)
 
     # --- Screencast Properties ---
     def _on_screencast_enabled_update(self, context):
@@ -385,51 +402,62 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             pass
 
     screencast_enabled: bpy.props.BoolProperty(
-        name="启用 Screencast", 
-        default=True, 
-        description="启用/禁用屏幕投射功能",
+        name=_T("启用 Screencast"),
+        default=True,
+        description=_T("启用/禁用屏幕投射功能"),
         update=_on_screencast_enabled_update
     )
-    screencast_font_size: bpy.props.IntProperty(name="字体大小", default=20, min=8, max=100)
-    screencast_color: bpy.props.FloatVectorProperty(name="文字颜色", subtype='COLOR', default=(1, 1, 1, 1), size=4, min=0, max=1)
-    screencast_bg_color: bpy.props.FloatVectorProperty(name="背景颜色", subtype='COLOR', default=(0.1, 0.1, 0.1, 0.5), size=4, min=0, max=1)
-    screencast_offset_x: bpy.props.IntProperty(name="X 偏移", default=50)
-    screencast_offset_y: bpy.props.IntProperty(name="Y 偏移", default=50)
+    screencast_font_size: bpy.props.IntProperty(name=_T("字体大小"), default=20, min=8, max=100)
+    screencast_color: bpy.props.FloatVectorProperty(name=_T("文字颜色"), subtype='COLOR', default=(1, 1, 1, 1), size=4, min=0, max=1)
+    screencast_bg_color: bpy.props.FloatVectorProperty(name=_T("背景颜色"), subtype='COLOR', default=(0.1, 0.1, 0.1, 0.2), size=4, min=0, max=1)
+    screencast_offset_x: bpy.props.IntProperty(name=_T("X 偏移"), default=50)
+    screencast_offset_y: bpy.props.IntProperty(name=_T("Y 偏移"), default=50)
     screencast_align: bpy.props.EnumProperty(
-        name="对齐", 
+        name=_T("对齐"),
         items=_screencast_align_items,
         default=0
     )
-    screencast_history_count: bpy.props.IntProperty(name="显示行数", default=5, min=1, max=20)
-    screencast_timeout: bpy.props.FloatProperty(name="消失延迟 (秒)", default=2.0, min=0.1, max=10.0)
-    screencast_show_mouse: bpy.props.BoolProperty(name="显示鼠标点击", default=True)
-    screencast_show_mouse_move: bpy.props.BoolProperty(name="显示鼠标移动", default=False)
-    screencast_show_last_operator: bpy.props.BoolProperty(name="显示最后操作", default=True)
-    screencast_style: bpy.props.EnumProperty(
-        name="显示风格",
-        items=_screencast_style_items,
-        default=0,
+    screencast_history_count: bpy.props.IntProperty(name=_T("显示行数"), default=5, min=1, max=20)
+    screencast_timeout: bpy.props.FloatProperty(name=_T("消失延迟 (秒)"), default=2.0, min=0.1, max=10.0)
+    screencast_show_shadow: bpy.props.BoolProperty(name=_T("文字阴影"), default=True)
+    screencast_shadow_color: bpy.props.FloatVectorProperty(name=_T("阴影颜色"), subtype='COLOR', default=(0, 0, 0, 0.7), size=4, min=0, max=1)
+    screencast_show_box: bpy.props.BoolProperty(name=_T("显示背景框"), default=True)
+    screencast_box_radius: bpy.props.IntProperty(name=_T("背景框圆角"), default=20, min=0, max=50)
+    screencast_box_padding: bpy.props.IntProperty(name=_T("背景框边距"), default=10, min=2, max=40)
+    screencast_bg_image: bpy.props.StringProperty(name=_T("背景图片"), subtype='FILE_PATH', description=_T("可选作为背景框替代的自定义图片文件"))
+    screencast_bg_image_alpha: bpy.props.FloatProperty(name=_T("背景图片透明度"), default=1.0, min=0.0, max=1.0)
+    screencast_mouse_display: bpy.props.EnumProperty(
+        name=_T("鼠标显示方式"),
+        items=_screencast_mouse_display_items,
+        default=0
     )
-    screencast_cap_radius: bpy.props.IntProperty(name="键帽圆角", default=8, min=0, max=50)
-    screencast_cap_gap: bpy.props.IntProperty(name="键帽间距", default=6, min=0, max=30)
-    screencast_cap_shadow: bpy.props.BoolProperty(name="键帽阴影", default=True)
-    screencast_cap_uppercase: bpy.props.BoolProperty(name="键帽大写", default=True)
-    screencast_cap_bg_color: bpy.props.FloatVectorProperty(name="键帽背景", subtype='COLOR', default=(0.06, 0.06, 0.06, 0.65), size=4, min=0, max=1)
-    screencast_cap_outline_color: bpy.props.FloatVectorProperty(name="键帽描边", subtype='COLOR', default=(1, 1, 1, 0.15), size=4, min=0, max=1)
-    screencast_translate_operator_label: bpy.props.BoolProperty(name="汉化操作提示", default=True)
+    screencast_mouse_size: bpy.props.IntProperty(
+        name=_T("鼠标图标大小"),
+        default=30,
+        min=10,
+        max=300,
+        description=_T("设置鼠标显示图标的尺寸")
+    )
+    screencast_show_ripples: bpy.props.BoolProperty(name=_T("启用点击涟漪"), default=True, description=_T("鼠标点击时在光标位置显示扩散圆环动画"))
+    screencast_ripple_color: bpy.props.FloatVectorProperty(name=_T("涟漪颜色"), subtype='COLOR', default=(0.0, 0.6, 1.0, 0.8), size=4, min=0, max=1)
+    screencast_font_filepath: bpy.props.StringProperty(name=_T("自定义字体路径"), subtype='FILE_PATH', description=_T("可选加载外部字体（TTF/OTF）文件代替内置默认字体"))
+    screencast_show_mouse: bpy.props.BoolProperty(name=_T("显示鼠标图形"), default=True, description=_T("常驻显示矢量鼠标指示图标"))
+    screencast_show_last_operator: bpy.props.BoolProperty(name=_T("显示最后操作"), default=True, description=_T("在界面顶部显示刚调用的操作"))
     screencast_operator_label_mode: bpy.props.EnumProperty(
-        name="操作提示语言",
+        name=_T("操作名称语言"),
         items=_screencast_operator_label_mode_items,
-        default=0,
+        default=0
     )
-    screencast_use_symbols: bpy.props.BoolProperty(name="使用符号显示修饰键 (⌃⇧⌥⌘)", default=False)
-    screencast_smart_merge_numbers: bpy.props.BoolProperty(name="智能合并数字输入", default=True, description="将连续输入的数字（如 1,2,.）合并显示为单个数值")
     screencast_stack_direction: bpy.props.EnumProperty(
-        name="堆叠方向",
+        name=_T("堆叠方向"),
         items=_screencast_stack_direction_items,
         default=0
     )
-    screencast_entry_animation: bpy.props.BoolProperty(name="启用入场动画", default=True)
+    screencast_use_custom_mouse: bpy.props.BoolProperty(name=_T("使用自定义鼠标贴图"), default=False)
+    screencast_mouse_img_base: bpy.props.StringProperty(name=_T("基础鼠标贴图"), subtype='FILE_PATH')
+    screencast_mouse_img_lmouse: bpy.props.StringProperty(name=_T("左键按压贴图"), subtype='FILE_PATH')
+    screencast_mouse_img_rmouse: bpy.props.StringProperty(name=_T("右键按压贴图"), subtype='FILE_PATH')
+    screencast_mouse_img_mmouse: bpy.props.StringProperty(name=_T("中键按压贴图"), subtype='FILE_PATH')
 
     # --- Mode Switching Properties ---
     switch_mode_up: bpy.props.EnumProperty(items=_switch_mode_target_items, name="Up", default=3)
@@ -460,27 +488,27 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     )
 
     switch_mode_double_click_edit_switch: bpy.props.BoolProperty(
-        name="双击切换编辑对象",
-        description="网格编辑模式下，双击其他物体切换到其编辑模式",
+        name=_T("双击切换编辑对象"),
+        description=_T("网格编辑模式下，双击其他物体切换到其编辑模式"),
         default=True,
         update=_on_prefs_update,
     )
 
     switch_mode_double_click_edge_loop_ring: bpy.props.BoolProperty(
-        name="双击边循环选择",
-        description="网格编辑模式下，双击边自动选择循环边(Edge Loop)，Shift 可加选",
+        name=_T("双击边循环选择"),
+        description=_T("网格编辑模式下，双击边自动选择循环边(Edge Loop)，Shift 可加选"),
         default=True,
         update=_on_prefs_update,
     )
 
     switch_mode_tab_behavior: bpy.props.EnumProperty(
-        name="Tab 行为",
+        name=_T("Tab 行为"),
         items=_switch_mode_tab_behavior_items,
         default=0,
         update=_on_prefs_update,
     )
     switch_mode_hold_ms: bpy.props.IntProperty(
-        name="长按阈值(ms)",
+        name=_T("长按阈值(ms)"),
         default=220,
         min=80,
         max=1000,
@@ -590,7 +618,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         box = col.box()
         grid = box.grid_flow(row_major=True, columns=3, even_columns=True, even_rows=True)
         
-        grid.label(text=_T("作者:") + " 猫步可爱")
+        grid.label(text=_T("作者:") + " " + _T("猫步可爱"))
         grid.label(text=_T("微信:") + " LiLan-8")
         
         # Version from bl_info
@@ -821,29 +849,29 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         col_nav.use_property_split = False
 
         col_nav.label(text=_T("核心功能"), icon="MODIFIER")
-        self._draw_sidebar_button(col_nav, "PIVOT_CURSOR", "变换辅助 (Shift+S)", "TRANSFORM")
-        self._draw_sidebar_button(col_nav, "FILE_REFRESH", "模式切换 (Tab)", "SWITCH_MODE")
-        self._draw_sidebar_button(col_nav, "TRASH", "删除 (X)", "DELETE")
-        self._draw_sidebar_button(col_nav, "EDGESEL", "边属性 (Shift+E)", "EDGE_PROPERTY")
-        self._draw_sidebar_button(col_nav, "ALIGN_CENTER", "对齐 (Alt+A)", "ALIGN")
-        self._draw_sidebar_button(col_nav, "SHADING_RENDERED", "着色 (Z)", "SHADING")
-        self._draw_sidebar_button(col_nav, "MOD_MIRROR", "镜像 (Shift+Alt+X)", "MIRROR")
-        self._draw_sidebar_button(col_nav, "EMPTY_AXIS", "打组 (Ctrl+G)", "GROUP")
-        self._draw_sidebar_button(col_nav, "FILE_TICK", "保存 (Ctrl+S)", "SAVE")
-        self._draw_sidebar_button(col_nav, "VIEW3D", "智能饼菜单 (1)", "SMART_PIE")
-        self._draw_sidebar_button(col_nav, "FULLSCREEN_ENTER", "区域切换 (T)", "TOGGLE_AREA")
-        self._draw_sidebar_button(col_nav, "WINDOW", "切换窗口 (F12)", "SWITCH_EDITOR")
-        self._draw_sidebar_button(col_nav, "MOD_SUBSURF", "细分级别 (Ctrl+0..4)", "SUBDIVISION")
+        self._draw_sidebar_button(col_nav, "PIVOT_CURSOR", _T("变换辅助 (Shift+S)"), "TRANSFORM")
+        self._draw_sidebar_button(col_nav, "FILE_REFRESH", _T("模式切换 (Tab)"), "SWITCH_MODE")
+        self._draw_sidebar_button(col_nav, "TRASH", _T("删除 (X)"), "DELETE")
+        self._draw_sidebar_button(col_nav, "EDGESEL", _T("边属性 (Shift+E)"), "EDGE_PROPERTY")
+        self._draw_sidebar_button(col_nav, "ALIGN_CENTER", _T("对齐 (Alt+A)"), "ALIGN")
+        self._draw_sidebar_button(col_nav, "SHADING_RENDERED", _T("着色 (Z)"), "SHADING")
+        self._draw_sidebar_button(col_nav, "MOD_MIRROR", _T("镜像 (Shift+Alt+X)"), "MIRROR")
+        self._draw_sidebar_button(col_nav, "EMPTY_AXIS", _T("打组 (Ctrl+G)"), "GROUP")
+        self._draw_sidebar_button(col_nav, "FILE_TICK", _T("保存 (Ctrl+S)"), "SAVE")
+        self._draw_sidebar_button(col_nav, "VIEW3D", _T("智能饼菜单 (1)"), "SMART_PIE")
+        self._draw_sidebar_button(col_nav, "FULLSCREEN_ENTER", _T("区域切换 (T)"), "TOGGLE_AREA")
+        self._draw_sidebar_button(col_nav, "WINDOW", _T("切换窗口 (F12)"), "SWITCH_EDITOR")
+        self._draw_sidebar_button(col_nav, "MOD_SUBSURF", _T("细分级别 (Ctrl+0..4)"), "SUBDIVISION")
 
         col_nav.separator()
         col_nav.label(text=_T("实用工具"), icon="TOOL_SETTINGS")
-        self._draw_sidebar_button(col_nav, "FONT_DATA", "重命名 (F2)", "RENAME")
-        self._draw_sidebar_button(col_nav, "WINDOW", "按键显示", "SCREENCAST")
+        self._draw_sidebar_button(col_nav, "FONT_DATA", _T("重命名 (F2)"), "RENAME")
+        self._draw_sidebar_button(col_nav, "WINDOW", _T("按键显示"), "SCREENCAST")
 
         col_nav.separator()
         col_nav.label(text=_T("设置"), icon="PREFERENCES")
-        self._draw_sidebar_button(col_nav, "PREFERENCES", "其它设置", "OTHER")
-        self._draw_sidebar_button(col_nav, "INFO", "关于", "ABOUT")
+        self._draw_sidebar_button(col_nav, "PREFERENCES", _T("其它设置"), "OTHER")
+        self._draw_sidebar_button(col_nav, "INFO", _T("关于"), "ABOUT")
         col_nav.separator()
         if "ui_show_all_settings" in self.bl_rna.properties:
             row = col_nav.row(align=True)
@@ -978,7 +1006,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     def draw_switch_editor_settings(self, layout):
         col = layout.column()
         if "activate_switch_editor_pie" in self.bl_rna.properties:
-            col.prop(self, "activate_switch_editor_pie", text="启用切换窗口饼菜单(F12)")
+            col.prop(self, "activate_switch_editor_pie", text=_T("启用切换窗口饼菜单(F12)"))
         
         if getattr(self, "activate_switch_editor_pie", False):
             row = col.row(align=True)
@@ -1009,7 +1037,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
             if getattr(self, "ui_show_switch_editor_advanced", False):
                 box = col.box()
-                box.label(text="映射", icon="KEYINGSET")
+                box.label(text=_T("映射"), icon="KEYINGSET")
                 
                 grid = box.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=False, align=True)
                 
@@ -1699,38 +1727,85 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         
         col = col.column()
         col.enabled = self.screencast_enabled
-        col.prop(self, "screencast_font_size", text=_T("字体大小"))
-        col.prop(self, "screencast_style", text=_T("显示风格"))
-        col.prop(self, "screencast_color", text=_T("文字颜色"))
-        if self.screencast_style == "KEYCAPS":
-            col.prop(self, "screencast_cap_bg_color", text=_T("键帽背景"))
-            col.prop(self, "screencast_cap_outline_color", text=_T("键帽描边"))
-            row = col.row(align=True)
-            row.prop(self, "screencast_cap_radius", text=_T("键帽圆角"))
-            row.prop(self, "screencast_cap_gap", text=_T("键帽间距"))
-            row = col.row(align=True)
-            row.prop(self, "screencast_cap_shadow", text=_T("键帽阴影"))
-            row.prop(self, "screencast_cap_uppercase", text=_T("键帽大写"))
-        else:
-            col.prop(self, "screencast_bg_color", text=_T("背景颜色"))
         
-        row = col.row(align=True)
-        row.prop(self, "screencast_align", text=_T("对齐"))
-        
-        row = col.row(align=True)
+        # 1. 显示元素 (Display Elements)
+        box = col.box()
+        box.label(text=_T("显示内容 (Display Elements)"), icon=_ICON("MOUSE_MOVE"))
+        box.prop(self, "screencast_mouse_display", text=_T("鼠标显示方式"))
+        if self.screencast_mouse_display != 'NONE':
+            box.prop(self, "screencast_mouse_size", text=_T("鼠标图标大小"))
+        box.prop(self, "screencast_show_last_operator", text=_T("显示最后操作名称"))
+        if self.screencast_show_last_operator:
+            box.prop(self, "screencast_operator_label_mode", text=_T("操作语言"))
+
+        # 2. 位置与对齐 (Position & Alignment)
+        box = col.box()
+        box.label(text=_T("位置与对齐 (Position)"), icon=_ICON("RESTRICT_VIEW_OFF"))
+        box.prop(self, "screencast_align", text=_T("对齐位置"))
+        box.prop(self, "screencast_stack_direction", text=_T("堆叠方向"))
+        row = box.row(align=True)
         row.prop(self, "screencast_offset_x", text=_T("X 偏移"))
         row.prop(self, "screencast_offset_y", text=_T("Y 偏移"))
-        
-        col.prop(self, "screencast_history_count", text=_T("显示行数"))
-        col.prop(self, "screencast_timeout", text=_T("消失延迟 (秒)"))
-        col.prop(self, "screencast_stack_direction", text=_T("堆叠方向"))
-        col.prop(self, "screencast_show_mouse", text=_T("显示鼠标点击"))
-        col.prop(self, "screencast_show_mouse_move", text=_T("显示鼠标移动"))
-        col.prop(self, "screencast_show_last_operator", text=_T("显示最后操作"))
-        col.prop(self, "screencast_operator_label_mode", text=_T("操作提示语言"))
-        col.prop(self, "screencast_use_symbols", text=_T("使用符号显示修饰键 (⌃⇧⌥⌘)"))
-        col.prop(self, "screencast_smart_merge_numbers", text=_T("智能合并数字输入"))
-        col.prop(self, "screencast_entry_animation", text=_T("启用入场动画"))
+
+        # 3. 字体与阴影 (Font & Shadow)
+        box = col.box()
+        box.label(text=_T("字体与阴影 (Font & Shadow)"), icon=_ICON("FONT_DATA"))
+        box.prop(self, "screencast_font_size", text=_T("字体大小"))
+        box.prop(self, "screencast_color", text=_T("文字颜色"))
+        box.prop(self, "screencast_show_shadow", text=_T("启用阴影"))
+        if self.screencast_show_shadow:
+            box.prop(self, "screencast_shadow_color", text=_T("阴影颜色"))
+        box.prop(self, "screencast_font_filepath", text=_T("自定义字体文件"))
+
+        # 4. 背景框设置 (Background Box)
+        box = col.box()
+        box.label(text=_T("背景框设置 (Background)"), icon=_ICON("MODIFIER"))
+        box.prop(self, "screencast_show_box", text=_T("显示背景框"))
+        if self.screencast_show_box:
+            box.prop(self, "screencast_bg_color", text=_T("背景颜色"))
+            row = box.row(align=True)
+            row.prop(self, "screencast_box_radius", text=_T("圆角半径"))
+            row.prop(self, "screencast_box_padding", text=_T("边距大小"))
+            box.prop(self, "screencast_bg_image", text=_T("背景图片"))
+            if self.screencast_bg_image:
+                box.prop(self, "screencast_bg_image_alpha", text=_T("图片透明度"))
+
+        # 5. 特效设置 (Effects)
+        box = col.box()
+        box.label(text=_T("特效设置 (Effects)"), icon=_ICON("PARTICLES"))
+        box.prop(self, "screencast_show_ripples", text=_T("启用点击涟漪"))
+        if self.screencast_show_ripples:
+            box.prop(self, "screencast_ripple_color", text=_T("涟漪颜色"))
+
+        # 6. 时间与历史 (Timing & History)
+        box = col.box()
+        box.label(text=_T("时间与历史 (Timing & History)"), icon=_ICON("TIME"))
+        row = box.row(align=True)
+        row.prop(self, "screencast_history_count", text=_T("最多显示行"))
+        row.prop(self, "screencast_timeout", text=_T("显示时长(秒)"))
+
+        # 7. 自定义贴图 (Custom Mouse Image)
+        box = col.box()
+        box.label(text=_T("自定义鼠标贴图 (Custom Mouse Image)"), icon=_ICON("FILE_IMAGE"))
+        box.prop(self, "screencast_use_custom_mouse", text=_T("使用自定义贴图"))
+        if self.screencast_use_custom_mouse:
+            row = box.row(align=True)
+            
+            col_b = row.column()
+            col_b.label(text=_T("基础鼠标"))
+            col_b.prop(self, "screencast_mouse_img_base", text="")
+            
+            col_l = row.column()
+            col_l.label(text=_T("左键按压"))
+            col_l.prop(self, "screencast_mouse_img_lmouse", text="")
+            
+            col_r = row.column()
+            col_r.label(text=_T("右键按压"))
+            col_r.prop(self, "screencast_mouse_img_rmouse", text="")
+            
+            col_m = row.column()
+            col_m.label(text=_T("中键按压"))
+            col_m.prop(self, "screencast_mouse_img_mmouse", text="")
 
     def draw_other_settings(self, layout):
         col = layout.column()

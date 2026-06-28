@@ -2,7 +2,7 @@ import bpy
 from ...utils.i18n import _T
 
 class VIEW3D_MT_M8ShadingPie(bpy.types.Menu):
-    bl_label = "着色方式"
+    bl_label = _T("着色方式")
     bl_idname = "VIEW3D_MT_m8_shading_pie"
 
     def draw(self, context):

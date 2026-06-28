@@ -15,7 +15,7 @@ def _mesh_select_ui_args(context):
     return {"text": pgettext_iface("To Select"), "icon": "RESTRICT_SELECT_OFF"}
 
 class VIEW3D_MT_SizeToolTransformPie(bpy.types.Menu):
-    bl_label = "光标和原点"
+    bl_label = _T("光标和原点")
     bl_idname = "VIEW3D_MT_size_tool_transform_pie"
 
     def draw(self, context):
@@ -103,7 +103,7 @@ class VIEW3D_MT_SizeToolTransformPie(bpy.types.Menu):
         pie.separator()
 
 class VIEW3D_MT_SizeToolObjectOrigin(bpy.types.Menu):
-    bl_label = "物体原点"
+    bl_label = _T("物体原点")
     bl_idname = "VIEW3D_MT_size_tool_object_origin"
 
     def draw(self, context):

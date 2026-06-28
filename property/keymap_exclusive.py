@@ -1,4 +1,5 @@
 import bpy
+from ..utils.i18n import _T
 from ..utils.logger import get_logger
 from .keymap_helpers import (
     _get_addon_prefs,
@@ -27,7 +28,7 @@ logger = get_logger()
 
 class SIZE_TOOL_OT_ResetTransformPieKeymap(bpy.types.Operator):
     bl_idname = "size_tool.reset_transform_pie_keymap"
-    bl_label = "恢复默认快捷键"
+    bl_label = _T("恢复默认快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
@@ -37,41 +38,41 @@ class SIZE_TOOL_OT_ResetTransformPieKeymap(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ForceTransformPiePriority(bpy.types.Operator):
     bl_idname = "size_tool.force_transform_pie_priority"
-    bl_label = "强制置顶快捷键"
+    bl_label = _T("强制置顶快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         kc, km, kmi = _find_pie_keymap_item()
         if not (kc and km and kmi):
-            self.report({'WARNING'}, "未找到变换辅助饼菜单的快捷键项")
+            self.report({'WARNING'}, _T("未找到变换辅助饼菜单的快捷键项"))
             return {'CANCELLED'}
         _ensure_pie_keymap_priority(km, kmi)
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceSwitchModePriority(bpy.types.Operator):
     bl_idname = "size_tool.force_switch_mode_priority"
-    bl_label = "强制置顶快捷键(Tab)"
+    bl_label = _T("强制置顶快捷键(Tab)")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_switch_mode_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到 Tab 绑定")
+            self.report({'WARNING'}, _T("未找到 Tab 绑定"))
             return {'CANCELLED'}
         for _, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
-        self.report({'INFO'}, f"已置顶 {len(items)} 个 Tab 绑定")
+        self.report({'INFO'}, f"{_T('已置顶')} {len(items)} {_T('个 Tab 绑定')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ExclusiveTransformPieHotkey(bpy.types.Operator):
     bl_idname = "size_tool.exclusive_transform_pie_hotkey"
-    bl_label = "独占 Shift+S"
+    bl_label = _T("独占 Shift+S")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法调整冲突快捷键"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -89,20 +90,20 @@ class SIZE_TOOL_OT_ExclusiveTransformPieHotkey(bpy.types.Operator):
             _ensure_pie_keymap_priority(km2, kmi2)
 
         if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Shift+S 快捷键")
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个插件冲突的 Shift+S 快捷键')}")
         else:
-            self.report({'INFO'}, "未发现插件层面的 Shift+S 冲突快捷键")
+            self.report({'INFO'}, _T("未发现插件层面的 Shift+S 冲突快捷键"))
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_RestoreShiftSConflicts(bpy.types.Operator):
     bl_idname = "size_tool.restore_shift_s_conflicts"
-    bl_label = "恢复被禁用的 Shift+S"
+    bl_label = _T("恢复被禁用的 Shift+S")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法恢复"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -115,18 +116,18 @@ class SIZE_TOOL_OT_RestoreShiftSConflicts(bpy.types.Operator):
         if include_user:
             restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
 
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Shift+S 快捷键")
+        self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的 Shift+S 快捷键')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceAlignPiePriority(bpy.types.Operator):
     bl_idname = "size_tool.force_align_pie_priority"
-    bl_label = "强制置顶对齐快捷键"
+    bl_label = _T("强制置顶对齐快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_align_pie_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到对齐辅助饼菜单的快捷键项")
+            self.report({'WARNING'}, _T("未找到对齐辅助饼菜单的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -134,13 +135,13 @@ class SIZE_TOOL_OT_ForceAlignPiePriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ExclusiveAlignPieHotkey(bpy.types.Operator):
     bl_idname = "size_tool.exclusive_align_pie_hotkey"
-    bl_label = "独占 Alt+A"
+    bl_label = _T("独占 Alt+A")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法调整冲突快捷键"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -157,20 +158,20 @@ class SIZE_TOOL_OT_ExclusiveAlignPieHotkey(bpy.types.Operator):
             _ensure_pie_keymap_priority(km2, kmi2)
 
         if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Alt+A 快捷键")
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个插件冲突的 Alt+A 快捷键')}")
         else:
-            self.report({'INFO'}, "未发现插件层面的 Alt+A 冲突快捷键")
+            self.report({'INFO'}, _T("未发现插件层面的 Alt+A 冲突快捷键"))
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_RestoreAltAConflicts(bpy.types.Operator):
     bl_idname = "size_tool.restore_alt_a_conflicts"
-    bl_label = "恢复被禁用的 Alt+A"
+    bl_label = _T("恢复被禁用的 Alt+A")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法恢复"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -181,18 +182,18 @@ class SIZE_TOOL_OT_RestoreAltAConflicts(bpy.types.Operator):
         if include_user:
             restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
 
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Alt+A 快捷键")
+        self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的 Alt+A 快捷键')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceSavePiePriority(bpy.types.Operator):
     bl_idname = "size_tool.force_save_pie_priority"
-    bl_label = "强制置顶保存快捷键"
+    bl_label = _T("强制置顶保存快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_save_pie_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到保存饼菜单的快捷键项")
+            self.report({'WARNING'}, _T("未找到保存饼菜单的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -200,13 +201,13 @@ class SIZE_TOOL_OT_ForceSavePiePriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ExclusiveSavePieHotkey(bpy.types.Operator):
     bl_idname = "size_tool.exclusive_save_pie_hotkey"
-    bl_label = "独占 Ctrl+S"
+    bl_label = _T("独占 Ctrl+S")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法调整冲突快捷键"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -223,20 +224,20 @@ class SIZE_TOOL_OT_ExclusiveSavePieHotkey(bpy.types.Operator):
             _ensure_pie_keymap_priority(km2, kmi2)
 
         if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Ctrl+S 快捷键")
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个插件冲突的 Ctrl+S 快捷键')}")
         else:
-            self.report({'INFO'}, "未发现插件层面的 Ctrl+S 冲突快捷键")
+            self.report({'INFO'}, _T("未发现插件层面的 Ctrl+S 冲突快捷键"))
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_RestoreCtrlSConflicts(bpy.types.Operator):
     bl_idname = "size_tool.restore_ctrl_s_conflicts"
-    bl_label = "恢复被禁用的 Ctrl+S"
+    bl_label = _T("恢复被禁用的 Ctrl+S")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法恢复"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -247,18 +248,18 @@ class SIZE_TOOL_OT_RestoreCtrlSConflicts(bpy.types.Operator):
         if include_user:
             restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
 
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Ctrl+S 快捷键")
+        self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的 Ctrl+S 快捷键')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceEdgePropertyPiePriority(bpy.types.Operator):
     bl_idname = "size_tool.force_edge_property_pie_priority"
-    bl_label = "强制置顶边属性快捷键"
+    bl_label = _T("强制置顶边属性快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_edge_property_pie_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到边属性饼菜单的快捷键项")
+            self.report({'WARNING'}, _T("未找到边属性饼菜单的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -266,13 +267,13 @@ class SIZE_TOOL_OT_ForceEdgePropertyPiePriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ExclusiveEdgePropertyPieHotkey(bpy.types.Operator):
     bl_idname = "size_tool.exclusive_edge_property_pie_hotkey"
-    bl_label = "独占 Shift+E"
+    bl_label = _T("独占 Shift+E")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法调整冲突快捷键"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -289,20 +290,20 @@ class SIZE_TOOL_OT_ExclusiveEdgePropertyPieHotkey(bpy.types.Operator):
             _ensure_pie_keymap_priority(km2, kmi2)
 
         if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Shift+E 快捷键")
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个插件冲突的 Shift+E 快捷键')}")
         else:
-            self.report({'INFO'}, "未发现插件层面的 Shift+E 冲突快捷键")
+            self.report({'INFO'}, _T("未发现插件层面的 Shift+E 冲突快捷键"))
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_RestoreShiftEConflicts(bpy.types.Operator):
     bl_idname = "size_tool.restore_shift_e_conflicts"
-    bl_label = "恢复被禁用的 Shift+E"
+    bl_label = _T("恢复被禁用的 Shift+E")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法恢复"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -313,18 +314,18 @@ class SIZE_TOOL_OT_RestoreShiftEConflicts(bpy.types.Operator):
         if include_user:
             restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
 
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Shift+E 快捷键")
+        self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的 Shift+E 快捷键')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceMirrorPriority(bpy.types.Operator):
     bl_idname = "size_tool.force_mirror_priority"
-    bl_label = "强制置顶镜像快捷键"
+    bl_label = _T("强制置顶镜像快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_mirror_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到镜像的快捷键项")
+            self.report({'WARNING'}, _T("未找到镜像的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -332,13 +333,13 @@ class SIZE_TOOL_OT_ForceMirrorPriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ExclusiveMirrorHotkey(bpy.types.Operator):
     bl_idname = "size_tool.exclusive_mirror_hotkey"
-    bl_label = "独占 Shift+Alt+X"
+    bl_label = _T("独占 Shift+Alt+X")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法调整冲突快捷键"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -355,20 +356,20 @@ class SIZE_TOOL_OT_ExclusiveMirrorHotkey(bpy.types.Operator):
             _ensure_pie_keymap_priority(km2, kmi2)
 
         if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Shift+Alt+X 快捷键")
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个插件冲突的 Shift+Alt+X 快捷键')}")
         else:
-            self.report({'INFO'}, "未发现插件层面的 Shift+Alt+X 冲突快捷键")
+            self.report({'INFO'}, _T("未发现插件层面的 Shift+Alt+X 冲突快捷键"))
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_RestoreShiftAltXConflicts(bpy.types.Operator):
     bl_idname = "size_tool.restore_shift_alt_x_conflicts"
-    bl_label = "恢复被禁用的 Shift+Alt+X"
+    bl_label = _T("恢复被禁用的 Shift+Alt+X")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法恢复"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -379,18 +380,18 @@ class SIZE_TOOL_OT_RestoreShiftAltXConflicts(bpy.types.Operator):
         if include_user:
             restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
 
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Shift+Alt+X 快捷键")
+        self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的 Shift+Alt+X 快捷键')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceGroupToolPriority(bpy.types.Operator):
     bl_idname = "size_tool.force_group_tool_priority"
-    bl_label = "强制置顶打组快捷键"
+    bl_label = _T("强制置顶打组快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_group_tool_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到打组的快捷键项")
+            self.report({'WARNING'}, _T("未找到打组的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -398,13 +399,13 @@ class SIZE_TOOL_OT_ForceGroupToolPriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ExclusiveGroupToolHotkey(bpy.types.Operator):
     bl_idname = "size_tool.exclusive_group_tool_hotkey"
-    bl_label = "独占 Ctrl+G"
+    bl_label = _T("独占 Ctrl+G")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法调整冲突快捷键"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -421,20 +422,20 @@ class SIZE_TOOL_OT_ExclusiveGroupToolHotkey(bpy.types.Operator):
             _ensure_pie_keymap_priority(km2, kmi2)
 
         if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件冲突的 Ctrl+G 快捷键")
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个插件冲突的 Ctrl+G 快捷键')}")
         else:
-            self.report({'INFO'}, "未发现插件层面的 Ctrl+G 冲突快捷键")
+            self.report({'INFO'}, _T("未发现插件层面的 Ctrl+G 冲突快捷键"))
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_RestoreCtrlGConflicts(bpy.types.Operator):
     bl_idname = "size_tool.restore_ctrl_g_conflicts"
-    bl_label = "恢复被禁用的 Ctrl+G"
+    bl_label = _T("恢复被禁用的 Ctrl+G")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法恢复"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -445,18 +446,18 @@ class SIZE_TOOL_OT_RestoreCtrlGConflicts(bpy.types.Operator):
         if include_user:
             restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
 
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 Ctrl+G 快捷键")
+        self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的 Ctrl+G 快捷键')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ExclusiveSubdivisionHotkey(bpy.types.Operator):
     bl_idname = "size_tool.exclusive_subdivision_hotkey"
-    bl_label = "独占细分快捷键"
+    bl_label = _T("独占细分快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法调整冲突快捷键"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -481,20 +482,20 @@ class SIZE_TOOL_OT_ExclusiveSubdivisionHotkey(bpy.types.Operator):
             _ensure_pie_keymap_priority(km2, kmi2)
 
         if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个插件或系统的细分冲突快捷键")
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个插件或系统的细分冲突快捷键')}")
         else:
-            self.report({'INFO'}, "未发现任何细分冲突快捷键")
+            self.report({'INFO'}, _T("未发现任何细分冲突快捷键"))
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_RestoreSubdivisionConflicts(bpy.types.Operator):
     bl_idname = "size_tool.restore_subdivision_conflicts"
-    bl_label = "恢复被禁用的细分快捷键"
+    bl_label = _T("恢复被禁用的细分快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法恢复"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -513,18 +514,18 @@ class SIZE_TOOL_OT_RestoreSubdivisionConflicts(bpy.types.Operator):
         if include_user:
             restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
 
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的细分快捷键")
+        self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的细分快捷键')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ExclusiveToggleAreaHotkey(bpy.types.Operator):
     bl_idname = "size_tool.exclusive_toggle_area_hotkey"
-    bl_label = "独占区域切换快捷键"
+    bl_label = _T("独占区域切换快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法调整冲突快捷键")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法调整冲突快捷键"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -545,20 +546,20 @@ class SIZE_TOOL_OT_ExclusiveToggleAreaHotkey(bpy.types.Operator):
             _ensure_pie_keymap_priority(km2, kmi2)
 
         if disabled:
-            self.report({'INFO'}, f"已禁用 {disabled} 个系统或其它插件冲突的 T 键快捷键")
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个系统或其它插件冲突的 T 键快捷键')}")
         else:
-            self.report({'INFO'}, "未发现任何 T 键冲突快捷键")
+            self.report({'INFO'}, _T("未发现任何 T 键冲突快捷键"))
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_RestoreToggleAreaConflicts(bpy.types.Operator):
     bl_idname = "size_tool.restore_toggle_area_conflicts"
-    bl_label = "恢复被禁用的区域切换快捷键"
+    bl_label = _T("恢复被禁用的区域切换快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         wm = bpy.context.window_manager if bpy.context else None
         if not wm or not wm.keyconfigs:
-            self.report({'WARNING'}, "未找到 KeyConfig，无法恢复")
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法恢复"))
             return {'CANCELLED'}
 
         prefs = _get_addon_prefs()
@@ -573,33 +574,33 @@ class SIZE_TOOL_OT_RestoreToggleAreaConflicts(bpy.types.Operator):
         if include_user:
             restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
 
-        self.report({'INFO'}, f"已恢复 {restored} 个被禁用的 T 键快捷键")
+        self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的 T 键快捷键')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceSubdivisionPriority(bpy.types.Operator):
     bl_idname = "size_tool.force_subdivision_priority"
-    bl_label = "强制细分快捷键优先级"
+    bl_label = _T("强制细分快捷键优先级")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_subdivision_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到细分快捷键映射项")
+            self.report({'WARNING'}, _T("未找到细分快捷键映射项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
-        self.report({'INFO'}, f"已优先处理 {len(items)} 个细分快捷键绑定")
+        self.report({'INFO'}, f"{_T('已优先处理')} {len(items)} {_T('个细分快捷键绑定')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceDeletePiePriority(bpy.types.Operator):
     bl_idname = "size_tool.force_delete_pie_priority"
-    bl_label = "强制置顶删除饼菜单快捷键"
+    bl_label = _T("强制置顶删除饼菜单快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_delete_pie_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到删除饼菜单的快捷键项")
+            self.report({'WARNING'}, _T("未找到删除饼菜单的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -607,13 +608,13 @@ class SIZE_TOOL_OT_ForceDeletePiePriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ForceRenamePriority(bpy.types.Operator):
     bl_idname = "size_tool.force_rename_priority"
-    bl_label = "强制置顶重命名快捷键"
+    bl_label = _T("强制置顶重命名快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_rename_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到重命名的快捷键项")
+            self.report({'WARNING'}, _T("未找到重命名的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -621,13 +622,13 @@ class SIZE_TOOL_OT_ForceRenamePriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ForceShadingPiePriority(bpy.types.Operator):
     bl_idname = "size_tool.force_shading_pie_priority"
-    bl_label = "强制置顶着色饼菜单快捷键"
+    bl_label = _T("强制置顶着色饼菜单快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_shading_pie_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到着色饼菜单的快捷键项")
+            self.report({'WARNING'}, _T("未找到着色饼菜单的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -635,13 +636,13 @@ class SIZE_TOOL_OT_ForceShadingPiePriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ForceSmartPiePriority(bpy.types.Operator):
     bl_idname = "size_tool.force_smart_pie_priority"
-    bl_label = "强制置顶智能饼菜单快捷键"
+    bl_label = _T("强制置顶智能饼菜单快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_smart_pie_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到智能饼菜单的快捷键项")
+            self.report({'WARNING'}, _T("未找到智能饼菜单的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -649,13 +650,13 @@ class SIZE_TOOL_OT_ForceSmartPiePriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ForceSwitchEditorPriority(bpy.types.Operator):
     bl_idname = "size_tool.force_switch_editor_priority"
-    bl_label = "强制置顶切换窗口快捷键"
+    bl_label = _T("强制置顶切换窗口快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_switch_editor_pie_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到切换窗口饼菜单的快捷键项")
+            self.report({'WARNING'}, _T("未找到切换窗口饼菜单的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -663,13 +664,13 @@ class SIZE_TOOL_OT_ForceSwitchEditorPriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ForceToggleAreaPriority(bpy.types.Operator):
     bl_idname = "size_tool.force_toggle_area_priority"
-    bl_label = "强制置顶区域切换快捷键"
+    bl_label = _T("强制置顶区域切换快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         items = _find_toggle_area_keymap_items()
         if not items:
-            self.report({'WARNING'}, "未找到区域切换的快捷键项")
+            self.report({'WARNING'}, _T("未找到区域切换的快捷键项"))
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
@@ -677,8 +678,8 @@ class SIZE_TOOL_OT_ForceToggleAreaPriority(bpy.types.Operator):
 
 class SIZE_TOOL_OT_ExclusiveAllHotkeys(bpy.types.Operator):
     bl_idname = "size_tool.exclusive_all_hotkeys"
-    bl_label = "一键独占所有快捷键"
-    bl_description = "自动禁用 Blender 内置或其它插件冲突的 Shift+S, Shift+E, Alt+A, Ctrl+S 等快捷键"
+    bl_label = _T("一键独占所有快捷键")
+    bl_description = _T("自动禁用 Blender 内置或其它插件冲突的 Shift+S, Shift+E, Alt+A, Ctrl+S 等快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
@@ -690,15 +691,15 @@ class SIZE_TOOL_OT_ExclusiveAllHotkeys(bpy.types.Operator):
             bpy.ops.size_tool.exclusive_mirror_hotkey()
             bpy.ops.size_tool.exclusive_subdivision_hotkey()
             bpy.ops.size_tool.exclusive_toggle_area_hotkey()
-            self.report({'INFO'}, "已执行所有独占操作")
+            self.report({'INFO'}, _T("已执行所有独占操作"))
         except Exception as e:
-            self.report({'WARNING'}, f"部分操作失败: {e}")
+            self.report({'WARNING'}, f"{_T('部分操作失败')}: {e}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_RestoreAllConflicts(bpy.types.Operator):
     bl_idname = "size_tool.restore_all_conflicts"
-    bl_label = "一键恢复所有冲突"
-    bl_description = "恢复被本插件禁用的所有冲突快捷键"
+    bl_label = _T("一键恢复所有冲突")
+    bl_description = _T("恢复被本插件禁用的所有冲突快捷键")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
@@ -710,14 +711,14 @@ class SIZE_TOOL_OT_RestoreAllConflicts(bpy.types.Operator):
             bpy.ops.size_tool.restore_shift_alt_x_conflicts()
             bpy.ops.size_tool.restore_subdivision_conflicts()
             bpy.ops.size_tool.restore_toggle_area_conflicts()
-            self.report({'INFO'}, "已执行所有恢复操作")
+            self.report({'INFO'}, _T("已执行所有恢复操作"))
         except Exception as e:
-            self.report({'WARNING'}, f"部分操作失败: {e}")
+            self.report({'WARNING'}, f"{_T('部分操作失败')}: {e}")
         return {'FINISHED'}
 
 class M8_OT_ResetSwitchModePrefs(bpy.types.Operator):
     bl_idname = "m8.reset_switch_mode_prefs"
-    bl_label = "恢复默认(切换模式)"
+    bl_label = _T("恢复默认(切换模式)")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
@@ -745,7 +746,7 @@ class M8_OT_ResetSwitchModePrefs(bpy.types.Operator):
 
 class M8_OT_ResetPrefsUI(bpy.types.Operator):
     bl_idname = "m8.reset_prefs_ui"
-    bl_label = "重置偏好界面"
+    bl_label = _T("重置偏好界面")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):

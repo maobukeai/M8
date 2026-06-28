@@ -1,9 +1,11 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 class M8_OT_TextQuickSettings(bpy.types.Operator):
     bl_idname = "m8.text_quick_settings"
-    bl_label = "文字快速设置"
+    bl_label = _T("文字快速设置")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -24,10 +26,10 @@ class M8_OT_TextQuickSettings(bpy.types.Operator):
 
         if hasattr(data, "body"):
             row = layout.row()
-            row.prop(data, "body", text="文本")
+            row.prop(data, "body", text=_T("文本"))
 
         box = layout.box()
-        box.label(text="排版", icon="ALIGN_CENTER")
+        box.label(text=_T("排版"), icon="ALIGN_CENTER")
         box.use_property_split = True
         box.use_property_decorate = False
         if hasattr(data, "align_x"):
@@ -42,7 +44,7 @@ class M8_OT_TextQuickSettings(bpy.types.Operator):
             box.prop(data, "space_line")
 
         box = layout.box()
-        box.label(text="尺寸/几何", icon="MOD_SOLIDIFY")
+        box.label(text=_T("尺寸/几何"), icon="MOD_SOLIDIFY")
         box.use_property_split = True
         box.use_property_decorate = False
         if hasattr(data, "size"):

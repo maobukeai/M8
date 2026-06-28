@@ -1,9 +1,11 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 class M8_OT_SwitchMeshMode(bpy.types.Operator):
     bl_idname = "m8.switch_mesh_mode"
-    bl_label = "切换网格选择模式"
+    bl_label = _T("切换网格选择模式")
     bl_options = {"REGISTER", "UNDO"}
 
     select_mode: bpy.props.EnumProperty(
@@ -111,5 +113,5 @@ class M8_OT_SwitchMeshMode(bpy.types.Operator):
             first = False
 
         mode_label = "/".join(sorted_modes)
-        self.report({"INFO"}, f"已切换网格选择模式为 {mode_label}")
+        # self.report({"INFO"}, f"已切换网格选择模式为 {mode_label}")
         return {"FINISHED"}

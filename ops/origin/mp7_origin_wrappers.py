@@ -3,6 +3,7 @@ import bmesh
 from mathutils import Matrix, Vector
 
 from ...utils import ensure_object_mode, call_object_op_with_selection
+from ...utils.i18n import _T
 
 
 def _call_op_or_none(op, *args, **kwargs):
@@ -447,8 +448,8 @@ def _snap_cursor_to_selected_or_none():
 
 class M8_OT_MP7CursorToSelectSmart(bpy.types.Operator):
     bl_idname = "m8.mp7_cursor_to_select_smart"
-    bl_label = "到所选"
-    bl_description = "优先使用 MP7Tools 的到所选/活动元素；失败时回退到 Blender 的到所选"
+    bl_label = _T("到所选")
+    bl_description = _T("优先使用 MP7Tools 的到所选/活动元素；失败时回退到 Blender 的到所选")
     bl_options = {"UNDO"}
 
     def invoke(self, context, event):
@@ -463,26 +464,26 @@ class M8_OT_MP7CursorToSelectSmart(bpy.types.Operator):
             if m is not None:
                 try:
                     context.scene.cursor.matrix = m
-                    self.report({"INFO"}, "已回退到编辑模式原地设置：游标到所选")
+                    self.report({"INFO"}, _T("已回退到编辑模式原地设置：游标到所选"))
                     return {"FINISHED"}
                 except Exception:
                     pass
 
         fallback = _call_op_or_none(bpy.ops.view3d.snap_cursor_to_selected, "INVOKE_DEFAULT")
         if fallback is not None:
-            self.report({"INFO"}, "已回退到 Blender 原生：游标到所选")
+            self.report({"INFO"}, _T("已回退到 Blender 原生：游标到所选"))
         return fallback if fallback is not None else {"CANCELLED"}
 
 
 class M8_OT_MP7OriginToActiveSmart(bpy.types.Operator):
     bl_idname = "m8.mp7_origin_to_active_smart"
-    bl_label = "到活动"
-    bl_description = "设置原点到活动元素。Alt:仅位置；Ctrl:仅旋转。失败时回退为“原点到所选/游标”"
+    bl_label = _T("到活动")
+    bl_description = _T("设置原点到活动元素。Alt:仅位置；Ctrl:仅旋转。失败时回退为“原点到所选/游标”")
     bl_options = {"UNDO"}
 
     def invoke(self, context, event):
         if event.ctrl and event.alt:
-            self.report({"WARNING"}, "Ctrl 与 Alt 同时按下无法解析")
+            self.report({"WARNING"}, _T("Ctrl 与 Alt 同时按下无法解析"))
             return {"CANCELLED"}
         result = None
         if hasattr(bpy.ops, "m8") and hasattr(bpy.ops.m8, "origin_to_active"):
@@ -506,9 +507,9 @@ class M8_OT_MP7OriginToActiveSmart(bpy.types.Operator):
                         only_rotation=only_rotation,
                     )
                     if ok:
-                        msg = "已回退到编辑模式原地设置：原点到所选"
+                        msg = _T("已回退到编辑模式原地设置：原点到所选")
                         if only_rotation:
-                            msg += "；Ctrl 仅旋转已尽量等效"
+                            msg += _T("；Ctrl 仅旋转已尽量等效")
                         self.report({"INFO"}, msg)
                         return {"FINISHED"}
 
@@ -525,9 +526,9 @@ class M8_OT_MP7OriginToActiveSmart(bpy.types.Operator):
                         only_rotation=only_rotation,
                     )
                     if ok:
-                        msg = "已回退到编辑模式原地设置：原点到曲线所选"
+                        msg = _T("已回退到编辑模式原地设置：原点到曲线所选")
                         if only_rotation:
-                            msg += "；Ctrl 仅旋转已尽量等效"
+                            msg += _T("；Ctrl 仅旋转已尽量等效")
                         self.report({"INFO"}, msg)
                         return {"FINISHED"}
 
@@ -548,22 +549,22 @@ class M8_OT_MP7OriginToActiveSmart(bpy.types.Operator):
         )
         _restore_mode(context, original_mode)
         if fallback is not None:
-            msg = "已回退到 Blender 原生：原点到游标（先将游标吸附到所选）"
+            msg = _T("已回退到 Blender 原生：原点到游标（先将游标吸附到所选）")
             if event.ctrl and not event.alt:
-                msg += "；Ctrl 仅旋转在回退路径下无法完全等效"
+                msg += _T("；Ctrl 仅旋转在回退路径下无法完全等效")
             self.report({"INFO"}, msg)
         return fallback if fallback is not None else {"CANCELLED"}
 
 
 class M8_OT_MP7OriginToCursorSmart(bpy.types.Operator):
     bl_idname = "m8.mp7_origin_to_cursor_smart"
-    bl_label = "到游标"
-    bl_description = "设置原点到 3D 游标。Alt:仅位置；Ctrl:仅旋转。失败时回退为 Blender 的“原点到游标”"
+    bl_label = _T("到游标")
+    bl_description = _T("设置原点到 3D 游标。Alt:仅位置；Ctrl:仅旋转。失败时回退为 Blender 的“原点到游标”")
     bl_options = {"UNDO"}
 
     def invoke(self, context, event):
         if event.ctrl and event.alt:
-            self.report({"WARNING"}, "Ctrl 与 Alt 同时按下无法解析")
+            self.report({"WARNING"}, _T("Ctrl 与 Alt 同时按下无法解析"))
             return {"CANCELLED"}
         result = None
         if hasattr(bpy.ops, "m8") and hasattr(bpy.ops.m8, "origin_to_cursor"):
@@ -586,9 +587,9 @@ class M8_OT_MP7OriginToCursorSmart(bpy.types.Operator):
                     only_rotation=only_rotation,
                 )
                 if ok:
-                    msg = "已回退到编辑模式原地设置：原点到游标"
+                    msg = _T("已回退到编辑模式原地设置：原点到游标")
                     if only_rotation:
-                        msg += "；Ctrl 仅旋转已尽量等效"
+                        msg += _T("；Ctrl 仅旋转已尽量等效")
                     self.report({"INFO"}, msg)
                     return {"FINISHED"}
 
@@ -603,9 +604,9 @@ class M8_OT_MP7OriginToCursorSmart(bpy.types.Operator):
                     only_rotation=only_rotation,
                 )
                 if ok:
-                    msg = "已回退到编辑模式原地设置：原点到游标"
+                    msg = _T("已回退到编辑模式原地设置：原点到游标")
                     if only_rotation:
-                        msg += "；Ctrl 仅旋转已尽量等效"
+                        msg += _T("；Ctrl 仅旋转已尽量等效")
                     self.report({"INFO"}, msg)
                     return {"FINISHED"}
 
@@ -624,9 +625,9 @@ class M8_OT_MP7OriginToCursorSmart(bpy.types.Operator):
         )
         _restore_mode(context, original_mode)
         if fallback is not None:
-            msg = "已回退到 Blender 原生：原点到游标"
+            msg = _T("已回退到 Blender 原生：原点到游标")
             if event.ctrl and not event.alt:
-                msg += "；Ctrl 仅旋转在回退路径下无法完全等效"
+                msg += _T("；Ctrl 仅旋转在回退路径下无法完全等效")
             self.report({"INFO"}, msg)
         return fallback if fallback is not None else {"CANCELLED"}
 

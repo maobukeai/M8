@@ -5,6 +5,7 @@ import difflib
 from bpy.props import BoolProperty, FloatProperty, StringProperty, EnumProperty, IntProperty
 from bpy.types import Panel, Operator
 from ...utils.logger import get_logger
+from ...utils.i18n import _T
 
 logger = get_logger()
 
@@ -45,6 +46,14 @@ TRANSLATIONS = {
 
 def T(context, key):
     """根据当前场景语言设置返回对应文本"""
+    # 优先检查插件全局语言设置
+    try:
+        root_pkg = ".".join(__package__.split(".")[:3]) if __package__ and __package__.startswith("bl_ext") else (__package__.split(".")[0] if __package__ else "M8")
+        prefs = bpy.context.preferences.addons[root_pkg].preferences
+        if getattr(prefs, "addon_language", "ZH") == "EN":
+            return TRANSLATIONS.get(key, {}).get("EN", key)
+    except Exception:
+        pass
     if not hasattr(context.scene, "m8") or not hasattr(context.scene.m8, "bake_renamer"):
         return TRANSLATIONS.get(key, {}).get("CN", key)
     lang = context.scene.m8.bake_renamer.language
@@ -138,7 +147,7 @@ def move_to_collection(obj, coll_name):
 
 class BM_OT_SetLow(Operator):
     bl_idname = "bakematcher.set_low"
-    bl_label = "设为低模 (_low)"
+    bl_label = _T("设为低模 (_low)")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -157,12 +166,12 @@ class BM_OT_SetLow(Operator):
             idx += 1
 
         props.start_index = idx
-        self.report({"INFO"}, "已设为低模")
+        self.report({"INFO"}, _T("已设为低模"))
         return {'FINISHED'}
 
 class BM_OT_SetHigh(Operator):
     bl_idname = "bakematcher.set_high"
-    bl_label = "设为高模 (_high)"
+    bl_label = _T("设为高模 (_high)")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -181,15 +190,15 @@ class BM_OT_SetHigh(Operator):
             idx += 1
 
         props.start_index = idx
-        self.report({"INFO"}, "已设为高模")
+        self.report({"INFO"}, _T("已设为高模"))
         return {'FINISHED'}
 
 # --- 2. 智能重构 ---
 
 class BM_OT_BatchRenumber(Operator):
     bl_idname = "bakematcher.batch_renumber"
-    bl_label = "智能匹配 (AABB 与字符串)"
-    bl_description = "AABB 聚类 -> 面数比与字符串匹配 -> 重命名"
+    bl_label = _T("智能匹配 (AABB 与字符串)")
+    bl_description = _T("AABB 聚类 -> 面数比与字符串匹配 -> 重命名")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -205,7 +214,7 @@ class BM_OT_BatchRenumber(Operator):
             objs = [o for o in context.selected_objects if o.type == 'MESH']
 
         if len(objs) < 2:
-            self.report({"ERROR"}, "物体数量不足，至少需要 2 个")
+            self.report({"ERROR"}, _T("物体数量不足，至少需要 2 个"))
             return {'CANCELLED'}
 
         data_pool = []
@@ -353,14 +362,14 @@ class BM_OT_BatchRenumber(Operator):
             renamed_pairs += 1
 
         props.start_index = start_index
-        self.report({"INFO"}, f"完成！已处理 {renamed_pairs} 对。")
+        self.report({"INFO"}, f"{_T('完成！已处理 ')}{renamed_pairs}{_T(' 对。')}")
         return {'FINISHED'}
 
 # --- 3. 传统匹配 ---
 
 class BM_OT_ClassicMatch(Operator):
     bl_idname = "bakematcher.classic_match"
-    bl_label = "经典匹配"
+    bl_label = _T("经典匹配")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -403,14 +412,14 @@ class BM_OT_ClassicMatch(Operator):
                     t.name = f"{base_name}{tgt_suffix}{suffix}"
                 count += 1
 
-        self.report({"INFO"}, f"经典匹配已更新 {count} 对。")
+        self.report({"INFO"}, f"{_T('经典匹配已更新 ')}{count}{_T(' 对。')}")
         return {'FINISHED'}
 
 # --- 辅助工具 ---
 
 class BM_OT_DetectConflicts(Operator):
     bl_idname = "bakematcher.detect_conflicts"
-    bl_label = "检测冲突"
+    bl_label = _T("检测冲突")
     bl_options = {'REGISTER', 'UNDO'}
     def execute(self, context):
         threshold = context.scene.m8.bake_renamer.distance
@@ -425,24 +434,24 @@ class BM_OT_DetectConflicts(Operator):
         if conflicts:
             bpy.ops.object.select_all(action='DESELECT')
             for o in conflicts: o.select_set(True)
-            self.report({"WARNING"}, f"发现 {len(conflicts)} 个重叠物体")
+            self.report({"WARNING"}, f"{_T('发现 ')}{len(conflicts)}{_T(' 个重叠物体')}")
         else:
-            self.report({"INFO"}, "未发现重叠")
+            self.report({"INFO"}, _T("未发现重叠"))
         return {'FINISHED'}
 
 class BM_OT_OriginToBounds(Operator):
     bl_idname = "bakematcher.origin_to_bounds"
-    bl_label = "原点到边界"
+    bl_label = _T("原点到边界")
     bl_options = {'REGISTER', 'UNDO'}
     def execute(self, context):
         if context.selected_objects:
             bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
-            self.report({"INFO"}, f"已将 {len(context.selected_objects)} 个物体的原点设到边界")
+            self.report({"INFO"}, f"{_T('已将 ')}{len(context.selected_objects)}{_T(' 个物体的原点设到边界')}")
         return {'FINISHED'}
 
 class BM_OT_ResetNames(Operator):
     bl_idname = "bakematcher.reset_names"
-    bl_label = "重置名称"
+    bl_label = _T("重置名称")
     bl_options = {'REGISTER', 'UNDO'}
     def execute(self, context):
         props = context.scene.m8.bake_renamer
@@ -451,14 +460,14 @@ class BM_OT_ResetNames(Operator):
         for o in context.selected_objects:
             o.name = f"{prefix}_{str(idx).zfill(3)}"
             idx += 1
-        self.report({"INFO"}, f"已重置 {idx - 1} 个物体的名称")
+        self.report({"INFO"}, f"{_T('已重置 ')}{idx - 1}{_T(' 个物体的名称')}")
         return {'FINISHED'}
 
 # --- UI 界面布局 ---
 
 class BAKEMATCHER_PT_Main(Panel):
     bl_idname = "BAKEMATCHER_PT_Main"
-    bl_label = "智能烘焙重命名"
+    bl_label = _T("智能烘焙重命名")
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "m8"

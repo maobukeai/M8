@@ -2,6 +2,8 @@ import bpy
 import bmesh
 from mathutils import Vector
 
+from ...utils.i18n import _T
+
 def _find_face_islands(selected_faces):
     visited = set()
     islands = []
@@ -84,11 +86,11 @@ def _island_uv_tangent_space(island_faces, uv_layer):
 
 class MESH_OT_ScaleFromBottomUV(bpy.types.Operator):
     bl_idname = "mesh.scale_from_bottom_uv"
-    bl_label = "从底部UV缩放"
+    bl_label = _T("从底部UV缩放")
     bl_options = {'REGISTER', 'UNDO'}
 
-    scale: bpy.props.FloatProperty(name="缩放系数", description="缩放系数（1.0 不变）", default=1.0, min=0.01, soft_max=3.0)
-    uniform: bpy.props.BoolProperty(name="均匀", description="勾选：整体缩放；取消：只在叶片平面内缩放（尽量保持厚度）", default=True)
+    scale: bpy.props.FloatProperty(name=_T("缩放系数"), description=_T("缩放系数（1.0 不变）"), default=1.0, min=0.01, soft_max=3.0)
+    uniform: bpy.props.BoolProperty(name=_T("均匀"), description=_T("勾选：整体缩放；取消：只在叶片平面内缩放（尽量保持厚度）"), default=True)
 
     @classmethod
     def poll(cls, context):
@@ -113,12 +115,12 @@ class MESH_OT_ScaleFromBottomUV(bpy.types.Operator):
         uv_layer = bm.loops.layers.uv.active
         selected_faces = {f for f in bm.faces if f.select}
         if not selected_faces:
-            self.report({'WARNING'}, "未选择任何面")
+            self.report({'WARNING'}, _T("未选择任何面"))
             return {'CANCELLED'}
 
         islands = _find_face_islands(selected_faces)
         if not islands:
-            self.report({'WARNING'}, "未在选择中找到连通岛")
+            self.report({'WARNING'}, _T("未在选择中找到连通岛"))
             return {'CANCELLED'}
 
         scaled_count = 0
@@ -185,5 +187,5 @@ class MESH_OT_ScaleFromBottomUV(bpy.types.Operator):
             scaled_count += 1
 
         bmesh.update_edit_mesh(obj.data)
-        self.report({'INFO'}, f"已从底部UV缩放 {scaled_count} 个岛")
+        self.report({'INFO'}, f"{_T('已从底部UV缩放')} {scaled_count} {_T('个岛')}")
         return {'FINISHED'}

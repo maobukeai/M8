@@ -1,9 +1,10 @@
 import bpy
+from ...utils.i18n import _T
 
 
 class M8_OT_LightQuickSettings(bpy.types.Operator):
     bl_idname = "m8.light_quick_settings"
-    bl_label = "灯光快速设置"
+    bl_label = _T("灯光快速设置")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -30,7 +31,7 @@ class M8_OT_LightQuickSettings(bpy.types.Operator):
 
         if getattr(light, "type", "") == "POINT":
             if hasattr(light, "shadow_soft_size"):
-                layout.prop(light, "shadow_soft_size", text="半径")
+                layout.prop(light, "shadow_soft_size", text=_T("半径"))
         elif getattr(light, "type", "") == "SUN":
             if hasattr(light, "angle"):
                 layout.prop(light, "angle")
@@ -50,7 +51,7 @@ class M8_OT_LightQuickSettings(bpy.types.Operator):
                 layout.prop(light, "size_y")
 
         if hasattr(light, "use_shadow"):
-            layout.prop(light, "use_shadow", text="投影")
+            layout.prop(light, "use_shadow", text=_T("投影"))
 
     def execute(self, context):
         return {"FINISHED"}

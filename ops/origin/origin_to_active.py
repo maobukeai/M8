@@ -4,11 +4,12 @@ from .public_origin import PublicOrigin
 from ...utils import get_operator_bl_idname
 from ...utils.curve import check_curve_select
 from ...utils.math import from_curve_get_matrix, from_edit_bone_get_matrix
+from ...utils.i18n import _T
 
 
 class OriginToActive(PublicOrigin):
     bl_idname = get_operator_bl_idname("origin_to_active")
-    bl_label = "到活动项"
+    bl_label = _T("到活动项")
 
     @classmethod
     def poll(cls, context):

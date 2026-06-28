@@ -2,6 +2,8 @@ import bpy
 import bmesh
 from mathutils import Vector
 
+from ...utils.i18n import _T
+
 def _find_face_islands(selected_faces):
     visited = set()
     islands = []
@@ -192,21 +194,21 @@ def _create_plane_in_bmesh(bm, uv_layer, center, tangent, normal, width, height,
 
 class MESH_OT_LeavesToPlanes(bpy.types.Operator):
     bl_idname = "mesh.leaves_to_planes"
-    bl_label = "叶片转面片"
+    bl_label = _T("叶片转面片")
     bl_options = {'REGISTER', 'UNDO'}
 
     scope: bpy.props.EnumProperty(
-        name="范围",
-        description="处理范围",
+        name=_T("范围"),
+        description=_T("处理范围"),
         items=[
-            ('SELECTED', "仅选择", "只处理当前已选中的面"),
-            ('ALL', "全网格", "处理整个网格的所有面"),
+            ('SELECTED', _T("仅选择"), _T("只处理当前已选中的面")),
+            ('ALL', _T("全网格"), _T("处理整个网格的所有面")),
         ],
         default='SELECTED',
     )
-    stem_extension: bpy.props.FloatProperty(name="茎部延伸", description="向叶柄方向延伸面片底边（本地单位）", default=0.0, min=0.0, soft_max=1.0, unit='LENGTH')
-    anchor_to_stem: bpy.props.BoolProperty(name="锚定到叶柄", description="让面片底边对齐叶柄位置（更容易保持连接）", default=True)
-    face_count_threshold: bpy.props.IntProperty(name="面数阈值", description="只转换面数小于此值的岛（防止误转枝干）", default=50, min=3)
+    stem_extension: bpy.props.FloatProperty(name=_T("茎部延伸"), description=_T("向叶柄方向延伸面片底边（本地单位）"), default=0.0, min=0.0, soft_max=1.0, unit='LENGTH')
+    anchor_to_stem: bpy.props.BoolProperty(name=_T("锚定到叶柄"), description=_T("让面片底边对齐叶柄位置（更容易保持连接）"), default=True)
+    face_count_threshold: bpy.props.IntProperty(name=_T("面数阈值"), description=_T("只转换面数小于此值的岛（防止误转枝干）"), default=50, min=3)
 
     @classmethod
     def poll(cls, context):
@@ -235,12 +237,12 @@ class MESH_OT_LeavesToPlanes(bpy.types.Operator):
         else:
             pool_faces = {f for f in bm.faces if f.select}
             if not pool_faces:
-                self.report({'WARNING'}, "未选择任何面")
+                self.report({'WARNING'}, _T("未选择任何面"))
                 return {'CANCELLED'}
 
         islands = _find_face_islands(pool_faces)
         if not islands:
-            self.report({'WARNING'}, "未找到连通岛")
+            self.report({'WARNING'}, _T("未找到连通岛"))
             return {'CANCELLED'}
 
         # 过滤面数过多的岛（可能是枝干）
@@ -253,7 +255,7 @@ class MESH_OT_LeavesToPlanes(bpy.types.Operator):
                 skipped_count += 1
         
         if not valid_islands:
-            self.report({'WARNING'}, f"选中的岛面数均超过阈值 ({self.face_count_threshold})，未转换")
+            self.report({'WARNING'}, f"{_T('选中的岛面数均超过阈值')} ({self.face_count_threshold}){_T('，未转换')}")
             return {'CANCELLED'}
 
         created_count = 0
@@ -302,5 +304,5 @@ class MESH_OT_LeavesToPlanes(bpy.types.Operator):
             bm.verts.remove(v)
 
         bmesh.update_edit_mesh(obj.data)
-        self.report({'INFO'}, f"已将 {len(islands)} 个岛转换为 {created_count} 个面片")
+        self.report({'INFO'}, f"{_T('已将')} {len(islands)} {_T('个岛转换为')} {created_count} {_T('个面片')}")
         return {'FINISHED'}

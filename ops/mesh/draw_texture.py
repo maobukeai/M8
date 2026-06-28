@@ -1,9 +1,11 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 class M8_OT_DrawSelected(bpy.types.Operator):
     bl_idname = "m8.draw_selected"
-    bl_label = "绘制所选"
+    bl_label = _T("绘制所选")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -23,15 +25,15 @@ class M8_OT_DrawSelected(bpy.types.Operator):
         try:
             bpy.ops.object.mode_set(mode="TEXTURE_PAINT", toggle=False)
         except Exception:
-            self.report({"WARNING"}, "无法进入纹理绘制模式")
+            self.report({"WARNING"}, _T("无法进入纹理绘制模式"))
             return {"CANCELLED"}
-        self.report({"INFO"}, "已进入纹理绘制模式（仅绘制选中）")
+        self.report({"INFO"}, _T("已进入纹理绘制模式（仅绘制选中）"))
         return {"FINISHED"}
 
 
 class M8_OT_CancelDrawSelected(bpy.types.Operator):
     bl_idname = "m8.cancel_draw_selected"
-    bl_label = "退出绘制"
+    bl_label = _T("退出绘制")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -72,7 +74,7 @@ class M8_OT_CancelDrawSelected(bpy.types.Operator):
                 bpy.ops.object.mode_set(mode="OBJECT")
                 bpy.ops.object.mode_set(mode="EDIT")
             except Exception as e2:
-                self.report({'ERROR'}, f"退出绘制失败: {e2}")
+                self.report({'ERROR'}, f"{_T('退出绘制失败')}: {e2}")
                 return {"CANCELLED"}
                 
         return {"FINISHED"}

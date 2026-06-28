@@ -1,24 +1,25 @@
 import bpy
 import os
+from ...utils.i18n import _T
 
 class M8_ImageSavePresetProps(bpy.types.PropertyGroup):
     engine_type: bpy.props.EnumProperty(
         items=[
-            ('GENERAL', "通用 PBR", "通用 PBR 命名规范"),
-            ('UNITY', "Unity", "Unity 命名规范 (Albedo, MaskMap 等)"),
-            ('UNREAL', "Unreal", "Unreal Engine 命名规范 (BaseColor, ORM 等)")
+            ('GENERAL', _T("通用 PBR"), _T("通用 PBR 命名规范")),
+            ('UNITY', "Unity", _T("Unity 命名规范 (Albedo, MaskMap 等)")),
+            ('UNREAL', "Unreal", _T("Unreal Engine 命名规范 (BaseColor, ORM 等)"))
         ],
-        name="目标引擎",
+        name=_T("目标引擎"),
         default='GENERAL'
     )
 
 class M8_OT_AppendFilenameSuffix(bpy.types.Operator):
     bl_idname = "m8.append_filename_suffix"
-    bl_label = "添加后缀"
-    bl_description = "在当前文件名后添加指定后缀"
+    bl_label = _T("添加后缀")
+    bl_description = _T("在当前文件名后添加指定后缀")
     bl_options = {'REGISTER', 'UNDO'}
-    
-    suffix: bpy.props.StringProperty(name="后缀", default="_Normal")
+
+    suffix: bpy.props.StringProperty(name=_T("后缀"), default="_Normal")
     
     @classmethod
     def poll(cls, context):
@@ -74,7 +75,7 @@ class M8_OT_AppendFilenameSuffix(bpy.types.Operator):
             
             new_filename = temp_real_name + ext
             params.filename = new_filename
-            self.report({"INFO"}, f"已清除后缀：{new_filename}")
+            self.report({"INFO"}, f"{_T('已清除后缀：')}{new_filename}")
             return {'FINISHED'}
             
         # Parse existing name to find base name, current PBR suffix, and current resolution
@@ -116,22 +117,22 @@ class M8_OT_AppendFilenameSuffix(bpy.types.Operator):
         # Reconstruct filename: BaseName + PBR Suffix + Resolution
         new_filename = base_name + current_pbr + current_res + ext
         params.filename = new_filename
-        self.report({"INFO"}, f"已更新文件名：{new_filename}")
+        self.report({"INFO"}, f"{_T('已更新文件名：')}{new_filename}")
         return {'FINISHED'}
 
 
 class M8_OT_SetFilenamePrefix(bpy.types.Operator):
     bl_idname = "m8.set_filename_prefix"
-    bl_label = "设置前缀"
-    bl_description = "使用当前活动对象或材质的名称作为文件名前缀"
+    bl_label = _T("设置前缀")
+    bl_description = _T("使用当前活动对象或材质的名称作为文件名前缀")
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     source: bpy.props.EnumProperty(
         items=[
-            ('OBJECT', "活动对象", "使用当前活动对象的名称"),
-            ('MATERIAL', "活动材质", "使用当前活动材质的名称")
+            ('OBJECT', _T("活动对象"), _T("使用当前活动对象的名称")),
+            ('MATERIAL', _T("活动材质"), _T("使用当前活动材质的名称"))
         ],
-        name="来源",
+        name=_T("来源"),
         default='OBJECT'
     )
     
@@ -158,7 +159,7 @@ class M8_OT_SetFilenamePrefix(bpy.types.Operator):
                 prefix = obj.active_material.name
                 
         if not prefix:
-            self.report({'WARNING'}, f"未找到对应的{self.source}名称")
+            self.report({'WARNING'}, f"{_T('未找到对应的')}{self.source}{_T('名称')}")
             return {'CANCELLED'}
             
         # Check if we already have a known suffix, keep it
@@ -214,7 +215,7 @@ class M8_OT_SetFilenamePrefix(bpy.types.Operator):
 class FILEBROWSER_PT_m8_image_save_presets(bpy.types.Panel):
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'TOOL_PROPS'
-    bl_label = "M8 贴图命名预设"
+    bl_label = _T("M8 贴图命名预设")
 
     @classmethod
     def poll(cls, context):
@@ -242,15 +243,15 @@ class FILEBROWSER_PT_m8_image_save_presets(bpy.types.Panel):
         # 智能命名前缀
         col = layout.column(align=True)
         row = col.row(align=True)
-        row.label(text="提取前缀:")
-        row.operator("m8.set_filename_prefix", text="对象", icon='OBJECT_DATA').source = 'OBJECT'
-        row.operator("m8.set_filename_prefix", text="材质", icon='MATERIAL').source = 'MATERIAL'
-        
+        row.label(text=_T("提取前缀:"))
+        row.operator("m8.set_filename_prefix", text=_T("对象"), icon='OBJECT_DATA').source = 'OBJECT'
+        row.operator("m8.set_filename_prefix", text=_T("材质"), icon='MATERIAL').source = 'MATERIAL'
+
         col.separator(factor=0.5)
-        
+
         # 分辨率后缀
         row = col.row(align=True)
-        row.label(text="分辨率:")
+        row.label(text=_T("分辨率:"))
         row.operator("m8.append_filename_suffix", text="1K").suffix = "_1K"
         row.operator("m8.append_filename_suffix", text="2K").suffix = "_2K"
         row.operator("m8.append_filename_suffix", text="4K").suffix = "_4K"
@@ -263,44 +264,44 @@ class FILEBROWSER_PT_m8_image_save_presets(bpy.types.Panel):
         col = box.column(align=True)
         
         if props.engine_type == 'GENERAL':
-            col.label(text="PBR 核心", icon='SHADING_RENDERED')
+            col.label(text=_T("PBR 核心"), icon='SHADING_RENDERED')
             grid = col.grid_flow(row_major=True, columns=3, even_columns=True, align=True)
-            grid.operator("m8.append_filename_suffix", text="底色").suffix = "_BaseColor"
-            grid.operator("m8.append_filename_suffix", text="法线").suffix = "_Normal"
-            grid.operator("m8.append_filename_suffix", text="粗糙度").suffix = "_Roughness"
-            grid.operator("m8.append_filename_suffix", text="金属度").suffix = "_Metallic"
+            grid.operator("m8.append_filename_suffix", text=_T("底色")).suffix = "_BaseColor"
+            grid.operator("m8.append_filename_suffix", text=_T("法线")).suffix = "_Normal"
+            grid.operator("m8.append_filename_suffix", text=_T("粗糙度")).suffix = "_Roughness"
+            grid.operator("m8.append_filename_suffix", text=_T("金属度")).suffix = "_Metallic"
             grid.operator("m8.append_filename_suffix", text="AO").suffix = "_AO"
-            grid.operator("m8.append_filename_suffix", text="高度").suffix = "_Height"
-            
+            grid.operator("m8.append_filename_suffix", text=_T("高度")).suffix = "_Height"
+
         elif props.engine_type == 'UNITY':
-            col.label(text="Unity 核心", icon='SHADING_RENDERED')
+            col.label(text=_T("Unity 核心"), icon='SHADING_RENDERED')
             grid = col.grid_flow(row_major=True, columns=3, even_columns=True, align=True)
-            grid.operator("m8.append_filename_suffix", text="反射率").suffix = "_Albedo"
-            grid.operator("m8.append_filename_suffix", text="法线").suffix = "_Normal"
-            grid.operator("m8.append_filename_suffix", text="遮罩图").suffix = "_MaskMap"
-            grid.operator("m8.append_filename_suffix", text="金属度").suffix = "_Metallic"
-            grid.operator("m8.append_filename_suffix", text="平滑度").suffix = "_Smoothness"
+            grid.operator("m8.append_filename_suffix", text=_T("反射率")).suffix = "_Albedo"
+            grid.operator("m8.append_filename_suffix", text=_T("法线")).suffix = "_Normal"
+            grid.operator("m8.append_filename_suffix", text=_T("遮罩图")).suffix = "_MaskMap"
+            grid.operator("m8.append_filename_suffix", text=_T("金属度")).suffix = "_Metallic"
+            grid.operator("m8.append_filename_suffix", text=_T("平滑度")).suffix = "_Smoothness"
             grid.operator("m8.append_filename_suffix", text="AO").suffix = "_AO"
-            
+
         elif props.engine_type == 'UNREAL':
-            col.label(text="Unreal 核心", icon='SHADING_RENDERED')
+            col.label(text=_T("Unreal 核心"), icon='SHADING_RENDERED')
             grid = col.grid_flow(row_major=True, columns=3, even_columns=True, align=True)
-            grid.operator("m8.append_filename_suffix", text="底色").suffix = "_BaseColor"
-            grid.operator("m8.append_filename_suffix", text="法线").suffix = "_Normal"
+            grid.operator("m8.append_filename_suffix", text=_T("底色")).suffix = "_BaseColor"
+            grid.operator("m8.append_filename_suffix", text=_T("法线")).suffix = "_Normal"
             grid.operator("m8.append_filename_suffix", text="ORM").suffix = "_ORM"
-            grid.operator("m8.append_filename_suffix", text="粗糙度").suffix = "_Roughness"
-            grid.operator("m8.append_filename_suffix", text="金属度").suffix = "_Metallic"
+            grid.operator("m8.append_filename_suffix", text=_T("粗糙度")).suffix = "_Roughness"
+            grid.operator("m8.append_filename_suffix", text=_T("金属度")).suffix = "_Metallic"
             grid.operator("m8.append_filename_suffix", text="AO").suffix = "_AO"
         
         layout.separator(factor=0.5)
         row = layout.row(align=True)
-        row.operator("m8.append_filename_suffix", text="清除后缀", icon='TRASH').suffix = ""
+        row.operator("m8.append_filename_suffix", text=_T("清除后缀"), icon='TRASH').suffix = ""
 
 class FILEBROWSER_PT_m8_image_save_presets_extra(bpy.types.Panel):
     bl_space_type = 'FILE_BROWSER'
     bl_region_type = 'TOOL_PROPS'
     bl_parent_id = "FILEBROWSER_PT_m8_image_save_presets"
-    bl_label = "更多后缀"
+    bl_label = _T("更多后缀")
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
@@ -312,45 +313,45 @@ class FILEBROWSER_PT_m8_image_save_presets_extra(bpy.types.Panel):
         grid = col.grid_flow(row_major=True, columns=3, even_columns=True, align=True)
         
         if props.engine_type == 'GENERAL':
-            grid.operator("m8.append_filename_suffix", text="发光").suffix = "_Emission"
-            grid.operator("m8.append_filename_suffix", text="不透明度").suffix = "_Opacity"
-            grid.operator("m8.append_filename_suffix", text="漫反射").suffix = "_Diffuse"
-            
-            grid.operator("m8.append_filename_suffix", text="高光").suffix = "_Specular"
-            grid.operator("m8.append_filename_suffix", text="光泽度").suffix = "_Glossiness"
-            grid.operator("m8.append_filename_suffix", text="凹凸").suffix = "_Bump"
-            
+            grid.operator("m8.append_filename_suffix", text=_T("发光")).suffix = "_Emission"
+            grid.operator("m8.append_filename_suffix", text=_T("不透明度")).suffix = "_Opacity"
+            grid.operator("m8.append_filename_suffix", text=_T("漫反射")).suffix = "_Diffuse"
+
+            grid.operator("m8.append_filename_suffix", text=_T("高光")).suffix = "_Specular"
+            grid.operator("m8.append_filename_suffix", text=_T("光泽度")).suffix = "_Glossiness"
+            grid.operator("m8.append_filename_suffix", text=_T("凹凸")).suffix = "_Bump"
+
             grid.operator("m8.append_filename_suffix", text="Alpha").suffix = "_Alpha"
-            grid.operator("m8.append_filename_suffix", text="遮罩").suffix = "_Mask"
-            grid.operator("m8.append_filename_suffix", text="清漆").suffix = "_ClearCoat"
-            
+            grid.operator("m8.append_filename_suffix", text=_T("遮罩")).suffix = "_Mask"
+            grid.operator("m8.append_filename_suffix", text=_T("清漆")).suffix = "_ClearCoat"
+
         elif props.engine_type == 'UNITY':
             # Unity 特有或常用的附加贴图
-            grid.operator("m8.append_filename_suffix", text="发光").suffix = "_Emission"
-            grid.operator("m8.append_filename_suffix", text="透明度").suffix = "_Transparency"
-            grid.operator("m8.append_filename_suffix", text="细节图").suffix = "_Detail"
-            
-            grid.operator("m8.append_filename_suffix", text="细节法线").suffix = "_DetailNormal"
-            grid.operator("m8.append_filename_suffix", text="细节遮罩").suffix = "_DetailMask"
-            grid.operator("m8.append_filename_suffix", text="厚度").suffix = "_Thickness"
-            
-            grid.operator("m8.append_filename_suffix", text="基础图").suffix = "_BaseMap"
-            grid.operator("m8.append_filename_suffix", text="高光").suffix = "_Specular"
-            grid.operator("m8.append_filename_suffix", text="光泽度").suffix = "_Glossiness"
-            
+            grid.operator("m8.append_filename_suffix", text=_T("发光")).suffix = "_Emission"
+            grid.operator("m8.append_filename_suffix", text=_T("透明度")).suffix = "_Transparency"
+            grid.operator("m8.append_filename_suffix", text=_T("细节图")).suffix = "_Detail"
+
+            grid.operator("m8.append_filename_suffix", text=_T("细节法线")).suffix = "_DetailNormal"
+            grid.operator("m8.append_filename_suffix", text=_T("细节遮罩")).suffix = "_DetailMask"
+            grid.operator("m8.append_filename_suffix", text=_T("厚度")).suffix = "_Thickness"
+
+            grid.operator("m8.append_filename_suffix", text=_T("基础图")).suffix = "_BaseMap"
+            grid.operator("m8.append_filename_suffix", text=_T("高光")).suffix = "_Specular"
+            grid.operator("m8.append_filename_suffix", text=_T("光泽度")).suffix = "_Glossiness"
+
         elif props.engine_type == 'UNREAL':
             # Unreal 特有或常用的附加贴图
-            grid.operator("m8.append_filename_suffix", text="发光").suffix = "_Emissive"
-            grid.operator("m8.append_filename_suffix", text="不透明度").suffix = "_Opacity"
+            grid.operator("m8.append_filename_suffix", text=_T("发光")).suffix = "_Emissive"
+            grid.operator("m8.append_filename_suffix", text=_T("不透明度")).suffix = "_Opacity"
             grid.operator("m8.append_filename_suffix", text="MADS").suffix = "_MADS"
-            
-            grid.operator("m8.append_filename_suffix", text="高光").suffix = "_Specular"
-            grid.operator("m8.append_filename_suffix", text="清漆").suffix = "_ClearCoat"
-            grid.operator("m8.append_filename_suffix", text="清漆粗糙").suffix = "_ClearCoatRoughness"
-            
-            grid.operator("m8.append_filename_suffix", text="各向异性").suffix = "_Anisotropy"
-            grid.operator("m8.append_filename_suffix", text="次表面").suffix = "_SubsurfaceColor"
-            grid.operator("m8.append_filename_suffix", text="世界法线").suffix = "_WorldNormal"
+
+            grid.operator("m8.append_filename_suffix", text=_T("高光")).suffix = "_Specular"
+            grid.operator("m8.append_filename_suffix", text=_T("清漆")).suffix = "_ClearCoat"
+            grid.operator("m8.append_filename_suffix", text=_T("清漆粗糙")).suffix = "_ClearCoatRoughness"
+
+            grid.operator("m8.append_filename_suffix", text=_T("各向异性")).suffix = "_Anisotropy"
+            grid.operator("m8.append_filename_suffix", text=_T("次表面")).suffix = "_SubsurfaceColor"
+            grid.operator("m8.append_filename_suffix", text=_T("世界法线")).suffix = "_WorldNormal"
 
 classes = [
     M8_ImageSavePresetProps,

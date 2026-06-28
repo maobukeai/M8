@@ -1,9 +1,10 @@
 import bpy
+from ...utils.i18n import _T
 
 
 class M8_OT_CurveQuickSettings(bpy.types.Operator):
     bl_idname = "m8.curve_quick_settings"
-    bl_label = "曲线快速设置"
+    bl_label = _T("曲线快速设置")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -35,7 +36,7 @@ class M8_OT_CurveQuickSettings(bpy.types.Operator):
             layout.prop(data, "use_fill_caps")
 
         box = layout.box()
-        box.label(text="挤出/倒角", icon="MOD_SOLIDIFY")
+        box.label(text=_T("挤出/倒角"), icon="MOD_SOLIDIFY")
         box.use_property_split = True
         box.use_property_decorate = False
         if hasattr(data, "extrude"):
@@ -53,7 +54,7 @@ class M8_OT_CurveQuickSettings(bpy.types.Operator):
 
 class M8_OT_CurveCyclicToggle(bpy.types.Operator):
     bl_idname = "m8.curve_cyclic_toggle"
-    bl_label = "切换闭合"
+    bl_label = _T("切换闭合")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -105,7 +106,7 @@ class M8_OT_CurveCyclicToggle(bpy.types.Operator):
                     obj.data.update_tag()
             
             context.view_layer.update()
-            self.report({'INFO'}, f"已切换 {processed} 个曲线的闭合状态")
+            self.report({'INFO'}, f"{_T('已切换')} {processed} {_T('个曲线的闭合状态')}")
             return {"FINISHED"}
             
         return {"CANCELLED"}
@@ -113,10 +114,10 @@ class M8_OT_CurveCyclicToggle(bpy.types.Operator):
 
 class M8_OT_ObjectConvertToMesh(bpy.types.Operator):
     bl_idname = "m8.convert_to_mesh"
-    bl_label = "转换为网格"
+    bl_label = _T("转换为网格")
     bl_options = {"REGISTER", "UNDO"}
 
-    keep_original: bpy.props.BoolProperty(name="保留原物体", default=True)
+    keep_original: bpy.props.BoolProperty(name=_T("保留原物体"), default=True)
 
     @classmethod
     def poll(cls, context):
@@ -134,7 +135,7 @@ class M8_OT_ObjectConvertToMesh(bpy.types.Operator):
         selected_objects = [o for o in context.selected_objects if o.type in {"CURVE", "FONT", "SURFACE", "META"}]
         
         if not selected_objects:
-            self.report({'WARNING'}, "未选中可转换的物体")
+            self.report({'WARNING'}, _T("未选中可转换的物体"))
             return {"CANCELLED"}
 
         processed = 0
@@ -181,5 +182,5 @@ class M8_OT_ObjectConvertToMesh(bpy.types.Operator):
         # But references might be lost after convert? 
         # object.convert keeps the object reference valid (it changes type).
         
-        self.report({'INFO'}, f"已转换 {processed} 个物体为网格")
+        self.report({'INFO'}, f"{_T('已转换')} {processed} {_T('个物体为网格')}")
         return {"FINISHED"}

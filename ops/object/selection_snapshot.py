@@ -2,6 +2,8 @@ import json
 
 import bpy
 
+from ...utils.i18n import _T
+
 
 def _wm_state(context):
     return getattr(getattr(context, "window_manager", None), "m8", None)
@@ -44,8 +46,8 @@ def _ensure_object_mode(context):
 
 class M8_OT_SaveSelectionSnapshot(bpy.types.Operator):
     bl_idname = "m8.save_selection_snapshot"
-    bl_label = "保存选择快照"
-    bl_description = "保存当前物体选择，便于快速恢复"
+    bl_label = _T("保存选择快照")
+    bl_description = _T("保存当前物体选择，便于快速恢复")
     bl_options = {"REGISTER"}
 
     @classmethod
@@ -55,12 +57,12 @@ class M8_OT_SaveSelectionSnapshot(bpy.types.Operator):
     def execute(self, context):
         wm_state = _wm_state(context)
         if not wm_state:
-            self.report({"ERROR"}, "M8 状态未就绪")
+            self.report({"ERROR"}, _T("M8 状态未就绪"))
             return {"CANCELLED"}
 
         names = _selected_names(context)
         if not names:
-            self.report({"WARNING"}, "没有选中物体可保存")
+            self.report({"WARNING"}, _T("没有选中物体可保存"))
             return {"CANCELLED"}
 
         active = getattr(context.view_layer.objects, "active", None)
@@ -74,8 +76,8 @@ class M8_OT_SaveSelectionSnapshot(bpy.types.Operator):
 
 class M8_OT_AddSelectionToSnapshot(bpy.types.Operator):
     bl_idname = "m8.add_selection_to_snapshot"
-    bl_label = "添加选择到快照"
-    bl_description = "将当前选择添加到已保存的选择快照中"
+    bl_label = _T("添加选择到快照")
+    bl_description = _T("将当前选择添加到已保存的选择快照中")
     bl_options = {"REGISTER"}
 
     @classmethod
@@ -85,7 +87,7 @@ class M8_OT_AddSelectionToSnapshot(bpy.types.Operator):
     def execute(self, context):
         wm_state = _wm_state(context)
         if not wm_state:
-            self.report({"ERROR"}, "M8 状态未就绪")
+            self.report({"ERROR"}, _T("M8 状态未就绪"))
             return {"CANCELLED"}
 
         names = _load_snapshot_names(wm_state)
@@ -113,8 +115,8 @@ class M8_OT_AddSelectionToSnapshot(bpy.types.Operator):
 
 class M8_OT_RemoveSelectionFromSnapshot(bpy.types.Operator):
     bl_idname = "m8.remove_selection_from_snapshot"
-    bl_label = "从快照移除选择"
-    bl_description = "将当前选择从已保存的选择快照中移除"
+    bl_label = _T("从快照移除选择")
+    bl_description = _T("将当前选择从已保存的选择快照中移除")
     bl_options = {"REGISTER"}
 
     @classmethod
@@ -126,7 +128,7 @@ class M8_OT_RemoveSelectionFromSnapshot(bpy.types.Operator):
         wm_state = _wm_state(context)
         names = _load_snapshot_names(wm_state)
         if not wm_state or not names:
-            self.report({"WARNING"}, "未保存任何选择快照")
+            self.report({"WARNING"}, _T("未保存任何选择快照"))
             return {"CANCELLED"}
 
         remove_names = set(_selected_names(context))
@@ -157,8 +159,8 @@ class M8_OT_RemoveSelectionFromSnapshot(bpy.types.Operator):
 
 class M8_OT_RestoreSelectionSnapshot(bpy.types.Operator):
     bl_idname = "m8.restore_selection_snapshot"
-    bl_label = "恢复选择快照"
-    bl_description = "恢复已保存的物体选择和活动物体"
+    bl_label = _T("恢复选择快照")
+    bl_description = _T("恢复已保存的物体选择和活动物体")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -170,11 +172,11 @@ class M8_OT_RestoreSelectionSnapshot(bpy.types.Operator):
         wm_state = _wm_state(context)
         names = _load_snapshot_names(wm_state)
         if not names:
-            self.report({"WARNING"}, "未保存任何选择快照")
+            self.report({"WARNING"}, _T("未保存任何选择快照"))
             return {"CANCELLED"}
 
         if not _ensure_object_mode(context):
-            self.report({"ERROR"}, "无法切换到物体模式")
+            self.report({"ERROR"}, _T("无法切换到物体模式"))
             return {"CANCELLED"}
 
         view_object_names = {obj.name for obj in context.view_layer.objects}
@@ -221,8 +223,8 @@ class M8_OT_RestoreSelectionSnapshot(bpy.types.Operator):
 
 class M8_OT_ClearSelectionSnapshot(bpy.types.Operator):
     bl_idname = "m8.clear_selection_snapshot"
-    bl_label = "清空选择快照"
-    bl_description = "清空已保存的物体选择快照"
+    bl_label = _T("清空选择快照")
+    bl_description = _T("清空已保存的物体选择快照")
     bl_options = {"REGISTER"}
 
     @classmethod
@@ -232,10 +234,10 @@ class M8_OT_ClearSelectionSnapshot(bpy.types.Operator):
     def execute(self, context):
         wm_state = _wm_state(context)
         if not wm_state:
-            self.report({"ERROR"}, "M8 状态未就绪")
+            self.report({"ERROR"}, _T("M8 状态未就绪"))
             return {"CANCELLED"}
         wm_state.selection_snapshot_names = ""
         wm_state.selection_snapshot_active = ""
         wm_state.selection_snapshot_summary = ""
-        self.report({"INFO"}, "已清除选择快照")
+        self.report({"INFO"}, _T("已清除选择快照"))
         return {"FINISHED"}

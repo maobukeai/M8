@@ -5,16 +5,17 @@ import re
 import subprocess
 import importlib.util
 from ..misc.screencast import M8_OT_InternalScreencast
+from ...utils.i18n import _T
 
 class M8_OT_SwitchFile(bpy.types.Operator):
     bl_idname = "m8.switch_file"
-    bl_label = "切换文件"
-    bl_description = "打开当前文件夹中的上一个/下一个 Blend 文件"
+    bl_label = _T("切换文件")
+    bl_description = _T("打开当前文件夹中的上一个/下一个 Blend 文件")
 
     direction: bpy.props.EnumProperty(
         items=[
-            ("PREV", "上一个", "上一个文件"),
-            ("NEXT", "下一个", "下一个文件"),
+            ("PREV", _T("上一个"), _T("上一个文件")),
+            ("NEXT", _T("下一个"), _T("下一个文件")),
         ],
         default="NEXT"
     )
@@ -22,7 +23,7 @@ class M8_OT_SwitchFile(bpy.types.Operator):
     def execute(self, context):
         current_path = bpy.data.filepath
         if not current_path:
-            self.report({'WARNING'}, "请先保存当前文件")
+            self.report({'WARNING'}, _T("请先保存当前文件"))
             return {'CANCELLED'}
         
         # Auto save before switching
@@ -39,7 +40,7 @@ class M8_OT_SwitchFile(bpy.types.Operator):
             # Sort files naturally/alphabetically to ensure consistent order
             files.sort(key=lambda x: x.lower())
         except Exception as e:
-            self.report({'ERROR'}, f"无法读取目录: {e}")
+            self.report({'ERROR'}, f"{_T('无法读取目录')}: {e}")
             return {'CANCELLED'}
 
         if not files:
@@ -63,7 +64,7 @@ class M8_OT_SwitchFile(bpy.types.Operator):
         target_path = os.path.join(directory, target_file)
 
         if target_path == current_path:
-             self.report({'INFO'}, "只有一个文件")
+             self.report({'INFO'}, _T("只有一个文件"))
              return {'FINISHED'}
 
         bpy.ops.wm.open_mainfile(filepath=target_path)
@@ -72,8 +73,8 @@ class M8_OT_SwitchFile(bpy.types.Operator):
 
 class M8_OT_OpenAutoSave(bpy.types.Operator):
     bl_idname = "m8.open_auto_save"
-    bl_label = "打开自动保存"
-    bl_description = "打开自动保存目录 (Alt: Blender内浏览 | Ctrl: 资源管理器)"
+    bl_label = _T("打开自动保存")
+    bl_description = _T("打开自动保存目录 (Alt: Blender内浏览 | Ctrl: 资源管理器)")
 
     use_alt: bpy.props.BoolProperty(default=False, options={'SKIP_SAVE'})
     use_ctrl: bpy.props.BoolProperty(default=False, options={'SKIP_SAVE'})
@@ -126,7 +127,7 @@ class M8_OT_OpenAutoSave(bpy.types.Operator):
             else:
                 subprocess.Popen(['xdg-open', filepath])
         except Exception as e:
-            self.report({'ERROR'}, f"无法打开文件夹: {e}")
+            self.report({'ERROR'}, f"{_T('无法打开文件夹')}: {e}")
             return {'CANCELLED'}
             
         return {'FINISHED'}
@@ -139,8 +140,8 @@ class M8_OT_OpenAutoSave(bpy.types.Operator):
 
 class M8_OT_OpenCurrentFolder(bpy.types.Operator):
     bl_idname = "m8.open_current_folder"
-    bl_label = "打开当前文件夹"
-    bl_description = "打开当前 Blend 文件所在的文件夹"
+    bl_label = _T("打开当前文件夹")
+    bl_description = _T("打开当前 Blend 文件所在的文件夹")
 
     def execute(self, context):
         path = bpy.data.filepath
@@ -158,14 +159,14 @@ class M8_OT_OpenCurrentFolder(bpy.types.Operator):
             else:
                 subprocess.Popen(['xdg-open', path])
         except Exception as e:
-            self.report({'ERROR'}, f"无法打开文件夹: {e}")
+            self.report({'ERROR'}, f"{_T('无法打开文件夹')}: {e}")
             return {'CANCELLED'}
         return {'FINISHED'}
 
 class M8_OT_OpenTempDir(bpy.types.Operator):
     bl_idname = "m8.open_temp_dir"
-    bl_label = "打开临时文件夹"
-    bl_description = "打开 Blender 的临时文件夹"
+    bl_label = _T("打开临时文件夹")
+    bl_description = _T("打开 Blender 的临时文件夹")
 
     def execute(self, context):
         path = bpy.app.tempdir
@@ -177,14 +178,14 @@ class M8_OT_OpenTempDir(bpy.types.Operator):
             else:
                 subprocess.Popen(['xdg-open', path])
         except Exception as e:
-            self.report({'ERROR'}, f"无法打开文件夹: {e}")
+            self.report({'ERROR'}, f"{_T('无法打开文件夹')}: {e}")
             return {'CANCELLED'}
         return {'FINISHED'}
 
 class M8_OT_IncrementalSave(bpy.types.Operator):
     bl_idname = "m8.incremental_save"
-    bl_label = "增量保存"
-    bl_description = "保存文件并自动增加版本号 (filename_01.blend)"
+    bl_label = _T("增量保存")
+    bl_description = _T("保存文件并自动增加版本号 (filename_01.blend)")
 
     def execute(self, context):
         filepath = bpy.data.filepath
@@ -229,9 +230,9 @@ class M8_OT_IncrementalSave(bpy.types.Operator):
 
         try:
             bpy.ops.wm.save_as_mainfile(filepath=new_filepath, copy=False)
-            self.report({'INFO'}, f"已增量保存: {new_name}{ext}")
+            self.report({'INFO'}, f"{_T('已增量保存')}: {new_name}{ext}")
         except Exception as e:
-            self.report({'ERROR'}, f"保存失败: {e}")
+            self.report({'ERROR'}, f"{_T('保存失败')}: {e}")
             return {'CANCELLED'}
             
         return {'FINISHED'}
@@ -307,21 +308,21 @@ def _pack_all_with_stats(sample_limit=6):
 
 class M8_OT_PackResources(bpy.types.Operator):
     bl_idname = "m8.pack_resources"
-    bl_label = "打包资源"
-    bl_description = "打包外部资源到 .blend（File > External Data > Pack Resources）"
+    bl_label = _T("打包资源")
+    bl_description = _T("打包外部资源到 .blend（File > External Data > Pack Resources）")
 
     def execute(self, context):
         try:
             stats = _pack_all_with_stats()
             c = stats["added_counts"]
             t = stats["total_counts"]
-            msg = f"已打包资源: +{sum(c.values())}（图像+{c['images']}/{t['images']} 声音+{c['sounds']}/{t['sounds']} 字体+{c['fonts']}/{t['fonts']} 影片+{c['movieclips']}/{t['movieclips']}）"
+            msg = f"{_T('已打包资源')}: +{sum(c.values())}{_T('（图像')}+{c['images']}/{t['images']}{_T(' 声音')}+{c['sounds']}/{t['sounds']}{_T(' 字体')}+{c['fonts']}/{t['fonts']}{_T(' 影片')}+{c['movieclips']}/{t['movieclips']}{_T('）')}"
             self.report({'INFO'}, msg)
             if sum(c.values()):
                 print("M8 Pack Resources Added:", stats["added_full"])
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"打包失败: {e}")
+            self.report({'ERROR'}, f"{_T('打包失败')}: {e}")
             return {'CANCELLED'}
 
 
@@ -339,8 +340,8 @@ def _purge_unused_materials():
 
 class M8_OT_PurgeUnusedMaterials(bpy.types.Operator):
     bl_idname = "m8.purge_unused_materials"
-    bl_label = "清理未使用材质"
-    bl_description = "删除 users=0 的材质（保留资产、假用户、链接库材质）"
+    bl_label = _T("清理未使用材质")
+    bl_description = _T("删除 users=0 的材质（保留资产、假用户、链接库材质）")
 
     def execute(self, context):
         removed = 0
@@ -350,18 +351,18 @@ class M8_OT_PurgeUnusedMaterials(bpy.types.Operator):
             removed = 0
 
         if removed:
-            self.report({'INFO'}, f"已清理未使用材质: {removed} 个")
+            self.report({'INFO'}, f"{_T('已清理未使用材质')}: {removed} {_T('个')}")
         else:
-            self.report({'INFO'}, "未发现可清理的未使用材质")
+            self.report({'INFO'}, _T("未发现可清理的未使用材质"))
         return {'FINISHED'}
 
 
 class M8_OT_ShowSaveReport(bpy.types.Operator):
     bl_idname = "m8.show_save_report"
-    bl_label = "保存报告"
+    bl_label = _T("保存报告")
     bl_options = {'INTERNAL'}
 
-    source: bpy.props.StringProperty(name="来源", default="AUTO")
+    source: bpy.props.StringProperty(name=_T("来源"), default="AUTO")
 
     def execute(self, context):
         wm = getattr(bpy.context, "window_manager", None)
@@ -389,11 +390,11 @@ class M8_OT_ShowSaveReport(bpy.types.Operator):
             tail = f" {label}:{', '.join(s)}" if s else ""
             return f"{label}+{a}/{tot}{tail}"
 
-        msg = f"自动处理: 清除孤立数据 {purged} | 打包 " + " ".join([
-            _fmt("images", "图像"),
-            _fmt("sounds", "声音"),
-            _fmt("fonts", "字体"),
-            _fmt("movieclips", "影片"),
+        msg = f"{_T('自动处理')}: {_T('清除孤立数据')} {purged} | {_T('打包')} " + " ".join([
+            _fmt("images", _T("图像")),
+            _fmt("sounds", _T("声音")),
+            _fmt("fonts", _T("字体")),
+            _fmt("movieclips", _T("影片")),
         ])
         self.report({'INFO'}, msg)
         try:
@@ -407,10 +408,10 @@ class M8_OT_ShowSaveReport(bpy.types.Operator):
 
 class M8_OT_PlaceholderOp(bpy.types.Operator):
     bl_idname = "m8.placeholder_op"
-    bl_label = "占位符"
-    bl_description = "功能尚未实现"
+    bl_label = _T("占位符")
+    bl_description = _T("功能尚未实现")
     
-    msg: bpy.props.StringProperty(default="功能未实现")
+    msg: bpy.props.StringProperty(default=_T("功能未实现"))
 
     def execute(self, context):
         self.report({'INFO'}, self.msg)
@@ -418,14 +419,14 @@ class M8_OT_PlaceholderOp(bpy.types.Operator):
 
 class M8_OT_OpenPreferences(bpy.types.Operator):
     bl_idname = "m8.open_preferences"
-    bl_label = "打开偏好设置"
-    bl_description = "打开偏好设置窗口"
+    bl_label = _T("打开偏好设置")
+    bl_description = _T("打开偏好设置窗口")
 
     def execute(self, context):
         try:
             bpy.ops.screen.userpref_show('INVOKE_DEFAULT')
         except Exception as e:
-            self.report({'ERROR'}, f"无法打开偏好设置: {e}")
+            self.report({'ERROR'}, f"{_T('无法打开偏好设置')}: {e}")
             return {'CANCELLED'}
 
         return {'FINISHED'}
@@ -461,12 +462,12 @@ def _apply_unity_standard_preset(prefs, keep_export_path=True):
 class M8_OT_ToggleUnityFBXPreset(bpy.types.Operator):
     bl_idname = "m8.toggle_unity_fbx_preset"
     bl_label = "Unity"
-    bl_description = "切换 FBX 导出 Unity 预设"
+    bl_description = _T("切换 FBX 导出 Unity 预设")
 
     def execute(self, context):
         prefs = _get_m8_addon_prefs()
         if not prefs:
-            self.report({'WARNING'}, "未找到插件偏好设置")
+            self.report({'WARNING'}, _T("未找到插件偏好设置"))
             return {'CANCELLED'}
 
         enabled = not bool(getattr(prefs, "fbx_export_unity_preset", False))
@@ -478,30 +479,30 @@ class M8_OT_ToggleUnityFBXPreset(bpy.types.Operator):
         if enabled:
             _apply_unity_standard_preset(prefs, keep_export_path=True)
 
-        self.report({'INFO'}, f"Unity FBX 预设：{'开启' if enabled else '关闭'}")
+        self.report({'INFO'}, f"Unity FBX {_T('预设：')}{_T('开启') if enabled else _T('关闭')}")
         return {'FINISHED'}
 
 
 class M8_OT_ResetUnityFBXPreset(bpy.types.Operator):
     bl_idname = "m8.reset_unity_fbx_preset"
-    bl_label = "重置 Unity FBX 预设"
-    bl_description = "将 Unity FBX 导出参数重置为标准推荐设置"
+    bl_label = _T("重置 Unity FBX 预设")
+    bl_description = _T("将 Unity FBX 导出参数重置为标准推荐设置")
 
     def execute(self, context):
         prefs = _get_m8_addon_prefs()
         if not prefs:
-            self.report({'WARNING'}, "未找到插件偏好设置")
+            self.report({'WARNING'}, _T("未找到插件偏好设置"))
             return {'CANCELLED'}
 
         _apply_unity_standard_preset(prefs, keep_export_path=True)
-        self.report({'INFO'}, "已重置 Unity FBX 为标准设置")
+        self.report({'INFO'}, _T("已重置 Unity FBX 为标准设置"))
         return {'FINISHED'}
 
 
 class M8_OT_ExportFBX(bpy.types.Operator):
     bl_idname = "m8.export_fbx"
-    bl_label = "导出 FBX"
-    bl_description = "导出 FBX（可选 Unity 预设）"
+    bl_label = _T("导出 FBX")
+    bl_description = _T("导出 FBX（可选 Unity 预设）")
 
     def _reveal_path(self, path, reveal_file=False):
         try:
@@ -592,7 +593,7 @@ class M8_OT_ExportFBX(bpy.types.Operator):
                 props = self._build_unity_export_props(settings, filepath=target_path)
                 res = _call_operator_by_idname("export_scene.fbx", invoke=False, properties=props)
                 if res == {'FINISHED'}:
-                    self.report({'INFO'}, f"已导出 Unity FBX: {os.path.basename(target_path)}")
+                    self.report({'INFO'}, f"{_T('已导出')} Unity FBX: {os.path.basename(target_path)}")
                     if settings["reveal_file"]:
                         self._reveal_path(target_path, reveal_file=True)
                     elif settings["open_folder"]:
@@ -602,7 +603,7 @@ class M8_OT_ExportFBX(bpy.types.Operator):
 
         res = _call_operator_by_idname("export_scene.fbx", invoke=True, properties=properties)
         if res is None:
-            self.report({'WARNING'}, "FBX 导出不可用（请确认已启用 io_scene_fbx）")
+            self.report({'WARNING'}, _T("FBX 导出不可用（请确认已启用 io_scene_fbx）"))
             return {'CANCELLED'}
         return res
 
@@ -612,8 +613,8 @@ class M8_OT_ExportFBX(bpy.types.Operator):
 
 class M8_OT_ToggleScreencastKeys(bpy.types.Operator):
     bl_idname = "m8.toggle_screencast_keys"
-    bl_label = "屏幕投射"
-    bl_description = "启动/关闭屏幕投射按键显示（内置键帽风格，可在偏好设置中调整样式）"
+    bl_label = _T("屏幕投射")
+    bl_description = _T("启动/关闭屏幕投射按键显示（内置键帽风格，可在偏好设置中调整样式）")
 
     def _find_3d_view_context(self):
         for window in bpy.context.window_manager.windows:
@@ -704,9 +705,9 @@ class M8_OT_ToggleScreencastKeys(bpy.types.Operator):
         try:
             bpy.ops.m8.internal_screencast('INVOKE_DEFAULT')
             if M8_OT_InternalScreencast._running:
-                self.report({'INFO'}, "屏幕投射：已启动")
+                self.report({'INFO'}, _T("屏幕投射：已启动"))
             else:
-                self.report({'INFO'}, "屏幕投射：已关闭")
+                self.report({'INFO'}, _T("屏幕投射：已关闭"))
             try:
                 for window in context.window_manager.windows:
                     for area in window.screen.areas:
@@ -715,7 +716,7 @@ class M8_OT_ToggleScreencastKeys(bpy.types.Operator):
                 pass
             return {'FINISHED'}
         except Exception as e:
-            self.report({'ERROR'}, f"启动失败: {e}")
+            self.report({'ERROR'}, f"{_T('启动失败')}: {e}")
             return {'CANCELLED'}
 
 def _call_operator_by_idname(op_idname, invoke=True, properties=None):
@@ -751,21 +752,21 @@ _ALLOWED_EXTERNAL_OPERATORS = {
 
 class M8_OT_CallOperatorWithAddon(bpy.types.Operator):
     bl_idname = "m8.call_operator_with_addon"
-    bl_label = "调用并自动启用插件"
-    bl_description = "如果操作符不存在，会尝试启用对应插件后再调用"
+    bl_label = _T("调用并自动启用插件")
+    bl_description = _T("如果操作符不存在，会尝试启用对应插件后再调用")
 
-    module: bpy.props.StringProperty(name="插件模块", default="")
-    operator: bpy.props.StringProperty(name="操作符", default="")
-    invoke: bpy.props.BoolProperty(name="调用方式", default=True)
+    module: bpy.props.StringProperty(name=_T("插件模块"), default="")
+    operator: bpy.props.StringProperty(name=_T("操作符"), default="")
+    invoke: bpy.props.BoolProperty(name=_T("调用方式"), default=True)
 
     def execute(self, context):
         op_idname = (self.operator or "").strip()
         if not op_idname:
-            self.report({'WARNING'}, "未指定操作符")
+            self.report({'WARNING'}, _T("未指定操作符"))
             return {'CANCELLED'}
 
         if not re.match(r"^[a-z0-9_]+\.[a-z0-9_]+$", op_idname):
-            self.report({'WARNING'}, f"操作符格式无效：{op_idname}")
+            self.report({'WARNING'}, f"{_T('操作符格式无效：')}{op_idname}")
             return {'CANCELLED'}
 
         module = (self.module or "").strip()
@@ -773,11 +774,11 @@ class M8_OT_CallOperatorWithAddon(bpy.types.Operator):
         is_allowed_external = op_idname in _ALLOWED_EXTERNAL_OPERATORS
 
         if not (is_ours or is_allowed_external):
-            self.report({'WARNING'}, f"操作符未允许：{op_idname}")
+            self.report({'WARNING'}, f"{_T('操作符未允许：')}{op_idname}")
             return {'CANCELLED'}
 
         if module and (module not in _ALLOWED_ADDON_MODULES):
-            self.report({'WARNING'}, f"插件模块未允许：{module}")
+            self.report({'WARNING'}, f"{_T('插件模块未允许：')}{module}")
             return {'CANCELLED'}
 
         res = _call_operator_by_idname(op_idname, invoke=bool(self.invoke))
@@ -788,7 +789,7 @@ class M8_OT_CallOperatorWithAddon(bpy.types.Operator):
             try:
                 bpy.ops.preferences.addon_enable(module=module)
             except Exception as e:
-                self.report({'WARNING'}, f"启用插件失败：{module}（{e}）")
+                self.report({'WARNING'}, f"{_T('启用插件失败：')}{module}{_T('（')}{e}{_T('）')}")
                 return {'CANCELLED'}
 
         res = _call_operator_by_idname(op_idname, invoke=bool(self.invoke))
@@ -796,9 +797,9 @@ class M8_OT_CallOperatorWithAddon(bpy.types.Operator):
             return {'FINISHED'}
 
         if module:
-            self.report({'WARNING'}, f"操作符不可用：{op_idname}（已尝试启用 {module}）")
+            self.report({'WARNING'}, f"{_T('操作符不可用：')}{op_idname}{_T('（已尝试启用')} {module}{_T('）')}")
         else:
-            self.report({'WARNING'}, f"操作符不可用：{op_idname}")
+            self.report({'WARNING'}, f"{_T('操作符不可用：')}{op_idname}")
         return {'CANCELLED'}
 
 def _unique_collection_name(base_name):
@@ -814,17 +815,17 @@ def _unique_collection_name(base_name):
 
 class M8_OT_CreateAssetGroup(bpy.types.Operator):
     bl_idname = "m8.create_asset_group"
-    bl_label = "创建组资产"
-    bl_description = "创建集合并标记为资产（Asset）"
+    bl_label = _T("创建组资产")
+    bl_description = _T("创建集合并标记为资产（Asset）")
 
-    name: bpy.props.StringProperty(name="名称", default="Asset_Group")
-    link_to_scene: bpy.props.BoolProperty(name="链接到场景", default=True)
-    mark_as_asset: bpy.props.BoolProperty(name="标记为资产", default=True)
+    name: bpy.props.StringProperty(name=_T("名称"), default="Asset_Group")
+    link_to_scene: bpy.props.BoolProperty(name=_T("链接到场景"), default=True)
+    mark_as_asset: bpy.props.BoolProperty(name=_T("标记为资产"), default=True)
 
     def execute(self, context):
         scene = getattr(bpy.context, "scene", None)
         if not scene:
-            self.report({'ERROR'}, "未找到场景")
+            self.report({'ERROR'}, _T("未找到场景"))
             return {'CANCELLED'}
 
         col_name = _unique_collection_name(self.name)
@@ -845,7 +846,7 @@ class M8_OT_CreateAssetGroup(bpy.types.Operator):
                 except Exception:
                     pass
 
-        self.report({'INFO'}, f"已创建资产组: {col_name}")
+        self.report({'INFO'}, f"{_T('已创建资产组')}: {col_name}")
         return {'FINISHED'}
 
 def _is_safe_orphan_id(id_block):
@@ -873,10 +874,10 @@ def _remove_orphans_from_collection(data_collection):
 
 class M8_OT_OrphansPurgeKeepAssets(bpy.types.Operator):
     bl_idname = "m8.orphans_purge_keep_assets"
-    bl_label = "保留资产"
-    bl_description = "清理未使用数据，但保留已标记为资产的 datablock"
+    bl_label = _T("保留资产")
+    bl_description = _T("清理未使用数据，但保留已标记为资产的 datablock")
 
-    max_passes: bpy.props.IntProperty(name="遍历次数", default=6, min=1, max=20)
+    max_passes: bpy.props.IntProperty(name=_T("遍历次数"), default=6, min=1, max=20)
 
     def execute(self, context):
         total_removed = 0
@@ -897,7 +898,7 @@ class M8_OT_OrphansPurgeKeepAssets(bpy.types.Operator):
                 break
 
         if total_removed:
-            self.report({'INFO'}, f"已清理未使用数据: {total_removed} 项（保留资产）")
+            self.report({'INFO'}, f"{_T('已清理未使用数据')}: {total_removed} {_T('项（保留资产）')}")
         else:
-            self.report({'INFO'}, "未发现可清理的未使用数据（保留资产）")
+            self.report({'INFO'}, _T("未发现可清理的未使用数据（保留资产）"))
         return {'FINISHED'}

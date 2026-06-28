@@ -2,6 +2,7 @@ from functools import cache
 
 import addon_utils
 import bpy
+from .i18n import _T
 
 
 def addon_keys():
@@ -119,7 +120,7 @@ def draw_addon(context, layout: bpy.types.UILayout, identifier: str):
                 draw_header=header)
             return
     else:
-        layout.label(text=f"未找到插件 {identifier}")
+        layout.label(text=_T("未找到插件") + f" {identifier}")
 
 
 def draw_addon_install(context, layout: bpy.types.UILayout, items, left=False):

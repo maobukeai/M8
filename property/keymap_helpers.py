@@ -213,10 +213,10 @@ def _smart_face_action_items(self, context):
             ("EXTRACT", "Extract & Separate", ""),
         ]
     return [
-        ("SEPARATE", "分离", ""),
-        ("DUPLICATE", "复制后分离", ""),
-        ("DISSOLVE", "溶解", ""),
-        ("EXTRACT", "提取后分离", ""),
+        ("SEPARATE", _T("分离"), ""),
+        ("DUPLICATE", _T("复制后分离"), ""),
+        ("DISSOLVE", _T("溶解"), ""),
+        ("EXTRACT", _T("提取后分离"), ""),
     ]
 
 def _clean_up_affect_items(self, context):
@@ -226,8 +226,8 @@ def _clean_up_affect_items(self, context):
             ("SELECTED", "Selected", ""),
         ]
     return [
-        ("ALL", "全部", ""),
-        ("SELECTED", "仅选中", ""),
+        ("ALL", _T("全部"), ""),
+        ("SELECTED", _T("仅选中"), ""),
     ]
 
 def _switch_mode_tab_behavior_items(self, context):
@@ -237,8 +237,8 @@ def _switch_mode_tab_behavior_items(self, context):
             ("TAP_HOLD", "Tap Switch / Hold Menu", "Tap for default action, hold for the switch menu"),
         ]
     return [
-        ("INSTANT", "立即执行(兼容)", "按下 Tab 立即执行（与 Blender 默认更接近）"),
-        ("TAP_HOLD", "轻按切换 / 长按菜单", "轻按执行默认行为，长按弹出模式切换饼菜单"),
+        ("INSTANT", _T("立即执行(兼容)"), _T("按下 Tab 立即执行（与 Blender 默认更接近）")),
+        ("TAP_HOLD", _T("轻按切换 / 长按菜单"), _T("轻按执行默认行为，长按弹出模式切换饼菜单")),
     ]
 
 def _screencast_align_items(self, context):
@@ -249,20 +249,9 @@ def _screencast_align_items(self, context):
             ("RIGHT", "Right", ""),
         ]
     return [
-        ("LEFT", "左", ""),
-        ("CENTER", "中", ""),
-        ("RIGHT", "右", ""),
-    ]
-
-def _screencast_style_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
-        return [
-            ("KEYCAPS", "Keycaps", ""),
-            ("BOX", "Box", ""),
-        ]
-    return [
-        ("KEYCAPS", "键帽", ""),
-        ("BOX", "文本框", ""),
+        ("LEFT", _T("左"), ""),
+        ("CENTER", _T("中"), ""),
+        ("RIGHT", _T("右"), ""),
     ]
 
 def _screencast_operator_label_mode_items(self, context):
@@ -273,9 +262,9 @@ def _screencast_operator_label_mode_items(self, context):
             ("BOTH", "Chinese/English", ""),
         ]
     return [
-        ("ZH", "中文优先", ""),
-        ("EN", "英文", ""),
-        ("BOTH", "中文/英文", ""),
+        ("ZH", _T("中文优先"), ""),
+        ("EN", _T("英文"), ""),
+        ("BOTH", _T("中文/英文"), ""),
     ]
 
 def _screencast_stack_direction_items(self, context):
@@ -285,8 +274,23 @@ def _screencast_stack_direction_items(self, context):
             ("DOWN", "Top-Down", "New entries appear below"),
         ]
     return [
-        ("UP", "向上 (Bottom-Up)", "新消息在上方"),
-        ("DOWN", "向下 (Top-Down)", "新消息在下方"),
+        ("UP", _T("向上 (Bottom-Up)"), _T("新消息在上方")),
+        ("DOWN", _T("向下 (Top-Down)"), _T("新消息在下方")),
+    ]
+
+def _screencast_mouse_display_items(self, context):
+    if getattr(self, "addon_language", "ZH") == "EN":
+        return [
+            ("ICON", "Icon", "Display mouse icon figure"),
+            ("TEXT", "Text", "Display mouse click text events"),
+            ("BOTH", "Icon & Text", "Display both icon figure and text events"),
+            ("NONE", "None", "Do not display mouse events"),
+        ]
+    return [
+        ("ICON", _T("图标 (Icon)"), _T("常驻显示矢量鼠标图标")),
+        ("TEXT", _T("文本 (Text)"), _T("仅在事件列表中记录鼠标点击文本")),
+        ("BOTH", _T("图标与文本 (Both)"), _T("同时显示矢量鼠标图标与按键文本")),
+        ("NONE", _T("不显示 (None)"), _T("不显示任何鼠标事件")),
     ]
 
 def _addon_language_items(self, context):
@@ -304,10 +308,10 @@ def _smart_edge_mode_items(self, context):
             ("FILL", "Fill", "Fill a closed region"),
         ]
     return [
-        ("SELECT", "选择区域", "将闭合边环转换为面选择"),
-        ("SHARPS", "锐边", "标记或清除锐边"),
-        ("BRIDGE", "桥接", "桥接两个边环"),
-        ("FILL", "填充", "填充闭合区域"),
+        ("SELECT", _T("选择区域"), _T("将闭合边环转换为面选择")),
+        ("SHARPS", _T("锐边"), _T("标记或清除锐边")),
+        ("BRIDGE", _T("桥接"), _T("桥接两个边环")),
+        ("FILL", _T("填充"), _T("填充闭合区域")),
     ]
 
 def _group_tool_empty_type_items(self, context):
@@ -323,14 +327,14 @@ def _group_tool_empty_type_items(self, context):
             ("IMAGE", "Image", ""),
         ]
     return [
-        ("PLAIN_AXES", "十字", ""),
-        ("ARROWS", "坐标轴", ""),
-        ("SINGLE_ARROW", "单箭头", ""),
-        ("CIRCLE", "圆环", ""),
-        ("CUBE", "方块", ""),
-        ("SPHERE", "球体", ""),
-        ("CONE", "锥体", ""),
-        ("IMAGE", "图片", ""),
+        ("PLAIN_AXES", _T("十字"), ""),
+        ("ARROWS", _T("坐标轴"), ""),
+        ("SINGLE_ARROW", _T("单箭头"), ""),
+        ("CIRCLE", _T("圆环"), ""),
+        ("CUBE", _T("方块"), ""),
+        ("SPHERE", _T("球体"), ""),
+        ("CONE", _T("锥体"), ""),
+        ("IMAGE", _T("图片"), ""),
     ]
 
 def _switch_mode_target_items(self, context):
@@ -342,10 +346,10 @@ def _switch_mode_target_items(self, context):
             ("SWITCH_MODE", "Switch Mode", ""),
         ]
     return [
-        ("VERT", "点", ""),
-        ("EDGE", "边", ""),
-        ("FACE", "面", ""),
-        ("SWITCH_MODE", "模式切换", ""),
+        ("VERT", _T("点"), ""),
+        ("EDGE", _T("边"), ""),
+        ("FACE", _T("面"), ""),
+        ("SWITCH_MODE", _T("模式切换"), ""),
     ]
 
 def _switch_bone_mode_target_items(self, context):
@@ -361,14 +365,14 @@ def _switch_bone_mode_target_items(self, context):
             ("TOGGLE_AXES", "Toggle Axes", ""),
         ]
     return [
-        ("EDIT_OR_OBJECT", "编辑/物体", ""),
-        ("BONE_POSITION", "骨骼位置", ""),
-        ("POSE", "姿态", ""),
-        ("EDIT", "编辑(仅姿态)", "仅在姿态模式显示"),
-        ("VIEW_SELECTED", "视图聚焦选中", ""),
-        ("TOGGLE_XRAY", "切换透视(X-Ray)", ""),
-        ("TOGGLE_NAMES", "切换名称显示", ""),
-        ("TOGGLE_AXES", "切换轴显示", ""),
+        ("EDIT_OR_OBJECT", _T("编辑/物体"), ""),
+        ("BONE_POSITION", _T("骨骼位置"), ""),
+        ("POSE", _T("姿态"), ""),
+        ("EDIT", _T("编辑(仅姿态)"), _T("仅在姿态模式显示")),
+        ("VIEW_SELECTED", _T("视图聚焦选中"), ""),
+        ("TOGGLE_XRAY", _T("切换透视(X-Ray)"), ""),
+        ("TOGGLE_NAMES", _T("切换名称显示"), ""),
+        ("TOGGLE_AXES", _T("切换轴显示"), ""),
     ]
 
 def _delete_pie_items(self, context):
@@ -389,19 +393,19 @@ def _delete_pie_items(self, context):
             ("NONE", "None", "", "X", 0),
         ]
     return [
-        ("DELETE_VERT", "删除顶点", "", "VERTEXSEL", 1),
-        ("DELETE_EDGE", "删除边", "", "EDGESEL", 2),
-        ("DELETE_FACE", "删除面", "", "FACESEL", 3),
-        ("DISSOLVE_VERT", "融并顶点", "", "VERTEXSEL", 4),
-        ("DISSOLVE_EDGE", "融并边", "", "MOD_WIREFRAME", 5),
-        ("DISSOLVE_FACE", "融并面", "", "FACESEL", 6),
-        ("LIMITED_DISSOLVE", "有限融并", "", "MESH_DATA", 7),
-        ("EDGE_LOOP", "循环边", "", "MOD_EDGESPLIT", 8),
-        ("EDGE_COLLAPSE", "塌陷边", "", "UV_EDGESEL", 9),
-        ("ONLY_EDGE_FACE", "仅边和面", "", "EDGESEL", 10),
-        ("ONLY_FACE", "仅面", "", "FACESEL", 11),
-        ("DISSOLVE_ALL", "融并点线面", "", "MOD_WIREFRAME", 12),
-        ("NONE", "无", "", "X", 0),
+        ("DELETE_VERT", _T("删除顶点"), "", "VERTEXSEL", 1),
+        ("DELETE_EDGE", _T("删除边"), "", "EDGESEL", 2),
+        ("DELETE_FACE", _T("删除面"), "", "FACESEL", 3),
+        ("DISSOLVE_VERT", _T("融并顶点"), "", "VERTEXSEL", 4),
+        ("DISSOLVE_EDGE", _T("融并边"), "", "MOD_WIREFRAME", 5),
+        ("DISSOLVE_FACE", _T("融并面"), "", "FACESEL", 6),
+        ("LIMITED_DISSOLVE", _T("有限融并"), "", "MESH_DATA", 7),
+        ("EDGE_LOOP", _T("循环边"), "", "MOD_EDGESPLIT", 8),
+        ("EDGE_COLLAPSE", _T("塌陷边"), "", "UV_EDGESEL", 9),
+        ("ONLY_EDGE_FACE", _T("仅边和面"), "", "EDGESEL", 10),
+        ("ONLY_FACE", _T("仅面"), "", "FACESEL", 11),
+        ("DISSOLVE_ALL", _T("融并点线面"), "", "MOD_WIREFRAME", 12),
+        ("NONE", _T("无"), "", "X", 0),
     ]
 
 def _unity_fbx_apply_scale_options_items(self, context):
@@ -413,10 +417,10 @@ def _unity_fbx_apply_scale_options_items(self, context):
             ("FBX_SCALE_ALL", "FBX All", ""),
         ]
     return [
-        ("FBX_SCALE_NONE", "全部本地", ""),
-        ("FBX_SCALE_UNITS", "FBX 单位缩放", ""),
-        ("FBX_SCALE_CUSTOM", "FBX 自定义缩放", ""),
-        ("FBX_SCALE_ALL", "FBX 全部", ""),
+        ("FBX_SCALE_NONE", _T("全部本地"), ""),
+        ("FBX_SCALE_UNITS", _T("FBX 单位缩放"), ""),
+        ("FBX_SCALE_CUSTOM", _T("FBX 自定义缩放"), ""),
+        ("FBX_SCALE_ALL", _T("FBX 全部"), ""),
     ]
 
 def _origin_default_operator_types_items(self, context):
@@ -426,8 +430,8 @@ def _origin_default_operator_types_items(self, context):
             ("LOCATION", "Location", "", "NONE", 2),
         ]
     return [
-        ("ROTATE", "旋转", "", "NONE", 1),
-        ("LOCATION", "位置", "", "NONE", 2),
+        ("ROTATE", _T("旋转"), "", "NONE", 1),
+        ("LOCATION", _T("位置"), "", "NONE", 2),
     ]
 
 def _moving_view_type_items(self, context):
@@ -438,9 +442,9 @@ def _moving_view_type_items(self, context):
             ("ANIMATION", "Animation", "", "ANIM", 2),
         ]
     return [
-        ("NONE", "无", "", "RESTRICT_SELECT_ON", 0),
-        ("MAINTAINING_ZOOM", "保持缩放", "", "VIEWZOOM", 1),
-        ("ANIMATION", "动画", "", "ANIM", 2),
+        ("NONE", _T("无"), "", "RESTRICT_SELECT_ON", 0),
+        ("MAINTAINING_ZOOM", _T("保持缩放"), "", "VIEWZOOM", 1),
+        ("ANIMATION", _T("动画"), "", "ANIM", 2),
     ]
 
 # Finder functions

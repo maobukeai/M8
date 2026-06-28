@@ -2,6 +2,8 @@ import bpy
 import bmesh
 import random
 
+from ...utils.i18n import _T
+
 def _find_face_islands(selected_faces):
     visited = set()
     islands = []
@@ -26,56 +28,56 @@ def _find_face_islands(selected_faces):
 
 class MESH_OT_SelectRandomIslands(bpy.types.Operator):
     bl_idname = "mesh.select_random_islands"
-    bl_label = "随机选择岛"
-    bl_description = "按比例随机选择网格岛（连通面片块）"
+    bl_label = _T("随机选择岛")
+    bl_description = _T("按比例随机选择网格岛（连通面片块）")
     bl_options = {'REGISTER', 'UNDO'}
 
     scope: bpy.props.EnumProperty(
-        name="范围",
-        description="从哪里抽取岛进行随机",
+        name=_T("范围"),
+        description=_T("从哪里抽取岛进行随机"),
         items=[
-            ('ALL', "全网格", "基于整个网格的岛"),
-            ('SELECTED', "当前选择", "只基于当前已选中的面"),
+            ('ALL', _T("全网格"), _T("基于整个网格的岛")),
+            ('SELECTED', _T("当前选择"), _T("只基于当前已选中的面")),
         ],
         default='ALL',
     )
     percentage: bpy.props.FloatProperty(
-        name="比例",
-        description="要随机选择的岛比例",
+        name=_T("比例"),
+        description=_T("要随机选择的岛比例"),
         default=50.0,
         min=0.0,
         max=100.0,
         subtype='PERCENTAGE',
     )
     use_count: bpy.props.BoolProperty(
-        name="按数量",
-        description="使用固定数量而不是百分比",
+        name=_T("按数量"),
+        description=_T("使用固定数量而不是百分比"),
         default=False,
     )
     count: bpy.props.IntProperty(
-        name="数量",
-        description="要随机选择的岛数量",
+        name=_T("数量"),
+        description=_T("要随机选择的岛数量"),
         default=1,
         min=1,
     )
     seed: bpy.props.IntProperty(
-        name="随机种子",
-        description="随机种子（相同种子会得到相同结果）",
+        name=_T("随机种子"),
+        description=_T("随机种子（相同种子会得到相同结果）"),
         default=0,
         min=0,
     )
     action: bpy.props.EnumProperty(
-        name="动作",
-        description="对随机出的岛做什么",
+        name=_T("动作"),
+        description=_T("对随机出的岛做什么"),
         items=[
-            ('SELECT', "选择", "选择随机出的岛"),
-            ('DESELECT', "取消选择", "对随机出的岛取消选择"),
+            ('SELECT', _T("选择"), _T("选择随机出的岛")),
+            ('DESELECT', _T("取消选择"), _T("对随机出的岛取消选择")),
         ],
         default='SELECT',
     )
     extend: bpy.props.BoolProperty(
-        name="追加选择",
-        description="在当前选择基础上追加，而不是替换",
+        name=_T("追加选择"),
+        description=_T("在当前选择基础上追加，而不是替换"),
         default=False,
     )
 
@@ -97,14 +99,14 @@ class MESH_OT_SelectRandomIslands(bpy.types.Operator):
         if self.scope == 'SELECTED':
             pool_faces = {f for f in bm.faces if f.select}
             if not pool_faces:
-                self.report({'WARNING'}, "当前选择中没有面")
+                self.report({'WARNING'}, _T("当前选择中没有面"))
                 return {'CANCELLED'}
         else:
             pool_faces = set(bm.faces)
 
         islands = _find_face_islands(pool_faces)
         if not islands:
-            self.report({'WARNING'}, "未找到任何岛")
+            self.report({'WARNING'}, _T("未找到任何岛"))
             return {'CANCELLED'}
 
         if self.action == 'SELECT' and not self.extend:
@@ -133,7 +135,7 @@ class MESH_OT_SelectRandomIslands(bpy.types.Operator):
 
         bmesh.update_edit_mesh(obj.data)
         if self.action == 'SELECT':
-            self.report({'INFO'}, f"已选择 {len(selected_islands)}/{len(islands)} 个岛")
+            self.report({'INFO'}, f"{_T('已选择')} {len(selected_islands)}/{len(islands)} {_T('个岛')}")
         else:
-            self.report({'INFO'}, f"已取消选择 {len(selected_islands)}/{len(islands)} 个岛")
+            self.report({'INFO'}, f"{_T('已取消选择')} {len(selected_islands)}/{len(islands)} {_T('个岛')}")
         return {'FINISHED'}

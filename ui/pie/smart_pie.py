@@ -3,7 +3,7 @@ from bpy.types import Menu
 from ...utils.i18n import _T
 
 class VIEW3D_MT_M8SmartPie(Menu):
-    bl_label = "智能饼菜单"
+    bl_label = _T("智能饼菜单")
     bl_idname = "VIEW3D_MT_M8SmartPie"
 
     def draw(self, context):

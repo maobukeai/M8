@@ -4,106 +4,108 @@ import datetime
 import time
 import random
 
+from ...utils.i18n import _T
+
 class M8_OT_AdvancedRename(bpy.types.Operator):
     bl_idname = "m8.advanced_rename"
-    bl_label = "高级重命名"
-    bl_description = "批量重命名选中物体，支持查找替换、前后缀等功能"
+    bl_label = _T("高级重命名")
+    bl_description = _T("批量重命名选中物体，支持查找替换、前后缀等功能")
     bl_options = {'REGISTER', 'UNDO'}
     bl_property = "new_name"
 
     # Operation Mode
     mode: bpy.props.EnumProperty(
-        name="模式",
+        name=_T("模式"),
         items=[
-            ("SET", "设置名称", "设置新的基础名称", "EDITMODE_HLT", 0),
-            ("REPLACE", "查找替换", "查找并替换字符", "FIND_DATA", 1),
-            ("ADD", "添加前后缀", "添加前缀或后缀", "ADD", 2),
-            ("STRIP", "移除字符", "移除开头或结尾的字符", "X", 3),
-            ("CASE", "大小写转换", "转换名称大小写", "SMALL_CAPS", 4),
+            ("SET", _T("设置名称"), _T("设置新的基础名称"), "EDITMODE_HLT", 0),
+            ("REPLACE", _T("查找替换"), _T("查找并替换字符"), "FIND_DATA", 1),
+            ("ADD", _T("添加前后缀"), _T("添加前缀或后缀"), "ADD", 2),
+            ("STRIP", _T("移除字符"), _T("移除开头或结尾的字符"), "X", 3),
+            ("CASE", _T("大小写转换"), _T("转换名称大小写"), "SMALL_CAPS", 4),
         ],
         default="SET"
     )
 
     # Target
     target: bpy.props.EnumProperty(
-        name="目标",
+        name=_T("目标"),
         items=[
-            ("SELECTED", "选定对象", "重命名所有选中的对象"),
-            ("ACTIVE", "活动对象", "仅重命名当前活动对象"),
+            ("SELECTED", _T("选定对象"), _T("重命名所有选中的对象")),
+            ("ACTIVE", _T("活动对象"), _T("仅重命名当前活动对象")),
         ],
         default="SELECTED"
     )
 
     rename_data: bpy.props.BoolProperty(
-        name="同步重命名数据", 
-        description="同时重命名物体的数据块 (Mesh, Curve 等)", 
+        name=_T("同步重命名数据"),
+        description=_T("同时重命名物体的数据块 (Mesh, Curve 等)"),
         default=False
     )
 
     rename_material: bpy.props.BoolProperty(
-        name="同步重命名材质", 
-        description="同时重命名物体的活动材质", 
+        name=_T("同步重命名材质"),
+        description=_T("同时重命名物体的活动材质"),
         default=False
     )
-    
+
     # Advanced Filters
     filter_visible_only: bpy.props.BoolProperty(
-        name="仅限可见对象",
-        description="仅重命名当前可见的对象，忽略隐藏对象",
+        name=_T("仅限可见对象"),
+        description=_T("仅重命名当前可见的对象，忽略隐藏对象"),
         default=False
     )
 
     # Properties for SET mode
     new_name: bpy.props.StringProperty(
-        name="新名称", 
-        default="", 
-        description="变量: $N(编号), $O(原名), $T(类型), $Ts(简写), $C(集合), $P(父级), $M(材质), $date, $time"
+        name=_T("新名称"),
+        default="",
+        description=_T("变量: $N(编号), $O(原名), $T(类型), $Ts(简写), $C(集合), $P(父级), $M(材质), $date, $time")
     )
-    use_numbering: bpy.props.BoolProperty(name="添加编号", default=True)
-    use_random: bpy.props.BoolProperty(name="随机顺序", description="打乱选中物体的编号顺序", default=False)
-    smart_numbering: bpy.props.BoolProperty(name="智能延续", description="自动检测场景中已存在的最大编号并延续", default=True)
-    start_number: bpy.props.IntProperty(name="起始编号", default=1, min=0)
-    step_number: bpy.props.IntProperty(name="步长", default=1, min=1)
-    pad_digits: bpy.props.IntProperty(name="位数填充", default=3, min=1, max=10)
+    use_numbering: bpy.props.BoolProperty(name=_T("添加编号"), default=True)
+    use_random: bpy.props.BoolProperty(name=_T("随机顺序"), description=_T("打乱选中物体的编号顺序"), default=False)
+    smart_numbering: bpy.props.BoolProperty(name=_T("智能延续"), description=_T("自动检测场景中已存在的最大编号并延续"), default=True)
+    start_number: bpy.props.IntProperty(name=_T("起始编号"), default=1, min=0)
+    step_number: bpy.props.IntProperty(name=_T("步长"), default=1, min=1)
+    pad_digits: bpy.props.IntProperty(name=_T("位数填充"), default=3, min=1, max=10)
 
     # Properties for REPLACE mode
-    find_str: bpy.props.StringProperty(name="查找", default="")
-    replace_str: bpy.props.StringProperty(name="替换", default="")
-    use_regex: bpy.props.BoolProperty(name="正则表达式", default=False)
-    case_sensitive: bpy.props.BoolProperty(name="区分大小写", default=False)
+    find_str: bpy.props.StringProperty(name=_T("查找"), default="")
+    replace_str: bpy.props.StringProperty(name=_T("替换"), default="")
+    use_regex: bpy.props.BoolProperty(name=_T("正则表达式"), default=False)
+    case_sensitive: bpy.props.BoolProperty(name=_T("区分大小写"), default=False)
 
     # Properties for ADD mode
-    prefix: bpy.props.StringProperty(name="前缀", default="")
-    suffix: bpy.props.StringProperty(name="后缀", default="")
-    add_check_exists: bpy.props.BoolProperty(name="避免重复", description="如果名称中已存在该前缀/后缀，则不重复添加", default=True)
+    prefix: bpy.props.StringProperty(name=_T("前缀"), default="")
+    suffix: bpy.props.StringProperty(name=_T("后缀"), default="")
+    add_check_exists: bpy.props.BoolProperty(name=_T("避免重复"), description=_T("如果名称中已存在该前缀/后缀，则不重复添加"), default=True)
 
     # Properties for STRIP mode
-    strip_start: bpy.props.BoolProperty(name="移除开头数字/空格", default=False)
-    strip_end: bpy.props.BoolProperty(name="移除结尾数字/空格", default=False)
-    strip_ext: bpy.props.BoolProperty(name="移除后缀/扩展名", description="移除最后一个点(.)或下划线(_)之后的内容", default=False)
-    strip_chars: bpy.props.StringProperty(name="移除指定字符", default="")
-    strip_first_n: bpy.props.IntProperty(name="移除前 N 个字符", default=0, min=0)
-    strip_last_n: bpy.props.IntProperty(name="移除后 N 个字符", default=0, min=0)
+    strip_start: bpy.props.BoolProperty(name=_T("移除开头数字/空格"), default=False)
+    strip_end: bpy.props.BoolProperty(name=_T("移除结尾数字/空格"), default=False)
+    strip_ext: bpy.props.BoolProperty(name=_T("移除后缀/扩展名"), description=_T("移除最后一个点(.)或下划线(_)之后的内容"), default=False)
+    strip_chars: bpy.props.StringProperty(name=_T("移除指定字符"), default="")
+    strip_first_n: bpy.props.IntProperty(name=_T("移除前 N 个字符"), default=0, min=0)
+    strip_last_n: bpy.props.IntProperty(name=_T("移除后 N 个字符"), default=0, min=0)
 
     # Properties for CASE mode
     case_mode: bpy.props.EnumProperty(
-        name="转换类型",
+        name=_T("转换类型"),
         items=[
-            ("UPPER", "大写 (UPPER)", ""),
-            ("LOWER", "小写 (lower)", ""),
-            ("TITLE", "标题 (Title Case)", ""),
-            ("CAPITAL", "首字母大写 (Capital)", ""),
-            ("CAMEL", "小驼峰 (camelCase)", ""),
-            ("PASCAL", "大驼峰 (PascalCase)", ""),
-            ("SNAKE", "蛇形 (snake_case)", ""),
-            ("KEBAB", "短横线 (kebab-case)", ""),
-            ("SPACE_TO_UNDERSCORE", "空格 -> 下划线", ""),
-            ("UNDERSCORE_TO_SPACE", "下划线 -> 空格", ""),
+            ("UPPER", _T("大写 (UPPER)"), ""),
+            ("LOWER", _T("小写 (lower)"), ""),
+            ("TITLE", _T("标题 (Title Case)"), ""),
+            ("CAPITAL", _T("首字母大写 (Capital)"), ""),
+            ("CAMEL", _T("小驼峰 (camelCase)"), ""),
+            ("PASCAL", _T("大驼峰 (PascalCase)"), ""),
+            ("SNAKE", _T("蛇形 (snake_case)"), ""),
+            ("KEBAB", _T("短横线 (kebab-case)"), ""),
+            ("SPACE_TO_UNDERSCORE", _T("空格 -> 下划线"), ""),
+            ("UNDERSCORE_TO_SPACE", _T("下划线 -> 空格"), ""),
         ],
         default="LOWER"
     )
 
-    ui_show_advanced: bpy.props.BoolProperty(name="高级选项", default=False)
+    ui_show_advanced: bpy.props.BoolProperty(name=_T("高级选项"), default=False)
 
     def update_preset(self, context):
         if self.preset == 'NONE': return
@@ -134,14 +136,14 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
         pass
 
     preset: bpy.props.EnumProperty(
-        name="快速预设",
+        name=_T("快速预设"),
         items=[
-            ("NONE", "选择预设...", ""),
-            ("GAME_ASSET", "游戏资产 ($Ts_$O)", "例如: SM_Cube"),
-            ("PREFIX_Collection", "集合前缀 ($C_$O)", "例如: Scene_Cube"),
-            ("NORMALIZE", "规范化 (snake_case)", "转为小写下划线"),
-            ("CLEAR_SUFFIX", "清除后缀 (.001)", "移除扩展名和尾部数字"),
-            ("CLEAN_IMPORT", "清理导入数据", "移除扩展名和头部数字"),
+            ("NONE", _T("选择预设..."), ""),
+            ("GAME_ASSET", _T("游戏资产 ($Ts_$O)"), _T("例如: SM_Cube")),
+            ("PREFIX_Collection", _T("集合前缀 ($C_$O)"), _T("例如: Scene_Cube")),
+            ("NORMALIZE", _T("规范化 (snake_case)"), _T("转为小写下划线")),
+            ("CLEAR_SUFFIX", _T("清除后缀 (.001)"), _T("移除扩展名和尾部数字")),
+            ("CLEAN_IMPORT", _T("清理导入数据"), _T("移除扩展名和头部数字")),
         ],
         default="NONE",
         update=update_preset
@@ -149,18 +151,18 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
 
     # Sort Options
     sort_method: bpy.props.EnumProperty(
-        name="排序",
+        name=_T("排序"),
         items=[
-            ("NAME", "名称 (A-Z)", ""),
-            ("X", "X 轴位置", ""),
-            ("Y", "Y 轴位置", ""),
-            ("Z", "Z 轴位置", ""),
-            ("SELECTION", "选择顺序", ""),
+            ("NAME", _T("名称 (A-Z)"), ""),
+            ("X", _T("X 轴位置"), ""),
+            ("Y", _T("Y 轴位置"), ""),
+            ("Z", _T("Z 轴位置"), ""),
+            ("SELECTION", _T("选择顺序"), ""),
         ],
         default="NAME"
     )
-    
-    sort_reverse: bpy.props.BoolProperty(name="反向排序", default=False)
+
+    sort_reverse: bpy.props.BoolProperty(name=_T("反向排序"), default=False)
 
     @classmethod
     def poll(cls, context):
@@ -279,11 +281,11 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
             # Check for invalid characters in filename
             invalid_chars = r'[\\/:*?"<>|]'
             if re.search(invalid_chars, self.new_name):
-                col.label(text="名称包含非法字符: \\ / : * ? \" < > |", icon="ERROR")
+                col.label(text=_T("名称包含非法字符: \\ / : * ? \" < > |"), icon="ERROR")
             
             layout.separator()
 
-        layout.prop(self, "mode", text="操作")
+        layout.prop(self, "mode", text=_T("操作"))
 
         # Main Settings Box
         box = layout.box()
@@ -336,11 +338,11 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
                 try:
                     re.compile(self.find_str)
                 except re.error as e:
-                    box.label(text=f"Regex 错误: {e}", icon="ERROR")
+                    box.label(text=f"{_T('Regex 错误')}: {e}", icon="ERROR")
             
             # Regex Cheat Sheet Hint
             if self.use_regex:
-                box.label(text="常用: \\d+ (数字), ^ (开头), $ (结尾), . (任意)", icon="INFO")
+                box.label(text=_T("常用: \\d+ (数字), ^ (开头), $ (结尾), . (任意)"), icon="INFO")
 
         elif self.mode == 'ADD':
             col = box.column(align=True)
@@ -412,7 +414,7 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
                     row.alignment = 'LEFT'
                     # Show which object is being previewed if it's not the active one?
                     # Maybe just show "Result" is enough.
-                    count_text = f" (共 {total_count} 个对象)" if total_count > 1 else ""
+                    count_text = f" ({_T('共')} {total_count} {_T('个对象')})" if total_count > 1 else ""
                     
                     # Check if name is actually different
                     is_changed = (preview_obj.name != preview_name)
@@ -425,17 +427,17 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
 
                     if collision:
                         row.alert = True
-                        row.label(text=f"冲突: {display_name} (自动后缀)", icon="ERROR")
+                        row.label(text=f"{_T('冲突')}: {display_name} ({_T('自动后缀')})", icon="ERROR")
                     elif not is_changed:
                         row.alert = True # Or use WARNING icon
-                        row.label(text=f"无变化{count_text}", icon="INFO")
+                        row.label(text=f"{_T('无变化')}{count_text}", icon="INFO")
                     else:
                         # Show Range if multiple objects
                         if total_count > 1 and last_name and last_name != preview_name:
                              last_display = self._truncate_middle(last_name, max_len=30)
-                             row.label(text=f"结果: {display_name} ... {last_display}{count_text}", icon="CHECKMARK")
+                             row.label(text=f"{_T('结果')}: {display_name} ... {last_display}{count_text}", icon="CHECKMARK")
                         else:
-                             row.label(text=f"结果: {display_name}{count_text}", icon="CHECKMARK")
+                             row.label(text=f"{_T('结果')}: {display_name}{count_text}", icon="CHECKMARK")
             except Exception:
                 pass
 
@@ -648,7 +650,7 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
             objects = [o for o in objects if o.visible_get()]
 
         if not objects:
-            self.report({'WARNING'}, "没有选中的对象 (或全部被过滤)")
+            self.report({'WARNING'}, _T("没有选中的对象 (或全部被过滤)"))
             return {'CANCELLED'}
 
         count = 0
@@ -678,5 +680,5 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
 
         elapsed = time.time() - start_time
         time_msg = f" ({elapsed:.2f}s)" if elapsed > 0.1 else ""
-        self.report({'INFO'}, f"已重命名 {count} 个对象{time_msg} (按 Ctrl+Z 撤销)")
+        self.report({'INFO'}, f"{_T('已重命名')} {count} {_T('个对象')}{time_msg} {_T('(按 Ctrl+Z 撤销)')}")
         return {'FINISHED'}

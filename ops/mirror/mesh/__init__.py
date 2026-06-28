@@ -3,6 +3,7 @@ import bpy
 from .hub import MeshHub
 from .mesh_preview import MeshPreview
 from ....utils.items import AXIS
+from ....utils.i18n import _T
 
 
 class MirrorMesh(MeshHub, MeshPreview):
@@ -19,7 +20,7 @@ class MirrorMesh(MeshHub, MeshPreview):
         main = layout.column(align=True)
         header = main.row(align=True)
         header.scale_y = 1.2
-        header.prop(self, "use_modifier", text="使用修改器" if self.use_modifier else "直接镜像", toggle=True)
+        header.prop(self, "use_modifier", text=(_T("使用修改器") if self.use_modifier else _T("直接镜像")), toggle=True)
 
         opt = main.box()
         opt_col = opt.column(align=True)
@@ -28,13 +29,13 @@ class MirrorMesh(MeshHub, MeshPreview):
         row.prop(self, "use_parent")
         sub = row.row(align=True)
         sub.enabled = bool(self.use_modifier and self.axis_mode == "ACTIVE" and context.mode == "OBJECT")
-        sub.prop(self, "use_mirror_active", text="镜像活动项")
+        sub.prop(self, "use_mirror_active", text=_T("镜像活动项"))
 
         row = opt_col.row(align=True)
         row.prop(self, "bisect")
         sub = row.row(align=True)
         sub.enabled = bool(self.bisect)
-        sub.prop(self, "is_negative_axis", text="反向")
+        sub.prop(self, "is_negative_axis", text=_T("反向"))
 
         adv = main.box()
         adv.use_property_split = True

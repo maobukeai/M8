@@ -1,6 +1,7 @@
 import bpy
 from mathutils import Vector, Matrix
 from ...utils import ensure_object_mode, call_object_op_with_selection
+from ...utils.i18n import _T
 
 def _set_origin_matrix(obj, target_world_loc):
     if not obj or not obj.data:
@@ -30,21 +31,21 @@ def _set_origin_matrix(obj, target_world_loc):
 
 class OBJECT_OT_QuickOrigin(bpy.types.Operator):
     bl_idname = "object.quick_origin"
-    bl_label = "快速原点"
-    bl_description = "快速设置选中物体的原点到边界框的关键位置"
+    bl_label = _T("快速原点")
+    bl_description = _T("快速设置选中物体的原点到边界框的关键位置")
     bl_options = {'REGISTER', 'UNDO'}
 
     type: bpy.props.EnumProperty(
-        name="位置",
+        name=_T("位置"),
         items=[
-            ('BOTTOM', "底部中心 (-Z)", "原点到边界框底部中心"),
-            ('TOP', "顶部中心 (+Z)", "原点到边界框顶部中心"),
-            ('CENTER', "几何中心", "原点到边界框几何中心"),
-            ('ORIGIN', "世界原点", "原点到世界坐标 (0,0,0)"),
-            ('X_MIN', "左侧中心 (-X)", "原点到边界框 -X 面中心"),
-            ('X_MAX', "右侧中心 (+X)", "原点到边界框 +X 面中心"),
-            ('Y_MIN', "前侧中心 (-Y)", "原点到边界框 -Y 面中心"),
-            ('Y_MAX', "后侧中心 (+Y)", "原点到边界框 +Y 面中心"),
+            ('BOTTOM', _T("底部中心 (-Z)"), _T("原点到边界框底部中心")),
+            ('TOP', _T("顶部中心 (+Z)"), _T("原点到边界框顶部中心")),
+            ('CENTER', _T("几何中心"), _T("原点到边界框几何中心")),
+            ('ORIGIN', _T("世界原点"), _T("原点到世界坐标 (0,0,0)")),
+            ('X_MIN', _T("左侧中心 (-X)"), _T("原点到边界框 -X 面中心")),
+            ('X_MAX', _T("右侧中心 (+X)"), _T("原点到边界框 +X 面中心")),
+            ('Y_MIN', _T("前侧中心 (-Y)"), _T("原点到边界框 -Y 面中心")),
+            ('Y_MAX', _T("后侧中心 (+Y)"), _T("原点到边界框 +Y 面中心")),
         ],
         default='BOTTOM'
     )
@@ -101,20 +102,20 @@ class OBJECT_OT_QuickOrigin(bpy.types.Operator):
             if _set_origin_matrix(obj, target):
                 processed += 1
 
-        self.report({'INFO'}, f"已设置 {processed} 个物体的原点")
+        self.report({'INFO'}, f"{_T('已设置 ')}{processed}{_T(' 个物体的原点')}")
         return {'FINISHED'}
 
 class OBJECT_OT_OriginToActive(bpy.types.Operator):
     bl_idname = "object.origin_to_active"
-    bl_label = "到活动"
-    bl_description = "将选中物体原点设置到活动物体的位置"
+    bl_label = _T("到活动")
+    bl_description = _T("将选中物体原点设置到活动物体的位置")
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     type: bpy.props.EnumProperty(
-        name="对齐到",
+        name=_T("对齐到"),
         items=[
-            ('LOCATION', "位置", "对齐到活动物体原点"),
-            ('CENTER', "几何中心", "对齐到活动物体几何中心"),
+            ('LOCATION', _T("位置"), _T("对齐到活动物体原点")),
+            ('CENTER', _T("几何中心"), _T("对齐到活动物体几何中心")),
         ],
         default='LOCATION'
     )
@@ -148,5 +149,5 @@ class OBJECT_OT_OriginToActive(bpy.types.Operator):
             if _set_origin_matrix(obj, target):
                 processed += 1
 
-        self.report({'INFO'}, f"已将 {processed} 个物体原点对齐到活动项")
+        self.report({'INFO'}, f"{_T('已对齐 ')}{processed}{_T(' 个物体原点到活动项')}")
         return {'FINISHED'}

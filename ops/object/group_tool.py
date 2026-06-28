@@ -1,14 +1,15 @@
 import bpy
 from mathutils import Vector
 from ...utils.ray_cast import mouse_2d_ray_cast
+from ...utils.i18n import _T
 
 class M8_OT_GroupObjects(bpy.types.Operator):
     bl_idname = "m8.group_objects"
-    bl_label = "编组物体 (Ctrl+G)"
-    bl_description = "创建空物体作为父级并绑定选中物体"
+    bl_label = _T("编组物体 (Ctrl+G)")
+    bl_description = _T("创建空物体作为父级并绑定选中物体")
     bl_options = {'REGISTER', 'UNDO'}
 
-    hide_empty: bpy.props.BoolProperty(name="隐藏组空物体", default=False)
+    hide_empty: bpy.props.BoolProperty(name=_T("隐藏组空物体"), default=False)
 
     @classmethod
     def poll(cls, context):
@@ -78,7 +79,7 @@ class M8_OT_GroupObjects(bpy.types.Operator):
         group_empty.select_set(True)
         context.view_layer.objects.active = group_empty
 
-        self.report({"INFO"}, f"已创建组 '{group_empty.name}'（含 {len(selected_objects)} 个物体）")
+        self.report({"INFO"}, f"{_T('已创建组')} '{group_empty.name}'{_T('（含')} {len(selected_objects)} {_T('个物体）')}")
         return {'FINISHED'}
 
 def is_m8_group(obj):
@@ -91,8 +92,8 @@ def is_m8_group(obj):
 
 class M8_OT_DissolveGroup(bpy.types.Operator):
     bl_idname = "m8.dissolve_group"
-    bl_label = "解散组"
-    bl_description = "解除组绑定并删除组父物体"
+    bl_label = _T("解散组")
+    bl_description = _T("解除组绑定并删除组父物体")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -124,13 +125,13 @@ class M8_OT_DissolveGroup(bpy.types.Operator):
         if children:
             context.view_layer.objects.active = children[0]
 
-        self.report({"INFO"}, f"已解散组 '{group_obj.name}'（{len(children)} 个子物体已解除父级）")
+        self.report({"INFO"}, f"{_T('已解散组')} '{group_obj.name}'{_T('（')}{len(children)} {_T('个子物体已解除父级）')}")
         return {'FINISHED'}
 
 class M8_OT_AddToGroup(bpy.types.Operator):
     bl_idname = "m8.add_to_group"
-    bl_label = "加入到组"
-    bl_description = "将选中物体加入到激活的组中"
+    bl_label = _T("加入到组")
+    bl_description = _T("将选中物体加入到激活的组中")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -169,15 +170,15 @@ class M8_OT_AddToGroup(bpy.types.Operator):
             added_count += 1
             
         if added_count > 0:
-            self.report({'INFO'}, f"已将 {added_count} 个物体添加到 {target_group.name}")
+            self.report({'INFO'}, f"{_T('已将')} {added_count} {_T('个物体添加到')} {target_group.name}")
             return {'FINISHED'}
         
         return {'CANCELLED'}
 
 class M8_OT_RemoveFromGroup(bpy.types.Operator):
     bl_idname = "m8.remove_from_group"
-    bl_label = "从组中移除"
-    bl_description = "将选中物体从组中移除"
+    bl_label = _T("从组中移除")
+    bl_description = _T("将选中物体从组中移除")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -200,15 +201,15 @@ class M8_OT_RemoveFromGroup(bpy.types.Operator):
                 removed_count += 1
         
         if removed_count > 0:
-            self.report({'INFO'}, f"已从组中移除 {removed_count} 个物体")
+            self.report({'INFO'}, f"{_T('已从组中移除')} {removed_count} {_T('个物体')}")
             return {'FINISHED'}
             
         return {'CANCELLED'}
 
 class M8_OT_SetGroupOrigin(bpy.types.Operator):
     bl_idname = "m8.set_group_origin"
-    bl_label = "设置组原点"
-    bl_description = "将组原点设置到3D游标位置（不移动子物体）"
+    bl_label = _T("设置组原点")
+    bl_description = _T("将组原点设置到3D游标位置（不移动子物体）")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -228,7 +229,7 @@ class M8_OT_SetGroupOrigin(bpy.types.Operator):
             target_group = obj.parent
             
         if not target_group:
-            self.report({'WARNING'}, "未找到组对象")
+            self.report({'WARNING'}, _T("未找到组对象"))
             return {'CANCELLED'}
             
         cursor_loc = context.scene.cursor.location
@@ -255,8 +256,8 @@ class M8_OT_SetGroupOrigin(bpy.types.Operator):
 
 class M8_OT_RecalculateGroupCenter(bpy.types.Operator):
     bl_idname = "m8.recalculate_group_center"
-    bl_label = "重算中心点"
-    bl_description = "将组父物体移动到所有子物体的中心（不移动子物体）"
+    bl_label = _T("重算中心点")
+    bl_description = _T("将组父物体移动到所有子物体的中心（不移动子物体）")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -298,13 +299,13 @@ class M8_OT_RecalculateGroupCenter(bpy.types.Operator):
         for c in children:
             c.matrix_world = child_matrices[c]
 
-        self.report({"INFO"}, f"已重算组 '{target_group.name}' 的中心点")
+        self.report({"INFO"}, f"{_T('已重算组')} '{target_group.name}'{_T('的中心点')}")
         return {'FINISHED'}
 
 class M8_OT_SelectGroupParent(bpy.types.Operator):
     bl_idname = "m8.select_group_parent"
-    bl_label = "仅选择组父级"
-    bl_description = "只选择组的父物体"
+    bl_label = _T("仅选择组父级")
+    bl_description = _T("只选择组的父物体")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -329,13 +330,13 @@ class M8_OT_SelectGroupParent(bpy.types.Operator):
         bpy.ops.object.select_all(action='DESELECT')
         target_group.select_set(True)
         context.view_layer.objects.active = target_group
-        self.report({"INFO"}, f"已选中组父级 '{target_group.name}'")
+        self.report({"INFO"}, f"{_T('已选中组父级')} '{target_group.name}'")
         return {'FINISHED'}
 
 class M8_OT_LockGroup(bpy.types.Operator):
     bl_idname = "m8.lock_group"
-    bl_label = "锁定组 (子物体不可选)"
-    bl_description = "使所有子物体不可选中 (只有父物体可选)"
+    bl_label = _T("锁定组 (子物体不可选)")
+    bl_description = _T("使所有子物体不可选中 (只有父物体可选)")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -367,13 +368,13 @@ class M8_OT_LockGroup(bpy.types.Operator):
         target_group.select_set(True)
         context.view_layer.objects.active = target_group
         
-        self.report({'INFO'}, f"已锁定组：{target_group.name}")
+        self.report({'INFO'}, f"{_T('已锁定组：')}{target_group.name}")
         return {'FINISHED'}
 
 class M8_OT_UnlockGroup(bpy.types.Operator):
     bl_idname = "m8.unlock_group"
-    bl_label = "解锁组"
-    bl_description = "使所有子物体可选中"
+    bl_label = _T("解锁组")
+    bl_description = _T("使所有子物体可选中")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -399,13 +400,13 @@ class M8_OT_UnlockGroup(bpy.types.Operator):
         for c in children:
             c.hide_select = False
             
-        self.report({'INFO'}, f"已解锁组：{target_group.name}")
+        self.report({'INFO'}, f"{_T('已解锁组：')}{target_group.name}")
         return {'FINISHED'}
 
 class M8_OT_DuplicateGroup(bpy.types.Operator):
     bl_idname = "m8.duplicate_group"
-    bl_label = "复制组层级"
-    bl_description = "复制组及其所有子物体"
+    bl_label = _T("复制组层级")
+    bl_description = _T("复制组及其所有子物体")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -438,13 +439,13 @@ class M8_OT_DuplicateGroup(bpy.types.Operator):
         bpy.ops.object.duplicate(linked=False)
         
         new_group = context.active_object
-        self.report({'INFO'}, f"已复制组：{new_group.name}")
+        self.report({'INFO'}, f"{_T('已复制组：')}{new_group.name}")
         return {'FINISHED'}
 
 class M8_OT_HideGroup(bpy.types.Operator):
     bl_idname = "m8.hide_group"
-    bl_label = "隐藏组"
-    bl_description = "隐藏组及其所有子物体"
+    bl_label = _T("隐藏组")
+    bl_description = _T("隐藏组及其所有子物体")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -471,13 +472,13 @@ class M8_OT_HideGroup(bpy.types.Operator):
         for c in children:
             c.hide_viewport = True
             
-        self.report({'INFO'}, f"已隐藏组：{target_group.name}")
+        self.report({'INFO'}, f"{_T('已隐藏组：')}{target_group.name}")
         return {'FINISHED'}
 
 class M8_OT_IsolateGroup(bpy.types.Operator):
     bl_idname = "m8.isolate_group"
-    bl_label = "隔离组"
-    bl_description = "隐藏除当前组以外的所有物体"
+    bl_label = _T("隔离组")
+    bl_description = _T("隐藏除当前组以外的所有物体")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -511,13 +512,13 @@ class M8_OT_IsolateGroup(bpy.types.Operator):
             else:
                 o.hide_viewport = False
                 
-        self.report({'INFO'}, f"已独立显示组：{target_group.name}")
+        self.report({'INFO'}, f"{_T('已独立显示组：')}{target_group.name}")
         return {'FINISHED'}
 
 class M8_OT_ShowAllGroups(bpy.types.Operator):
     bl_idname = "m8.show_all_groups"
-    bl_label = "显示全部"
-    bl_description = "显示场景中的所有物体"
+    bl_label = _T("显示全部")
+    bl_description = _T("显示场景中的所有物体")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -527,13 +528,13 @@ class M8_OT_ShowAllGroups(bpy.types.Operator):
     def execute(self, context):
         for o in context.view_layer.objects:
             o.hide_viewport = False
-        self.report({'INFO'}, "已显示所有物体")
+        self.report({'INFO'}, _T("已显示所有物体"))
         return {'FINISHED'}
 
 class M8_OT_ToggleGroupEmptyVisibility(bpy.types.Operator):
     bl_idname = "m8.toggle_group_empty_visibility"
-    bl_label = "显示/隐藏组空物体"
-    bl_description = "切换组父物体(Empty)的可见性"
+    bl_label = _T("显示/隐藏组空物体")
+    bl_description = _T("切换组父物体(Empty)的可见性")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -554,34 +555,34 @@ class M8_OT_ToggleGroupEmptyVisibility(bpy.types.Operator):
         if not target_group: return {'CANCELLED'}
         
         target_group.hide_viewport = not target_group.hide_viewport
-        self.report({"INFO"}, f"已{'隐藏' if target_group.hide_viewport else '显示'}组空物体 '{target_group.name}'")
+        self.report({"INFO"}, f"{_T('已')}{_T('隐藏') if target_group.hide_viewport else _T('显示')}{_T('组空物体')} '{target_group.name}'")
         return {'FINISHED'}
 
 class M8_MT_GroupContextSubMenu(bpy.types.Menu):
-    bl_label = "M8 组工具"
+    bl_label = _T("M8 组工具")
     bl_idname = "M8_MT_GroupContextSubMenu"
 
     def draw(self, context):
         layout = self.layout
-        layout.operator("m8.select_group", text="选择组层级")
-        layout.operator("m8.select_group_parent", text="仅选择组父级")
+        layout.operator("m8.select_group", text=_T("选择组层级"))
+        layout.operator("m8.select_group_parent", text=_T("仅选择组父级"))
         layout.separator()
-        layout.operator("m8.duplicate_group", text="复制组层级")
+        layout.operator("m8.duplicate_group", text=_T("复制组层级"))
         layout.separator()
-        layout.operator("m8.isolate_group", text="隔离组 (隐藏其他)")
-        layout.operator("m8.hide_group", text="隐藏组")
-        layout.operator("m8.toggle_group_empty_visibility", text="显示/隐藏组空物体")
-        layout.operator("m8.show_all_groups", text="显示全部")
+        layout.operator("m8.isolate_group", text=_T("隔离组 (隐藏其他)"))
+        layout.operator("m8.hide_group", text=_T("隐藏组"))
+        layout.operator("m8.toggle_group_empty_visibility", text=_T("显示/隐藏组空物体"))
+        layout.operator("m8.show_all_groups", text=_T("显示全部"))
         layout.separator()
-        layout.operator("m8.recalculate_group_center", text="重算中心点")
-        layout.operator("m8.set_group_origin", text="设置组原点 (到游标)")
-        layout.operator("m8.dissolve_group", text="解散组")
+        layout.operator("m8.recalculate_group_center", text=_T("重算中心点"))
+        layout.operator("m8.set_group_origin", text=_T("设置组原点 (到游标)"))
+        layout.operator("m8.dissolve_group", text=_T("解散组"))
         layout.separator()
-        layout.operator("m8.add_to_group", text="加入到组")
-        layout.operator("m8.remove_from_group", text="从组中移除")
+        layout.operator("m8.add_to_group", text=_T("加入到组"))
+        layout.operator("m8.remove_from_group", text=_T("从组中移除"))
         layout.separator()
-        layout.operator("m8.lock_group", text="锁定组 (子物体不可选)")
-        layout.operator("m8.unlock_group", text="解锁组")
+        layout.operator("m8.lock_group", text=_T("锁定组 (子物体不可选)"))
+        layout.operator("m8.unlock_group", text=_T("解锁组"))
 
 def draw_group_context_menu(self, context):
     obj = context.active_object
@@ -596,7 +597,7 @@ def draw_group_context_menu(self, context):
 
 class M8_OT_SelectGroup(bpy.types.Operator):
     bl_idname = "m8.select_group"
-    bl_label = "选择组"
+    bl_label = _T("选择组")
     bl_options = {'REGISTER', 'UNDO'}
 
     def _get_pref(self):
@@ -628,7 +629,7 @@ class M8_OT_SelectGroup(bpy.types.Operator):
         obj = context.active_object
         if is_m8_group(obj):
             self._select_hierarchy(context, obj)
-            self.report({"INFO"}, f"已选中组 '{obj.name}' 的层级")
+            self.report({"INFO"}, f"{_T('已选中组')} '{obj.name}'{_T('的层级')}")
             return {'FINISHED'}
         return {'CANCELLED'}
 

@@ -3,6 +3,7 @@ import bmesh
 from mathutils import Vector
 from ...utils import edit_mesh
 from ...utils.logger import get_logger
+from ...utils.i18n import _T
 
 logger = get_logger()
 
@@ -65,39 +66,39 @@ def _set_edge_bevel_weight(bm, edges, weight):
 
 class M8_OT_SmartVert(bpy.types.Operator):
     bl_idname = "m8.smart_vert"
-    bl_label = "M8 智能顶点"
+    bl_label = _T("M8 智能顶点")
     bl_options = {"REGISTER", "UNDO"}
 
     merge_mode: bpy.props.EnumProperty(
-        name="合并模式",
+        name=_T("合并模式"),
         items=[
-            ("AUTO", "自动", ""),
-            ("ACTIVE", "活动点", ""),
-            ("LAST", "最后选中", ""),
-            ("MOUSE", "鼠标最近", ""),
-            ("CENTER", "中心点", ""),
-            ("PROJECT", "投影合并", ""),
+            ("AUTO", _T("自动"), ""),
+            ("ACTIVE", _T("活动点"), ""),
+            ("LAST", _T("最后选中"), ""),
+            ("MOUSE", _T("鼠标最近"), ""),
+            ("CENTER", _T("中心点"), ""),
+            ("PROJECT", _T("投影合并"), ""),
         ],
         default="AUTO",
     )
     
     project_axis: bpy.props.EnumProperty(
-        name="投影轴",
+        name=_T("投影轴"),
         items=[
-            ("X", "X 轴", ""),
-            ("Y", "Y 轴", ""),
-            ("Z", "Z 轴", ""),
-            ("VIEW", "视图", ""),
+            ("X", _T("X 轴"), ""),
+            ("Y", _T("Y 轴"), ""),
+            ("Z", _T("Z 轴"), ""),
+            ("VIEW", _T("视图"), ""),
         ],
         default="Z",
     )
     
     project_target: bpy.props.EnumProperty(
-        name="对齐目标",
+        name=_T("对齐目标"),
         items=[
-            ("ACTIVE", "活动点", ""),
-            ("CENTER", "中心点", ""),
-            ("CURSOR", "游标", ""),
+            ("ACTIVE", _T("活动点"), ""),
+            ("CENTER", _T("中心点"), ""),
+            ("CURSOR", _T("游标"), ""),
         ],
         default="ACTIVE",
     )
@@ -297,38 +298,38 @@ class M8_OT_SmartVert(bpy.types.Operator):
 
 class M8_OT_SmartEdge(bpy.types.Operator):
     bl_idname = "m8.smart_edge"
-    bl_label = "M8 智能边"
+    bl_label = _T("M8 智能边")
     bl_options = {"REGISTER", "UNDO"}
 
     mode: bpy.props.EnumProperty(
-        name="模式",
+        name=_T("模式"),
         items=[
-            ("SELECT", "选择区域 (Edge to Face)", "将闭合边环转换为面选择"),
-            ("SHARPS", "锐边 (Sharps)", "标记或清除锐边"),
-            ("BRIDGE", "桥接 (Bridge)", "桥接两个边环"),
-            ("FILL", "填充 (Fill)", "填充闭合区域 (Grid Fill / F)"),
+            ("SELECT", _T("选择区域 (Edge to Face)"), _T("将闭合边环转换为面选择")),
+            ("SHARPS", _T("锐边 (Sharps)"), _T("标记或清除锐边")),
+            ("BRIDGE", _T("桥接 (Bridge)"), _T("桥接两个边环")),
+            ("FILL", _T("填充 (Fill)"), _T("填充闭合区域 (Grid Fill / F)")),
         ],
         default="SELECT",
     )
 
     # Select Mode Options
-    select_bigger: bpy.props.BoolProperty(name="反转选择 (Select Bigger)", default=False)
+    select_bigger: bpy.props.BoolProperty(name=_T("反转选择 (Select Bigger)"), default=False)
     
     # Sharps Options
     sharps_action: bpy.props.EnumProperty(
-        name="锐边操作",
+        name=_T("锐边操作"),
         items=[
-            ("TOGGLE", "切换 (Toggle)", ""),
-            ("MARK", "标记 (Mark)", ""),
-            ("CLEAR", "清除 (Clear)", ""),
+            ("TOGGLE", _T("切换 (Toggle)"), ""),
+            ("MARK", _T("标记 (Mark)"), ""),
+            ("CLEAR", _T("清除 (Clear)"), ""),
         ],
         default="TOGGLE",
     )
     
     # Modifier/Bevel Options (Simplified)
-    use_chamfer: bpy.props.BoolProperty(name="使用倒角修改器", default=False)
-    width: bpy.props.FloatProperty(name="宽度", default=0.01, min=0.0)
-    segments: bpy.props.IntProperty(name="段数", default=3, min=1)
+    use_chamfer: bpy.props.BoolProperty(name=_T("使用倒角修改器"), default=False)
+    width: bpy.props.FloatProperty(name=_T("宽度"), default=0.01, min=0.0)
+    segments: bpy.props.IntProperty(name=_T("段数"), default=3, min=1)
 
     def draw(self, context):
         layout = self.layout
@@ -338,16 +339,16 @@ class M8_OT_SmartEdge(bpy.types.Operator):
         
         if self.mode == "SELECT":
             layout.prop(self, "select_bigger")
-            layout.label(text="选择闭合边环以转换为面", icon="INFO")
+            layout.label(text=_T("选择闭合边环以转换为面"), icon="INFO")
             
         elif self.mode == "SHARPS":
             layout.prop(self, "sharps_action", expand=True)
             
         elif self.mode == "BRIDGE":
-            layout.label(text="选择两个边环进行桥接", icon="INFO")
+            layout.label(text=_T("选择两个边环进行桥接"), icon="INFO")
             
         elif self.mode == "FILL":
-            layout.label(text="选择闭合边进行填充", icon="INFO")
+            layout.label(text=_T("选择闭合边进行填充"), icon="INFO")
 
     def invoke(self, context, event):
         # 尝试从偏好设置读取默认模式
@@ -411,7 +412,7 @@ class M8_OT_SmartEdge(bpy.types.Operator):
                     if context.tool_settings.mesh_select_mode[2]:
                         return {"FINISHED"}
                 except Exception as e:
-                    self.report({'WARNING'}, f"无法转换为面选择: {e}")
+                    self.report({'WARNING'}, f"{_T('无法转换为面选择')}: {e}")
                     return {"CANCELLED"}
             
             elif self.mode == "SHARPS":
@@ -431,7 +432,7 @@ class M8_OT_SmartEdge(bpy.types.Operator):
                 try:
                     bpy.ops.mesh.bridge_edge_loops()
                 except Exception as e:
-                    self.report({'WARNING'}, "桥接失败")
+                    self.report({'WARNING'}, _T("桥接失败"))
                     logger.debug(f"SmartEdge BRIDGE failed: {e}")
                 return {"FINISHED"}
 
@@ -443,7 +444,7 @@ class M8_OT_SmartEdge(bpy.types.Operator):
                     try:
                         bpy.ops.mesh.edge_face_add()
                     except Exception as e2:
-                        self.report({'WARNING'}, "填充失败")
+                        self.report({'WARNING'}, _T("填充失败"))
                         logger.debug(f"SmartEdge fill failed: {e2}")
                 return {"FINISHED"}
             
@@ -456,24 +457,24 @@ class M8_OT_SmartEdge(bpy.types.Operator):
 
 class M8_OT_SmartFace(bpy.types.Operator):
     bl_idname = "m8.smart_face"
-    bl_label = "M8 智能面"
+    bl_label = _T("M8 智能面")
     bl_options = {"REGISTER", "UNDO"}
 
     face_action: bpy.props.EnumProperty(
-        name="操作",
+        name=_T("操作"),
         items=[
-            ("SEPARATE", "分离", ""),
-            ("DUPLICATE", "复制", ""),
-            ("DISSOLVE", "溶解", ""),
-            ("EXTRACT", "提取", ""),
+            ("SEPARATE", _T("分离"), ""),
+            ("DUPLICATE", _T("复制"), ""),
+            ("DISSOLVE", _T("溶解"), ""),
+            ("EXTRACT", _T("提取"), ""),
         ],
         default="SEPARATE",
     )
-    focus_mode: bpy.props.BoolProperty(name="聚焦模式", default=False)
-    stay_on_original: bpy.props.BoolProperty(name="停留在原始对象", default=False)
-    dissolve_use_verts: bpy.props.BoolProperty(name="溶解顶点", default=True)
-    extract_offset: bpy.props.FloatProperty(name="提取距离", default=0.01)
-    keep_original: bpy.props.BoolProperty(name="保留原始面", default=True)
+    focus_mode: bpy.props.BoolProperty(name=_T("聚焦模式"), default=False)
+    stay_on_original: bpy.props.BoolProperty(name=_T("停留在原始对象"), default=False)
+    dissolve_use_verts: bpy.props.BoolProperty(name=_T("溶解顶点"), default=True)
+    extract_offset: bpy.props.FloatProperty(name=_T("提取距离"), default=0.01)
+    keep_original: bpy.props.BoolProperty(name=_T("保留原始面"), default=True)
 
     def draw(self, context):
         layout = self.layout
@@ -635,36 +636,36 @@ class M8_OT_SmartFace(bpy.types.Operator):
 
 class M8_OT_CleanUp(bpy.types.Operator):
     bl_idname = "m8.clean_up"
-    bl_label = "M8 清理 (Clean Up)"
+    bl_label = _T("M8 清理 (Clean Up)")
     bl_options = {"REGISTER", "UNDO"}
 
-    merge_distance: bpy.props.FloatProperty(name="合并距离", default=0.0001, min=0.0, step=0.1, precision=5)
+    merge_distance: bpy.props.FloatProperty(name=_T("合并距离"), default=0.0001, min=0.0, step=0.1, precision=5)
     affect: bpy.props.EnumProperty(
-        name="影响范围",
+        name=_T("影响范围"),
         items=[
-            ("ALL", "全部", ""),
-            ("SELECTED", "仅选中", ""),
+            ("ALL", _T("全部"), ""),
+            ("SELECTED", _T("仅选中"), ""),
         ],
         default="ALL",
     )
-    do_merge_by_distance: bpy.props.BoolProperty(name="合并重复点", default=True)
-    do_dissolve_degenerate: bpy.props.BoolProperty(name="溶解退化几何", default=True)
-    degenerate_dist: bpy.props.FloatProperty(name="退化阈值", default=0.00001, min=0.0, step=0.01, precision=6)
-    do_delete_loose: bpy.props.BoolProperty(name="删除松散几何", default=True)
-    do_delete_loose_edges: bpy.props.BoolProperty(name="删除孤立边", default=True)
-    do_delete_loose_verts: bpy.props.BoolProperty(name="删除孤立点", default=True)
-    do_recalc_normals: bpy.props.BoolProperty(name="重算法线", default=False)
+    do_merge_by_distance: bpy.props.BoolProperty(name=_T("合并重复点"), default=True)
+    do_dissolve_degenerate: bpy.props.BoolProperty(name=_T("溶解退化几何"), default=True)
+    degenerate_dist: bpy.props.FloatProperty(name=_T("退化阈值"), default=0.00001, min=0.0, step=0.01, precision=6)
+    do_delete_loose: bpy.props.BoolProperty(name=_T("删除松散几何"), default=True)
+    do_delete_loose_edges: bpy.props.BoolProperty(name=_T("删除孤立边"), default=True)
+    do_delete_loose_verts: bpy.props.BoolProperty(name=_T("删除孤立点"), default=True)
+    do_recalc_normals: bpy.props.BoolProperty(name=_T("重算法线"), default=False)
     
-    do_limited_dissolve: bpy.props.BoolProperty(name="有限溶解", default=False)
-    limited_dissolve_angle: bpy.props.FloatProperty(name="角度", default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
+    do_limited_dissolve: bpy.props.BoolProperty(name=_T("有限溶解"), default=False)
+    limited_dissolve_angle: bpy.props.FloatProperty(name=_T("角度"), default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
     
-    do_make_planar: bpy.props.BoolProperty(name="平坦化面", default=False)
-    planar_iterations: bpy.props.IntProperty(name="迭代", default=1, min=1, max=10)
+    do_make_planar: bpy.props.BoolProperty(name=_T("平坦化面"), default=False)
+    planar_iterations: bpy.props.IntProperty(name=_T("迭代"), default=1, min=1, max=10)
     
-    do_delete_interior_faces: bpy.props.BoolProperty(name="删除内部面 (非流形)", default=False)
-    do_select_tools: bpy.props.BoolProperty(name="选择", default=True)
-    non_planar_angle: bpy.props.FloatProperty(name="非平面角度", default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
-    show_advanced: bpy.props.BoolProperty(name="高级", default=False)
+    do_delete_interior_faces: bpy.props.BoolProperty(name=_T("删除内部面 (非流形)"), default=False)
+    do_select_tools: bpy.props.BoolProperty(name=_T("选择"), default=True)
+    non_planar_angle: bpy.props.FloatProperty(name=_T("非平面角度"), default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
+    show_advanced: bpy.props.BoolProperty(name=_T("高级"), default=False)
 
     def draw(self, context):
         layout = self.layout
@@ -673,15 +674,15 @@ class M8_OT_CleanUp(bpy.types.Operator):
         col = layout.column(align=True)
 
         row = col.row(align=True)
-        row.prop(self, "do_merge_by_distance", text="重复")
-        row.prop(self, "do_dissolve_degenerate", text="退化")
+        row.prop(self, "do_merge_by_distance", text=_T("重复"))
+        row.prop(self, "do_dissolve_degenerate", text=_T("退化"))
         sub = row.row(align=True)
         sub.enabled = bool(self.do_merge_by_distance)
         sub.prop(self, "merge_distance", text="")
 
         row = col.row(align=True)
-        row.prop(self, "do_delete_loose", text="松散")
-        row.prop(self, "do_limited_dissolve", text="冗余")
+        row.prop(self, "do_delete_loose", text=_T("松散"))
+        row.prop(self, "do_limited_dissolve", text=_T("冗余"))
         sub = row.row(align=True)
         sub.enabled = bool(self.do_limited_dissolve)
         sub.prop(self, "limited_dissolve_angle", text="")
@@ -689,9 +690,9 @@ class M8_OT_CleanUp(bpy.types.Operator):
         ts = getattr(context, "tool_settings", None)
         if ts and getattr(ts, "mesh_select_mode", None):
             row = col.row(align=True)
-            row.prop(ts, "mesh_select_mode", index=0, toggle=True, text="顶点")
-            row.prop(ts, "mesh_select_mode", index=1, toggle=True, text="边")
-            row.prop(ts, "mesh_select_mode", index=2, toggle=True, text="面")
+            row.prop(ts, "mesh_select_mode", index=0, toggle=True, text=_T("顶点"))
+            row.prop(ts, "mesh_select_mode", index=1, toggle=True, text=_T("边"))
+            row.prop(ts, "mesh_select_mode", index=2, toggle=True, text=_T("面"))
 
         row = col.row(align=True)
         # 移除这些不适合在 Operator Redo Panel 中使用的按钮
@@ -716,7 +717,7 @@ class M8_OT_CleanUp(bpy.types.Operator):
         # op.extend = False
         
         # 只保留参数选项
-        col.prop(self, "do_recalc_normals", text="重新计算法线")
+        col.prop(self, "do_recalc_normals", text=_T("重新计算法线"))
 
         box = layout.box()
         row = box.row(align=True)
@@ -743,7 +744,7 @@ class M8_OT_CleanUp(bpy.types.Operator):
             row.prop(self, "do_delete_loose_verts")
 
             row = box.row(align=True)
-            row.label(text="非平面角度")
+            row.label(text=_T("非平面角度"))
             row.prop(self, "non_planar_angle", text="")
 
     def invoke(self, context, event):
@@ -893,21 +894,21 @@ class M8_OT_CleanUp(bpy.types.Operator):
         context.tool_settings.mesh_select_mode = saved_mode
         
         # We skip the explicit mode toggle for counting to avoid performance overhead and context issues.
-        self.report({'INFO'}, "网格清理已完成（原生 C-API）")
+        self.report({'INFO'}, _T("网格清理已完成（原生 C-API）"))
 
         return {"FINISHED"}
 
 
 class M8_OT_SmartMergeCenter(bpy.types.Operator):
     bl_idname = "m8.smart_merge_center"
-    bl_label = "M8 中心合并"
+    bl_label = _T("M8 中心合并")
     bl_options = {"REGISTER", "UNDO"}
 
     target: bpy.props.EnumProperty(
-        name="目标",
+        name=_T("目标"),
         items=[
-            ("CENTER", "中心点", ""),
-            ("CURSOR", "游标", ""),
+            ("CENTER", _T("中心点"), ""),
+            ("CURSOR", _T("游标"), ""),
         ],
         default="CENTER",
     )
@@ -952,15 +953,15 @@ class M8_OT_SmartMergeCenter(bpy.types.Operator):
 
 class M8_OT_SmartPathsMerge(bpy.types.Operator):
     bl_idname = "m8.smart_paths_merge"
-    bl_label = "M8 合并路径 (Merge Paths)"
+    bl_label = _T("M8 合并路径 (Merge Paths)")
     bl_options = {"REGISTER", "UNDO"}
 
     pairing: bpy.props.EnumProperty(
-        name="配对",
+        name=_T("配对"),
         items=[
-            ("AUTO", "自动", ""),
-            ("INDEX", "顺序", ""),
-            ("REVERSE", "反向", ""),
+            ("AUTO", _T("自动"), ""),
+            ("INDEX", _T("顺序"), ""),
+            ("REVERSE", _T("反向"), ""),
         ],
         default="AUTO",
     )
@@ -1013,15 +1014,15 @@ class M8_OT_SmartPathsMerge(bpy.types.Operator):
 
 class M8_OT_SmartPathsConnect(bpy.types.Operator):
     bl_idname = "m8.smart_paths_connect"
-    bl_label = "M8 连接路径 (Connect Paths)"
+    bl_label = _T("M8 连接路径 (Connect Paths)")
     bl_options = {"REGISTER", "UNDO"}
 
     pairing: bpy.props.EnumProperty(
-        name="配对",
+        name=_T("配对"),
         items=[
-            ("AUTO", "自动", ""),
-            ("INDEX", "顺序", ""),
-            ("REVERSE", "反向", ""),
+            ("AUTO", _T("自动"), ""),
+            ("INDEX", _T("顺序"), ""),
+            ("REVERSE", _T("反向"), ""),
         ],
         default="AUTO",
     )
@@ -1077,15 +1078,15 @@ class M8_OT_SmartPathsConnect(bpy.types.Operator):
 
 class M8_OT_SmartSlideExtend(bpy.types.Operator):
     bl_idname = "m8.smart_slide_extend"
-    bl_label = "M8 滑动/延伸 (Slide/Extend)"
+    bl_label = _T("M8 滑动/延伸 (Slide/Extend)")
     bl_options = {"REGISTER", "UNDO"}
 
     slide_mode: bpy.props.EnumProperty(
-        name="类型",
+        name=_T("类型"),
         items=[
-            ("AUTO", "自动", ""),
-            ("VERT", "顶点", ""),
-            ("EDGE", "边", ""),
+            ("AUTO", _T("自动"), ""),
+            ("VERT", _T("顶点"), ""),
+            ("EDGE", _T("边"), ""),
         ],
         default="AUTO",
     )
@@ -1107,15 +1108,15 @@ class M8_OT_SmartSlideExtend(bpy.types.Operator):
 
 class M8_OT_SmartToggleSharp(bpy.types.Operator):
     bl_idname = "m8.smart_toggle_sharp"
-    bl_label = "M8 切换锐边 (Sharps)"
+    bl_label = _T("M8 切换锐边 (Sharps)")
     bl_options = {"REGISTER", "UNDO"}
 
     action: bpy.props.EnumProperty(
-        name="操作",
+        name=_T("操作"),
         items=[
-            ("TOGGLE", "切换", ""),
-            ("MARK", "标记", ""),
-            ("CLEAR", "清除", ""),
+            ("TOGGLE", _T("切换"), ""),
+            ("MARK", _T("标记"), ""),
+            ("CLEAR", _T("清除"), ""),
         ],
         default="TOGGLE",
     )
@@ -1148,13 +1149,13 @@ class M8_OT_SmartToggleSharp(bpy.types.Operator):
 
 class M8_OT_SmartOffsetEdges(bpy.types.Operator):
     bl_idname = "m8.smart_offset_edges"
-    bl_label = "M8 偏移边 (Offset Edges)"
+    bl_label = _T("M8 偏移边 (Offset Edges)")
     bl_options = {"REGISTER", "UNDO"}
 
     method: bpy.props.EnumProperty(
-        name="方式",
+        name=_T("方式"),
         items=[
-            ("AUTO", "自动", ""),
+            ("AUTO", _T("自动"), ""),
             ("OFFSET", "Offset Edge Loops", ""),
             ("BEVEL", "Bevel", ""),
         ],
@@ -1184,16 +1185,16 @@ class M8_OT_SmartOffsetEdges(bpy.types.Operator):
 
 class M8_OT_SmartEdgeToggleMode(bpy.types.Operator):
     bl_idname = "m8.smart_edge_toggle_mode"
-    bl_label = "M8 切换 Smart Edge 模式"
+    bl_label = _T("M8 切换 Smart Edge 模式")
     bl_options = {"REGISTER", "UNDO"}
 
     mode: bpy.props.EnumProperty(
-        name="模式",
+        name=_T("模式"),
         items=[
-            ("SELECT", "选择区域 (Select)", "将闭合边环转换为面选择"),
-            ("SHARPS", "锐边 (Sharps)", "标记或清除锐边"),
-            ("BRIDGE", "桥接 (Bridge)", "桥接两个边环"),
-            ("FILL", "填充 (Fill)", "填充闭合区域"),
+            ("SELECT", _T("选择区域 (Select)"), _T("将闭合边环转换为面选择")),
+            ("SHARPS", _T("锐边 (Sharps)"), _T("标记或清除锐边")),
+            ("BRIDGE", _T("桥接 (Bridge)"), _T("桥接两个边环")),
+            ("FILL", _T("填充 (Fill)"), _T("填充闭合区域")),
         ],
         default="SELECT",
     )
@@ -1227,7 +1228,7 @@ class M8_OT_SmartEdgeToggleMode(bpy.types.Operator):
                 prefs.smart_edge_mode = self.mode
                 
             # Report the new mode
-            self.report({'INFO'}, f"智能边模式：{prefs.smart_edge_mode}")
+            self.report({'INFO'}, f"{_T('智能边模式：')}{prefs.smart_edge_mode}")
         except Exception:
             pass
         return {"FINISHED"}

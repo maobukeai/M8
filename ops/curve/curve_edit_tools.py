@@ -1,5 +1,7 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 def ensure_edit_mode(context, obj_type):
     # Ensure all selected objects of type are in Edit Mode
@@ -32,7 +34,7 @@ def ensure_edit_mode(context, obj_type):
 
 class M8_OT_CurveHandleTypeRemember(bpy.types.Operator):
     bl_idname = "m8.curve_handle_type_remember"
-    bl_label = "手柄类型"
+    bl_label = _T("手柄类型")
     bl_options = {"REGISTER", "UNDO"}
 
     handle_type: bpy.props.EnumProperty(
@@ -85,15 +87,15 @@ class M8_OT_CurveHandleTypeRemember(bpy.types.Operator):
         try:
             bpy.ops.curve.handle_type_set(type=self.handle_type)
         except Exception:
-            self.report({"WARNING"}, "设置手柄类型失败")
+            self.report({"WARNING"}, _T("设置手柄类型失败"))
             return {"CANCELLED"}
-        self.report({"INFO"}, f"已设置手柄类型为 {self.handle_type}")
+        self.report({"INFO"}, f"{_T('已设置手柄类型为')} {self.handle_type}")
         return {"FINISHED"}
 
 
 class M8_OT_CurveSwitchDirectionRemember(bpy.types.Operator):
     bl_idname = "m8.curve_switch_direction_remember"
-    bl_label = "切换方向"
+    bl_label = _T("切换方向")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -122,7 +124,7 @@ class M8_OT_CurveSwitchDirectionRemember(bpy.types.Operator):
 
 class M8_OT_CurveSubdivideRemember(bpy.types.Operator):
     bl_idname = "m8.curve_subdivide_remember"
-    bl_label = "细分"
+    bl_label = _T("细分")
     bl_options = {"REGISTER", "UNDO"}
 
     number_cuts: bpy.props.IntProperty(name="Cuts", default=1, min=1, max=100)
@@ -147,15 +149,15 @@ class M8_OT_CurveSubdivideRemember(bpy.types.Operator):
         try:
             bpy.ops.curve.subdivide(number_cuts=self.number_cuts)
         except Exception:
-            self.report({"WARNING"}, "细分失败")
+            self.report({"WARNING"}, _T("细分失败"))
             return {"CANCELLED"}
-        self.report({"INFO"}, f"已细分曲线（{self.number_cuts} 刀）")
+        self.report({"INFO"}, f"{_T('已细分曲线（')}{self.number_cuts}{_T(' 刀）')}")
         return {"FINISHED"}
 
 
 class M8_OT_CurveSmoothRemember(bpy.types.Operator):
     bl_idname = "m8.curve_smooth_remember"
-    bl_label = "平滑"
+    bl_label = _T("平滑")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -178,7 +180,7 @@ class M8_OT_CurveSmoothRemember(bpy.types.Operator):
         try:
             bpy.ops.curve.smooth()
         except Exception:
-            self.report({"WARNING"}, "平滑失败")
+            self.report({"WARNING"}, _T("平滑失败"))
             return {"CANCELLED"}
-        self.report({"INFO"}, "已平滑曲线")
+        self.report({"INFO"}, _T("已平滑曲线"))
         return {"FINISHED"}

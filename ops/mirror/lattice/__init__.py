@@ -5,6 +5,7 @@ from .select_mirror import get_select_mirror_info
 from ....hub import clear_hub, Hub3DItem, hub_3d
 from ....utils import get_pref
 from ....utils.math import scale_to_matrix
+from ....utils.i18n import _T
 
 
 class MirrorLattice:
@@ -92,7 +93,7 @@ class MirrorLattice:
 
         opt = col.box()
         opt.use_property_split = False
-        opt.prop(self, "is_negative_axis", text="反向")
+        opt.prop(self, "is_negative_axis", text=_T("反向"))
 
     def update_lattice_hub(self, context):
         ...

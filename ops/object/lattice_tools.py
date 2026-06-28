@@ -1,9 +1,11 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 class M8_OT_LatticeMakeRegular(bpy.types.Operator):
     bl_idname = "m8.lattice_make_regular"
-    bl_label = "重置形状"
+    bl_label = _T("重置形状")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod

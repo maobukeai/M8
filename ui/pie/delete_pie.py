@@ -37,7 +37,7 @@ def _add_delete_operator(layout, action_type):
         layout.separator()
 
 class VIEW3D_MT_M8DeletePie(bpy.types.Menu):
-    bl_label = "删除"
+    bl_label = _T("删除")
     bl_idname = "VIEW3D_MT_M8DeletePie"
 
     def draw(self, context):

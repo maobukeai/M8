@@ -1,9 +1,11 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 class M8_OT_SurfaceSliding(bpy.types.Operator):
     bl_idname = "m8.surface_sliding"
-    bl_label = "表面滑动"
+    bl_label = _T("表面滑动")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -35,4 +37,4 @@ class M8_OT_SurfaceSliding(bpy.types.Operator):
 
 
 def ui(context: bpy.types.Context, pie: bpy.types.UILayout):
-    pie.operator(M8_OT_SurfaceSliding.bl_idname, text="表面滑动", icon="MOD_SHRINKWRAP")
+    pie.operator(M8_OT_SurfaceSliding.bl_idname, text=_T("表面滑动"), icon="MOD_SHRINKWRAP")

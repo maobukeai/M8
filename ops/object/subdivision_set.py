@@ -3,10 +3,10 @@ from ...utils.i18n import _T
 
 class M8_OT_SubdivisionSet(bpy.types.Operator):
     bl_idname = "m8.subdivision_set"
-    bl_label = "设置细分级别"
+    bl_label = _T("设置细分级别")
     bl_options = {"REGISTER", "UNDO"}
 
-    level: bpy.props.IntProperty(name="级别", default=1, min=0, max=6)
+    level: bpy.props.IntProperty(name=_T("级别"), default=1, min=0, max=6)
 
     @classmethod
     def poll(cls, context):
@@ -45,5 +45,5 @@ class M8_OT_SubdivisionSet(bpy.types.Operator):
                     modified_count += 1
 
         if modified_count > 0:
-            self.report({'INFO'}, _T(f"已设置 {modified_count} 个物体的细分级别为 {self.level}"))
+            self.report({'INFO'}, f"{_T('已设置 ')}{modified_count}{_T(' 个物体的细分级别为 ')}{self.level}")
         return {'FINISHED'}

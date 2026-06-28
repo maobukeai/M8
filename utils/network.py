@@ -5,6 +5,7 @@ import json
 import bpy
 import sys
 import traceback
+from .i18n import _T
 
 PLUGIN_TOKEN  = "plg_362d15e623a7466ab4b1dfd0312df224"
 CHECK_URL     = "https://mao.591595.xyz/api/plugins/client/check-update"
@@ -109,7 +110,7 @@ def _apply_update_results(is_manual):
         if is_manual:
             def draw_err(self, context):
                 self.layout.label(text=res["error"], icon="ERROR")
-            wm.popup_menu(draw_err, title="连接失败，请检查网络", icon="ERROR")
+            wm.popup_menu(draw_err, title=_T("连接失败，请检查网络"), icon="ERROR")
         return None
 
     m8.update_status = "available" if res.get("updateAvailable") else "latest"
@@ -121,10 +122,10 @@ def _apply_update_results(is_manual):
 
     if m8.update_available:
         # Auto-pop dialog on startup OR on manual check
-        wm.popup_menu(_draw_update_dialog, title="检测到新版本", icon="INFO")
+        wm.popup_menu(_draw_update_dialog, title=_T("检测到新版本"), icon="INFO")
     elif is_manual:
         # Manual check shows "already latest" dialog
-        wm.popup_menu(_draw_update_dialog, title="提示", icon="INFO")
+        wm.popup_menu(_draw_update_dialog, title=_T("提示"), icon="INFO")
 
     return None
 
@@ -156,7 +157,7 @@ def check_for_updates_async(is_manual=False):
                     "updateAvailable": data.get("updateAvailable", False),
                     "latestVersion": data.get("latestVersion", ""),
                     "downloadUrl": data.get("downloadUrl", ""),
-                    "changelog": data.get("changelog", "暂无更新日志"),
+                    "changelog": data.get("changelog", _T("暂无更新日志")),
                 }
         except Exception as e:
             with _update_lock:
@@ -278,13 +279,13 @@ def _apply_install_results():
     if "error" in res:
         def draw_err(self, context):
             self.layout.label(text=res["error"], icon="ERROR")
-        wm.popup_menu(draw_err, title="一键更新失败，请尝试手动下载", icon="ERROR")
+        wm.popup_menu(draw_err, title=_T("一键更新失败，请尝试手动下载"), icon="ERROR")
         return None
 
     # Success!
     def draw_ok(self, context):
-        self.layout.label(text="更新成功！请重启 Blender 或重新启用插件以应用新版本。", icon="CHECKMARK")
-    wm.popup_menu(draw_ok, title="提示", icon="CHECKMARK")
+        self.layout.label(text=_T("更新成功！请重启 Blender 或重新启用插件以应用新版本。"), icon="CHECKMARK")
+    wm.popup_menu(draw_ok, title=_T("提示"), icon="CHECKMARK")
     return None
 
 def download_and_install_update_async():
@@ -306,7 +307,7 @@ def download_and_install_update_async():
         import os
         try:
             if not m8 or not m8.update_download_url:
-                raise Exception("未找到更新下载地址，请先检测更新")
+                raise Exception(_T("未找到更新下载地址，请先检测更新"))
 
             # Download to temp file
             temp_dir = tempfile.gettempdir()
@@ -324,7 +325,7 @@ def download_and_install_update_async():
                 with _install_lock:
                     _install_result = {"success": True}
             else:
-                raise Exception("安装更新包失败，请尝试手动安装")
+                raise Exception(_T("安装更新包失败，请尝试手动安装"))
         except Exception as e:
             import traceback
             traceback.print_exc()

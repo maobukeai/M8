@@ -2,6 +2,8 @@ import bpy
 import bmesh
 from mathutils import Vector
 
+from ...utils.i18n import _T
+
 def _find_face_islands(selected_faces):
     visited = set()
     islands = []
@@ -26,10 +28,10 @@ def _find_face_islands(selected_faces):
 
 class MESH_OT_ExtendLeafTip(bpy.types.Operator):
     bl_idname = "mesh.extend_leaf_tip"
-    bl_label = "延长叶尖"
+    bl_label = _T("延长叶尖")
     bl_options = {'REGISTER', 'UNDO'}
 
-    extension: bpy.props.FloatProperty(name="延伸量", description="沿叶片方向延伸叶尖（本地单位）", default=0.002, soft_min=-1.0, soft_max=1.0, unit='LENGTH')
+    extension: bpy.props.FloatProperty(name=_T("延伸量"), description=_T("沿叶片方向延伸叶尖（本地单位）"), default=0.002, soft_min=-1.0, soft_max=1.0, unit='LENGTH')
 
     @classmethod
     def poll(cls, context):
@@ -53,12 +55,12 @@ class MESH_OT_ExtendLeafTip(bpy.types.Operator):
         uv_layer = bm.loops.layers.uv.active
         selected_faces = {f for f in bm.faces if f.select}
         if not selected_faces:
-            self.report({'WARNING'}, "未选择任何面")
+            self.report({'WARNING'}, _T("未选择任何面"))
             return {'CANCELLED'}
 
         islands = _find_face_islands(selected_faces)
         if not islands:
-            self.report({'WARNING'}, "未在选择中找到连通岛")
+            self.report({'WARNING'}, _T("未在选择中找到连通岛"))
             return {'CANCELLED'}
 
         extended_count = 0
@@ -110,5 +112,5 @@ class MESH_OT_ExtendLeafTip(bpy.types.Operator):
             extended_count += 1
 
         bmesh.update_edit_mesh(obj.data)
-        self.report({'INFO'}, f"已延长 {extended_count} 个叶片的叶尖")
+        self.report({'INFO'}, f"{_T('已延长')} {extended_count} {_T('个叶片的叶尖')}")
         return {'FINISHED'}

@@ -1,9 +1,11 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 class M8_OT_LightTrackToSelected(bpy.types.Operator):
     bl_idname = "m8.light_track_to_selected"
-    bl_label = "灯光对准选中"
+    bl_label = _T("灯光对准选中")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -41,7 +43,7 @@ class M8_OT_LightTrackToSelected(bpy.types.Operator):
         # So "first non-light" is reasonable.
         
         if not target:
-            self.report({'WARNING'}, "未找到目标物体")
+            self.report({'WARNING'}, _T("未找到目标物体"))
             return {"CANCELLED"}
 
         con = None
@@ -60,13 +62,13 @@ class M8_OT_LightTrackToSelected(bpy.types.Operator):
         con.track_axis = "TRACK_NEGATIVE_Z"
         con.up_axis = "UP_Y"
         
-        self.report({'INFO'}, f"已追踪到: {target.name}")
+        self.report({'INFO'}, f"{_T('已追踪到')}: {target.name}")
         return {"FINISHED"}
 
 
 class M8_OT_LightClearTrackTo(bpy.types.Operator):
     bl_idname = "m8.light_clear_track_to"
-    bl_label = "清除灯光对准"
+    bl_label = _T("清除灯光对准")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -91,7 +93,7 @@ class M8_OT_LightClearTrackTo(bpy.types.Operator):
             except Exception:
                 pass
         if to_remove:
-            self.report({"INFO"}, f"已清除 {len(to_remove)} 个跟踪约束")
+            self.report({"INFO"}, f"{_T('已清除')} {len(to_remove)} {_T('个跟踪约束')}")
         else:
-            self.report({"INFO"}, "未找到 M8 跟踪约束")
+            self.report({"INFO"}, _T("未找到 M8 跟踪约束"))
         return {"FINISHED"}

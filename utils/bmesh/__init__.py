@@ -3,6 +3,7 @@ import bpy
 import numpy as np
 from bmesh.types import BMesh, BMVert, BMFace, BMEdge, BMElemSeq
 from mathutils import Vector, Matrix
+from ..i18n import _T
 
 
 def from_bm_get_active_location(bm: BMesh, matrix: Matrix) -> Vector:
@@ -119,7 +120,7 @@ def from_bmesh_face_get_optimal_edge(face: bmesh.types.BMFace) -> bmesh.types.BM
             edge = loop.edge
             angle_diff = ad
     if edge is None:
-        raise Exception("没有找到合适的边")
+        raise Exception(_T("没有找到合适的边"))
     return edge
 
 

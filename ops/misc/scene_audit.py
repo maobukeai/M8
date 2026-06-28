@@ -7,6 +7,7 @@ import time
 import bmesh
 import bpy
 
+from ...utils.i18n import _T
 from ...utils.logger import get_logger
 
 
@@ -654,8 +655,8 @@ def _append_fix_history(wm_state, line, max_lines=8):
 
 class M8_OT_RunSceneAudit(bpy.types.Operator):
     bl_idname = "m8.run_scene_audit"
-    bl_label = "运行 M8 场景审计"
-    bl_description = "扫描网格物体的拓扑、变换、材质和密度问题"
+    bl_label = _T("运行 M8 场景审计")
+    bl_description = _T("扫描网格物体的拓扑、变换、材质和密度问题")
     bl_options = {"REGISTER"}
 
     scope: bpy.props.EnumProperty(
@@ -702,8 +703,8 @@ class M8_OT_RunSceneAudit(bpy.types.Operator):
 
 class M8_OT_CopySceneAuditReport(bpy.types.Operator):
     bl_idname = "m8.copy_scene_audit_report"
-    bl_label = "复制 M8 场景审计报告"
-    bl_description = "将最新的 M8 场景审计报告复制到剪贴板"
+    bl_label = _T("复制 M8 场景审计报告")
+    bl_description = _T("将最新的 M8 场景审计报告复制到剪贴板")
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -715,14 +716,14 @@ class M8_OT_CopySceneAuditReport(bpy.types.Operator):
             store_scene_audit_report(context, report)
             details = report["details"]
         context.window_manager.clipboard = details
-        self.report({"INFO"}, "已复制 M8 场景审计报告")
+        self.report({"INFO"}, _T("已复制 M8 场景审计报告"))
         return {"FINISHED"}
 
 
 class M8_OT_SelectSceneAuditIssueObjects(bpy.types.Operator):
     bl_idname = "m8.select_scene_audit_issue_objects"
-    bl_label = "选择 M8 场景审计问题物体"
-    bl_description = "重新扫描并选择匹配特定 M8 场景审计问题类型的物体"
+    bl_label = _T("选择 M8 场景审计问题物体")
+    bl_description = _T("重新扫描并选择匹配特定 M8 场景审计问题类型的物体")
     bl_options = {"REGISTER", "UNDO"}
 
     scope: bpy.props.EnumProperty(
@@ -757,7 +758,7 @@ class M8_OT_SelectSceneAuditIssueObjects(bpy.types.Operator):
         ]
 
         if not matches:
-            self.report({"WARNING"}, "没有匹配所选问题类型的物体")
+            self.report({"WARNING"}, _T("没有匹配所选问题类型的物体"))
             return {"CANCELLED"}
 
         bpy.ops.object.select_all(action="DESELECT")
@@ -770,8 +771,8 @@ class M8_OT_SelectSceneAuditIssueObjects(bpy.types.Operator):
 
 class M8_OT_FixSceneAuditSafeIssues(bpy.types.Operator):
     bl_idname = "m8.fix_scene_audit_safe_issues"
-    bl_label = "修复 M8 场景审计安全问题"
-    bl_description = "移除松散几何体、零面积面以及未使用/空/重复的材质槽"
+    bl_label = _T("修复 M8 场景审计安全问题")
+    bl_description = _T("移除松散几何体、零面积面以及未使用/空/重复的材质槽")
     bl_options = {"REGISTER", "UNDO"}
 
     scope: bpy.props.EnumProperty(
@@ -796,12 +797,12 @@ class M8_OT_FixSceneAuditSafeIssues(bpy.types.Operator):
 
     def execute(self, context):
         if not _ensure_object_mode(context):
-            self.report({"ERROR"}, "执行安全修复前请切换到物体模式")
+            self.report({"ERROR"}, _T("执行安全修复前请切换到物体模式"))
             return {"CANCELLED"}
 
         objects = _mesh_objects(context, self.scope)
         if not objects:
-            self.report({"WARNING"}, "没有可修复的网格物体")
+            self.report({"WARNING"}, _T("没有可修复的网格物体"))
             return {"CANCELLED"}
 
         wm_state = getattr(context.window_manager, "m8", None)
@@ -863,8 +864,8 @@ class M8_OT_FixSceneAuditSafeIssues(bpy.types.Operator):
 
 class M8_OT_SelectSceneAuditBackups(bpy.types.Operator):
     bl_idname = "m8.select_scene_audit_backups"
-    bl_label = "选择 M8 场景审计备份"
-    bl_description = "显示并选择 M8 场景审计备份物体"
+    bl_label = _T("选择 M8 场景审计备份")
+    bl_description = _T("显示并选择 M8 场景审计备份物体")
     bl_options = {"REGISTER", "UNDO"}
 
     backup_collection_name: bpy.props.StringProperty(
@@ -900,8 +901,8 @@ class M8_OT_SelectSceneAuditBackups(bpy.types.Operator):
 
 class M8_OT_RestoreSceneAuditSelectedBackups(bpy.types.Operator):
     bl_idname = "m8.restore_scene_audit_selected_backups"
-    bl_label = "恢复选中的 M8 场景审计备份"
-    bl_description = "从选中的 M8 场景审计备份恢复原始网格物体"
+    bl_label = _T("恢复选中的 M8 场景审计备份")
+    bl_description = _T("从选中的 M8 场景审计备份恢复原始网格物体")
     bl_options = {"REGISTER", "UNDO"}
 
     delete_backups: bpy.props.BoolProperty(
@@ -913,7 +914,7 @@ class M8_OT_RestoreSceneAuditSelectedBackups(bpy.types.Operator):
 
     def execute(self, context):
         if not _ensure_object_mode(context):
-            self.report({"ERROR"}, "恢复备份前请切换到物体模式")
+            self.report({"ERROR"}, _T("恢复备份前请切换到物体模式"))
             return {"CANCELLED"}
 
         backups = sorted(
@@ -921,7 +922,7 @@ class M8_OT_RestoreSceneAuditSelectedBackups(bpy.types.Operator):
             key=_backup_sort_key,
         )
         if not backups:
-            self.report({"WARNING"}, "请先选择一个或多个 M8 场景审计备份物体")
+            self.report({"WARNING"}, _T("请先选择一个或多个 M8 场景审计备份物体"))
             return {"CANCELLED"}
 
         restored, skipped, summary = _restore_backup_objects(context, backups, self.delete_backups)
@@ -949,8 +950,8 @@ class M8_OT_RestoreSceneAuditSelectedBackups(bpy.types.Operator):
 
 class M8_OT_RestoreSceneAuditLatestBackups(bpy.types.Operator):
     bl_idname = "m8.restore_scene_audit_latest_backups"
-    bl_label = "恢复最新的 M8 场景审计备份"
-    bl_description = "从每个源网格物体的最新 M8 场景审计备份中恢复"
+    bl_label = _T("恢复最新的 M8 场景审计备份")
+    bl_description = _T("从每个源网格物体的最新 M8 场景审计备份中恢复")
     bl_options = {"REGISTER", "UNDO"}
 
     backup_collection_name: bpy.props.StringProperty(
@@ -967,7 +968,7 @@ class M8_OT_RestoreSceneAuditLatestBackups(bpy.types.Operator):
 
     def execute(self, context):
         if not _ensure_object_mode(context):
-            self.report({"ERROR"}, "恢复备份前请切换到物体模式")
+            self.report({"ERROR"}, _T("恢复备份前请切换到物体模式"))
             return {"CANCELLED"}
 
         wm_state = getattr(context.window_manager, "m8", None)
@@ -1004,8 +1005,8 @@ class M8_OT_RestoreSceneAuditLatestBackups(bpy.types.Operator):
 
 class M8_OT_RefreshSceneAuditBackups(bpy.types.Operator):
     bl_idname = "m8.refresh_scene_audit_backups"
-    bl_label = "刷新 M8 场景审计备份"
-    bl_description = "刷新 M8 场景审计备份清单"
+    bl_label = _T("刷新 M8 场景审计备份")
+    bl_description = _T("刷新 M8 场景审计备份清单")
     bl_options = {"REGISTER"}
 
     backup_collection_name: bpy.props.StringProperty(
@@ -1038,8 +1039,8 @@ class M8_OT_RefreshSceneAuditBackups(bpy.types.Operator):
 
 class M8_OT_CopySceneAuditBackupReport(bpy.types.Operator):
     bl_idname = "m8.copy_scene_audit_backup_report"
-    bl_label = "复制 M8 场景审计备份报告"
-    bl_description = "将最新的 M8 场景审计备份清单复制到剪贴板"
+    bl_label = _T("复制 M8 场景审计备份报告")
+    bl_description = _T("将最新的 M8 场景审计备份清单复制到剪贴板")
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -1055,23 +1056,23 @@ class M8_OT_CopySceneAuditBackupReport(bpy.types.Operator):
             store_scene_audit_backup_report(context, report)
             details = report["details"]
         context.window_manager.clipboard = details
-        self.report({"INFO"}, "已复制 M8 场景审计备份报告")
+        self.report({"INFO"}, _T("已复制 M8 场景审计备份报告"))
         return {"FINISHED"}
 
 
 class M8_OT_PruneSceneAuditBackups(bpy.types.Operator):
     bl_idname = "m8.prune_scene_audit_backups"
-    bl_label = "清理 M8 场景审计备份"
-    bl_description = "删除较早的 M8 场景审计备份，每个源物体仅保留最新的若干份"
+    bl_label = _T("清理 M8 场景审计备份")
+    bl_description = _T("删除较早的 M8 场景审计备份，每个源物体仅保留最新的若干份")
     bl_options = {"REGISTER", "UNDO"}
 
     backup_collection_name: bpy.props.StringProperty(
-        name="备份集合",
+        name=_T("备份集合"),
         default=DEFAULT_BACKUP_COLLECTION_NAME,
         options={"SKIP_SAVE"},
     )
     keep_per_source: bpy.props.IntProperty(
-        name="每个源物体保留份数",
+        name=_T("每个源物体保留份数"),
         default=2,
         min=1,
         soft_max=10,
@@ -1083,7 +1084,7 @@ class M8_OT_PruneSceneAuditBackups(bpy.types.Operator):
 
     def execute(self, context):
         if not _ensure_object_mode(context):
-            self.report({"ERROR"}, "清理备份前请切换到物体模式")
+            self.report({"ERROR"}, _T("清理备份前请切换到物体模式"))
             return {"CANCELLED"}
 
         wm_state = getattr(context.window_manager, "m8", None)
@@ -1094,7 +1095,7 @@ class M8_OT_PruneSceneAuditBackups(bpy.types.Operator):
 
         backups = _scene_audit_backups_from_collection(backup_name)
         if not backups:
-            self.report({"WARNING"}, f"在 '{backup_name}' 中未找到 M8 场景审计备份")
+            self.report({"WARNING"}, f"{_T('在 ')}'{backup_name}'{_T(' 中未找到 M8 场景审计备份')}")
             return {"CANCELLED"}
 
         kept, removed = _prune_old_backups(backups, self.keep_per_source)
@@ -1113,8 +1114,8 @@ class M8_OT_PruneSceneAuditBackups(bpy.types.Operator):
 
 class M8_OT_SelectSceneAuditProblemObjects(bpy.types.Operator):
     bl_idname = "m8.select_scene_audit_problem_objects"
-    bl_label = "选择 M8 场景审计问题物体"
-    bl_description = "选择最新的 M8 场景审计报告中列出的物体"
+    bl_label = _T("选择 M8 场景审计问题物体")
+    bl_description = _T("选择最新的 M8 场景审计报告中列出的物体")
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
@@ -1122,7 +1123,7 @@ class M8_OT_SelectSceneAuditProblemObjects(bpy.types.Operator):
         names_text = getattr(wm_state, "scene_audit_problem_objects", "") if wm_state else ""
         names = [name for name in names_text.splitlines() if name]
         if not names:
-            self.report({"WARNING"}, "最新的场景审计中没有问题物体")
+            self.report({"WARNING"}, _T("最新的场景审计中没有问题物体"))
             return {"CANCELLED"}
 
         selected = []
@@ -1134,8 +1135,8 @@ class M8_OT_SelectSceneAuditProblemObjects(bpy.types.Operator):
                 selected.append(obj)
         if selected:
             context.view_layer.objects.active = selected[0]
-            self.report({"INFO"}, f"已选中 {len(selected)} 个问题物体")
+            self.report({"INFO"}, f"{_T('已选中 ')}{len(selected)}{_T(' 个问题物体')}")
             return {"FINISHED"}
 
-        self.report({"WARNING"}, "问题物体已不存在")
+        self.report({"WARNING"}, _T("问题物体已不存在"))
         return {"CANCELLED"}

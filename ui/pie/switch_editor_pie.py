@@ -1,5 +1,7 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 EDITOR_TYPES = [
     ("VIEW_3D", "3D Viewport", "3D 视图", "VIEW3D", 1),
@@ -69,7 +71,7 @@ def _apply_editor_target(area, target):
 
 class M8_OT_SwitchEditorArea(bpy.types.Operator):
     bl_idname = "m8.switch_editor_area"
-    bl_label = "切换编辑器区域"
+    bl_label = _T("切换编辑器区域")
     bl_options = {"INTERNAL"}
 
     target: bpy.props.EnumProperty(items=_editor_type_items)
@@ -85,13 +87,13 @@ class M8_OT_SwitchEditorArea(bpy.types.Operator):
         if target == "RENDER":
             scene = context.scene
             if not scene or not scene.camera:
-                self.report({"WARNING"}, "当前场景没有摄像机，无法渲染")
+                self.report({"WARNING"}, _T("当前场景没有摄像机，无法渲染"))
                 return {"CANCELLED"}
             try:
                 bpy.ops.render.render("INVOKE_DEFAULT")
                 return {"FINISHED"}
             except RuntimeError:
-                self.report({"WARNING"}, "渲染执行失败")
+                self.report({"WARNING"}, _T("渲染执行失败"))
                 return {"CANCELLED"}
 
         window_ptr = context.window.as_pointer() if context.window else 0
@@ -124,7 +126,7 @@ class M8_OT_SwitchEditorArea(bpy.types.Operator):
 
 
 class VIEW3D_MT_M8SwitchEditorPie(bpy.types.Menu):
-    bl_label = "切换窗口"
+    bl_label = _T("切换窗口")
     bl_idname = "M8_MT_switch_editor_pie"
 
     def draw(self, context):

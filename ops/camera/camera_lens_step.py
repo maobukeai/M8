@@ -1,9 +1,11 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 class M8_OT_CameraLensStep(bpy.types.Operator):
     bl_idname = "m8.camera_lens_step"
-    bl_label = "焦距步进"
+    bl_label = _T("焦距步进")
     bl_options = {"REGISTER", "UNDO"}
 
     delta: bpy.props.FloatProperty(name="Delta", default=5.0)
@@ -18,7 +20,7 @@ class M8_OT_CameraLensStep(bpy.types.Operator):
         try:
             cam.lens = max(1.0, float(cam.lens) + float(self.delta))
         except Exception:
-            self.report({"WARNING"}, "调整焦距失败")
+            self.report({"WARNING"}, _T("调整焦距失败"))
             return {"CANCELLED"}
-        self.report({"INFO"}, f"焦距：{cam.lens:.1f}mm")
+        self.report({"INFO"}, f"{_T('焦距：')}{cam.lens:.1f}mm")
         return {"FINISHED"}

@@ -1,11 +1,12 @@
 import bpy
 from mathutils import Vector, Matrix
 from ...utils import ensure_object_mode, call_object_op_with_selection
+from ...utils.i18n import _T
 
 class OBJECT_OT_SnapToFloor(bpy.types.Operator):
     bl_idname = "object.snap_to_floor"
-    bl_label = "对齐地面"
-    bl_description = "将选中物体对齐到 Z=0 平面（基于物体最低点）"
+    bl_label = _T("对齐地面")
+    bl_description = _T("将选中物体对齐到 Z=0 平面（基于物体最低点）")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
@@ -34,18 +35,18 @@ class OBJECT_OT_SnapToFloor(bpy.types.Operator):
             obj.matrix_world = mw
             processed += 1
             
-        self.report({'INFO'}, f"已将 {processed} 个物体对齐到地面")
+        self.report({'INFO'}, f"{_T('已对齐 ')}{processed}{_T(' 个物体到地面')}")
         return {'FINISHED'}
 
 class OBJECT_OT_FreezeTransformsMaya(bpy.types.Operator):
     bl_idname = "object.freeze_transforms_maya"
-    bl_label = "冻结变换"
+    bl_label = _T("冻结变换")
     bl_options = {'REGISTER', 'UNDO'}
 
-    freeze_location: bpy.props.BoolProperty(name="位置", description="将位置烘焙到网格并清零位置", default=True)
-    freeze_rotation: bpy.props.BoolProperty(name="旋转", description="将旋转烘焙到网格并清零旋转", default=True)
-    freeze_scale: bpy.props.BoolProperty(name="缩放", description="将缩放烘焙到网格并重置缩放为 1", default=True)
-    make_single_user: bpy.props.BoolProperty(name="自动单用户网格", description="当多个物体共享同一网格数据时，自动复制网格，避免误影响其它物体", default=True)
+    freeze_location: bpy.props.BoolProperty(name=_T("位置"), description=_T("将位置烘焙到网格并清零位置"), default=True)
+    freeze_rotation: bpy.props.BoolProperty(name=_T("旋转"), description=_T("将旋转烘焙到网格并清零旋转"), default=True)
+    freeze_scale: bpy.props.BoolProperty(name=_T("缩放"), description=_T("将缩放烘焙到网格并重置缩放为 1"), default=True)
+    make_single_user: bpy.props.BoolProperty(name=_T("自动单用户网格"), description=_T("当多个物体共享同一网格数据时，自动复制网格，避免误影响其它物体"), default=True)
     # keep_hierarchy option is removed as logic is simplified and robust without cursor hacks
     
     @classmethod
@@ -120,5 +121,5 @@ class OBJECT_OT_FreezeTransformsMaya(bpy.types.Operator):
             except Exception:
                 pass
 
-        self.report({'INFO'}, f"已冻结 {processed} 个物体的变换")
+        self.report({'INFO'}, f"{_T('已冻结 ')}{processed}{_T(' 个物体的变换')}")
         return {'FINISHED'}

@@ -1,8 +1,10 @@
 import bpy
 
+from ...utils.i18n import _T
+
 class M8_OT_ToggleArea(bpy.types.Operator):
     bl_idname = "m8.toggle_area"
-    bl_label = "切换区域"
+    bl_label = _T("切换区域")
     bl_options = {'REGISTER', 'UNDO'}
 
     def invoke(self, context, event):
@@ -25,7 +27,7 @@ class M8_OT_ToggleArea(bpy.types.Operator):
         
         # Check area size to prevent operation in Timeline/Header
         if area.height < 100:
-            self.report({'WARNING'}, f"区域太小 (高度{area.height}px)，请在主视图内操作")
+            self.report({'WARNING'}, f"{_T('区域太小 (高度')}{area.height}px{_T(')，请在主视图内操作')}")
             return {'CANCELLED'}
 
         # Calculate mouse relative position
@@ -115,7 +117,7 @@ class M8_OT_ToggleArea(bpy.types.Operator):
             try:
                 bpy.ops.screen.area_split(direction='HORIZONTAL', factor=effective_factor)
             except Exception as e:
-                self.report({'WARNING'}, f"分割区域失败: {e}")
+                self.report({'WARNING'}, f"{_T('分割区域失败')}: {e}")
                 return False
                 
             new_areas = set(screen.areas) - old_areas
@@ -134,7 +136,7 @@ class M8_OT_ToggleArea(bpy.types.Operator):
                 target_area.type = 'FILE_BROWSER'
                 target_area.ui_type = 'ASSETS'
             except Exception as e:
-                self.report({'WARNING'}, f"设置资产浏览器失败: {e}")
+                self.report({'WARNING'}, f"{_T('设置资产浏览器失败')}: {e}")
             
             if wrap_mouse:
                 cx = target_area.x + target_area.width / 2

@@ -104,7 +104,20 @@ TypeError: bpy_struct: item.attr = val: enum "a" not found in ("DEFAULT", "en_US
 
 
 def register():
-    global __translate__
+    global __translate__, __language_list__
+    unregister()
+
+    try:
+        root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
+        prefs = bpy.context.preferences.addons[root_pkg].preferences
+        addon_lang = getattr(prefs, "addon_language", "ZH")
+    except Exception:
+        addon_lang = "ZH"
+
+    if addon_lang == "EN":
+        print("M8 Align: Addon language is English, skipping Chinese translations registration.")
+        return
+
     print("M8 Align: Registering translations...")
     __load_json__()
     from .helper import TranslationHelper
@@ -135,7 +148,9 @@ def register():
 
 
 def unregister():
-    global __translate__
+    global __translate__, __language_list__
     __translate__.clear()
     for language in __language_list__:
         language.unregister()
+    __language_list__.clear()
+

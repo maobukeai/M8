@@ -1,10 +1,10 @@
 schema_version = "1.0.0"
 
 id = "M8"
-version = "3.5.3"
-name = "M8全能工具箱"
-tagline = "在复杂的 3D 建模项目中，效率就是生命。M8 不仅仅是一个工具箱，它是你工作流中的润滑剂。"
-maintainer = "猫步可爱"
+version = "3.5.5"
+name = "M8 Toolbox"
+tagline = "Efficiency is life in complex 3D modeling projects. M8 is not just a toolbox, it's the lubricant for your workflow."
+maintainer = "MaobuKawaii"
 type = "add-on"
 license = ["SPDX:GPL-2.0-or-later"]
 

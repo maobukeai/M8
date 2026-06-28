@@ -4,13 +4,14 @@ from bpy.app.translations import pgettext_iface
 from ...ops.align.align_mesh import AlignMesh
 from ...utils import get_menu_bl_idname
 from ...utils.icon import get_custom_icon
+from ...utils.i18n import _T
 from ...utils.view import screen_relevant_direction_3d_axis
 
 
 class AlignMeshPie(bpy.types.Menu):
     bl_idname = get_menu_bl_idname("ALIGN_MESH")
-    bl_label = "对齐网格"
-    bl_description = "快速对齐到指定位置、活动项、光标或原点"
+    bl_label = _T("对齐网格")
+    bl_description = _T("快速对齐到指定位置、活动项、光标或原点")
 
     def draw(self, context):
         from ...ops.mesh.relax import Relax

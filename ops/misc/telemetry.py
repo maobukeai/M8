@@ -1,34 +1,36 @@
 import bpy
 
+from ...utils.i18n import _T
+
 class M8_OT_CheckUpdate(bpy.types.Operator):
     bl_idname = "m8.check_update"
-    bl_label = "检测更新"
-    bl_description = "检测 M8 全能工具箱的线上最新版本"
+    bl_label = _T("检测更新")
+    bl_description = _T("检测 M8 全能工具箱的线上最新版本")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         from ...utils.network import check_for_updates_async
         check_for_updates_async(is_manual=True)
-        self.report({'INFO'}, "正在连接服务器检测更新，请稍候...")
+        self.report({'INFO'}, _T("正在连接服务器检测更新，请稍候..."))
         return {'FINISHED'}
 
 class M8_OT_SubmitFeedback(bpy.types.Operator):
     bl_idname = "m8.submit_feedback"
-    bl_label = "提交反馈"
-    bl_description = "提交您的意见、建议或BUG到开发团队"
+    bl_label = _T("提交反馈")
+    bl_description = _T("提交您的意见、建议或BUG到开发团队")
     bl_options = {'REGISTER', 'UNDO'}
 
     feedback_type: bpy.props.EnumProperty(
-        name="反馈类型",
+        name=_T("反馈类型"),
         items=[
-            ('SUGGESTION', "建议 (Suggestion)", "提交功能建议"),
-            ('BUG', "BUG反馈 (Bug)", "提交插件运行出错/缺陷报告")
+            ('SUGGESTION', _T("建议 (Suggestion)"), _T("提交功能建议")),
+            ('BUG', _T("BUG反馈 (Bug)"), _T("提交插件运行出错/缺陷报告"))
         ],
         default='SUGGESTION'
     )
     content: bpy.props.StringProperty(
-        name="内容",
-        description="请简要描述您的建议或遇到的问题（最少5个字）",
+        name=_T("内容"),
+        description=_T("请简要描述您的建议或遇到的问题（最少5个字）"),
         default=""
     )
 
@@ -74,12 +76,12 @@ class M8_OT_SubmitFeedback(bpy.types.Operator):
 
 class M8_OT_InstallUpdate(bpy.types.Operator):
     bl_idname = "m8.install_update"
-    bl_label = "一键更新"
-    bl_description = "自动下载并安装线上最新版本的 M8 工具箱"
+    bl_label = _T("一键更新")
+    bl_description = _T("自动下载并安装线上最新版本的 M8 工具箱")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
         from ...utils.network import download_and_install_update_async
         download_and_install_update_async()
-        self.report({'INFO'}, "正在开始下载更新，请稍候...")
+        self.report({'INFO'}, _T("正在开始下载更新，请稍候..."))
         return {'FINISHED'}

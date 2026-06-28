@@ -6,13 +6,14 @@ from mathutils import Vector
 
 from .public_origin import PublicOrigin
 from ...utils import get_operator_bl_idname
+from ...utils.i18n import _T
 from ...utils.math import location_to_matrix, scale_to_matrix, rotation_to_matrix
 
 
 class OriginToBottom(PublicOrigin):
     bl_idname = get_operator_bl_idname("origin_to_bottom")
-    bl_label = "到底部"
-    bl_description = "按住 Ctrl 或 Alt 可使用物体的 Z 轴作为底部"
+    bl_label = _T("到底部")
+    bl_description = _T("按住 Ctrl 或 Alt 可使用物体的 Z 轴作为底部")
 
     origin_to_geometry: BoolProperty(default=True, name="Origin to Geometry")
     reset_rotation: BoolProperty(default=True, name="Reset Rotation")
@@ -38,7 +39,7 @@ class OriginToBottom(PublicOrigin):
             bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
         context.view_layer.update()
         result = super().execute(context)
-        self.report({"INFO"}, f"已将原点移至底部（{len(context.selected_objects)} 个物体）")
+        self.report({"INFO"}, f"{_T('已将原点移至底部（')}{len(context.selected_objects)}{_T(' 个物体）')}")
         return result
 
     def get_obj_matrix(self, obj: bpy.types.Object):

@@ -21,6 +21,7 @@ from ...utils import (
     SNAP_LOC_KEY,
     CAGE_ORIG_SIZE_KEY
 )
+from ...utils.i18n import _T
 
 def _selected_meshes(context):
     return [obj for obj in context.selected_objects if obj.type == 'MESH']
@@ -89,14 +90,14 @@ def _unarchive_cage(cage):
 
 class OBJECT_OT_CreateCage(bpy.types.Operator):
     bl_idname = "object.create_size_cage"
-    bl_label = "1. 创建调节盒"
+    bl_label = _T("1. 创建调节盒")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         ensure_object_mode(context)
         selected_objs = _selected_meshes(context)
         if not selected_objs:
-            self.report({'WARNING'}, "请先选中至少一个网格物体")
+            self.report({'WARNING'}, _T("请先选中至少一个网格物体"))
             return {'CANCELLED'}
 
         # Optimization: Check if already has a cage parent?
@@ -119,7 +120,7 @@ class OBJECT_OT_CreateCage(bpy.types.Operator):
             valid_objs.append(obj)
             
         if not all_coords:
-             self.report({'WARNING'}, "无法获取选中物体的边界信息")
+             self.report({'WARNING'}, _T("无法获取选中物体的边界信息"))
              return {'CANCELLED'}
 
         min_c = Vector((min(c.x for c in all_coords), min(c.y for c in all_coords), min(c.z for c in all_coords)))
@@ -185,20 +186,20 @@ class OBJECT_OT_CreateCage(bpy.types.Operator):
         )
 
         context.view_layer.objects.active = cage
-        self.report({'INFO'}, f"已为 {len(valid_objs)} 个物体创建调节盒")
+        self.report({'INFO'}, f"{_T('已为')} {len(valid_objs)} {_T('个物体创建调节盒')}")
         return {'FINISHED'}
 
 class OBJECT_OT_UpdateSnapshot(bpy.types.Operator):
     bl_idname = "object.update_size_snapshot"
-    bl_label = "保存快照(当前)"
-    bl_description = "将当前选中物体（或调节盒子物体）的状态写回为新的快照基准"
+    bl_label = _T("保存快照(当前)")
+    bl_description = _T("将当前选中物体（或调节盒子物体）的状态写回为新的快照基准")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         ensure_object_mode(context)
         targets = _targets_from_context(context)
         if not targets:
-            self.report({'WARNING'}, "请选中至少一个网格物体或调节盒")
+            self.report({'WARNING'}, _T("请选中至少一个网格物体或调节盒"))
             return {'CANCELLED'}
 
         group_to_targets = _expand_by_group(context, targets)
@@ -233,26 +234,26 @@ class OBJECT_OT_UpdateSnapshot(bpy.types.Operator):
                     obj[SNAP_SIZE_KEY] = tuple(size)
                     obj[SNAP_LOC_KEY] = tuple(center)
 
-        self.report({'INFO'}, f"已保存 {updated} 个物体的快照")
+        self.report({'INFO'}, f"{_T('已保存')} {updated} {_T('个物体的快照')}")
         return {'FINISHED'}
 
 class OBJECT_OT_FinishDetach(bpy.types.Operator):
     bl_idname = "object.finish_detach"
-    bl_label = "完成(不烘焙)"
-    bl_description = "解除父级并删除调节盒，不应用缩放（更利于后续精确还原）"
+    bl_label = _T("完成(不烘焙)")
+    bl_description = _T("解除父级并删除调节盒，不应用缩放（更利于后续精确还原）")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         ensure_object_mode(context)
         cage = context.active_object
         if not is_size_cage(cage):
-            self.report({'WARNING'}, "请选中当前活动的调节盒")
+            self.report({'WARNING'}, _T("请选中当前活动的调节盒"))
             return {'CANCELLED'}
 
         children = [child for child in cage.children]
         if not children:
             bpy.data.objects.remove(cage, do_unlink=True)
-            self.report({'INFO'}, "调节盒下没有子物体，已直接清理")
+            self.report({'INFO'}, _T("调节盒下没有子物体，已直接清理"))
             return {'FINISHED'}
 
         call_object_op_with_selection(
@@ -264,17 +265,17 @@ class OBJECT_OT_FinishDetach(bpy.types.Operator):
         )
 
         bpy.data.objects.remove(cage, do_unlink=True)
-        self.report({'INFO'}, "已完成（未烘焙缩放）并清理调节盒")
+        self.report({'INFO'}, _T("已完成（未烘焙缩放）并清理调节盒"))
         return {'FINISHED'}
 
 class OBJECT_OT_FinishArchiveCage(bpy.types.Operator):
     bl_idname = "object.finish_archive_cage"
-    bl_label = "完成(保留盒)"
-    bl_description = "解除父级（可选烘焙），并把调节盒改名为备用后缀作为备用"
+    bl_label = _T("完成(保留盒)")
+    bl_description = _T("解除父级（可选烘焙），并把调节盒改名为备用后缀作为备用")
     bl_options = {'REGISTER', 'UNDO'}
 
     bake: bpy.props.BoolProperty(
-        name="烘焙缩放",
+        name=_T("烘焙缩放"),
         default=False,
     )
 
@@ -286,7 +287,7 @@ class OBJECT_OT_FinishArchiveCage(bpy.types.Operator):
         ensure_object_mode(context)
         cage = context.active_object
         if not is_size_cage(cage):
-            self.report({'WARNING'}, "请选中当前活动的调节盒")
+            self.report({'WARNING'}, _T("请选中当前活动的调节盒"))
             return {'CANCELLED'}
 
         children = [child for child in cage.children]
@@ -316,13 +317,13 @@ class OBJECT_OT_FinishArchiveCage(bpy.types.Operator):
                 )
 
         _archive_cage(cage)
-        self.report({'INFO'}, f"已完成并保留备用盒（后缀 {get_backup_suffix()}）")
+        self.report({'INFO'}, f"{_T('已完成并保留备用盒（后缀')} {get_backup_suffix()}{_T('）')}")
         return {'FINISHED'}
 
 class OBJECT_OT_ActivateBackupCage(bpy.types.Operator):
     bl_idname = "object.activate_backup_cage"
-    bl_label = "启用备用盒"
-    bl_description = "将选中的备用调节盒恢复为可用调节盒（取消隐藏/不可选）"
+    bl_label = _T("启用备用盒")
+    bl_description = _T("将选中的备用调节盒恢复为可用调节盒（取消隐藏/不可选）")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -332,7 +333,7 @@ class OBJECT_OT_ActivateBackupCage(bpy.types.Operator):
         if not candidates and context.active_object and context.active_object.name.endswith(suffix):
             candidates = [context.active_object]
         if not candidates:
-            self.report({'WARNING'}, f"请选中备用调节盒（名称以 {suffix} 结尾）")
+            self.report({'WARNING'}, f"{_T('请选中备用调节盒（名称以')} {suffix} {_T('结尾）')}")
             return {'CANCELLED'}
 
         scene_coll = context.scene.collection
@@ -349,19 +350,19 @@ class OBJECT_OT_ActivateBackupCage(bpy.types.Operator):
             move_object_to_collection(cage, scene_coll)
             activated += 1
 
-        self.report({'INFO'}, f"已启用 {activated} 个备用盒")
+        self.report({'INFO'}, f"{_T('已启用')} {activated} {_T('个备用盒')}")
         return {'FINISHED'}
 
 class OBJECT_OT_ToggleBackupVisibility(bpy.types.Operator):
     bl_idname = "object.toggle_backup_visibility"
-    bl_label = "显示/隐藏备用盒"
-    bl_description = "切换备用盒集合的显示状态"
+    bl_label = _T("显示/隐藏备用盒")
+    bl_description = _T("切换备用盒集合的显示状态")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         coll = bpy.data.collections.get(get_backup_collection_name())
         if not coll:
-            self.report({'WARNING'}, "未找到备用盒集合")
+            self.report({'WARNING'}, _T("未找到备用盒集合"))
             return {'CANCELLED'}
 
         new_hidden = not bool(getattr(coll, "hide_viewport", False))
@@ -374,13 +375,13 @@ class OBJECT_OT_ToggleBackupVisibility(bpy.types.Operator):
             except Exception:
                 obj.hide_viewport = new_hidden
 
-        self.report({'INFO'}, "已隐藏备用盒" if new_hidden else "已显示备用盒")
+        self.report({'INFO'}, _T("已隐藏备用盒") if new_hidden else _T("已显示备用盒"))
         return {'FINISHED'}
 
 class OBJECT_OT_SelectSnapshotGroup(bpy.types.Operator):
     bl_idname = "object.select_size_snapshot_group"
-    bl_label = "选择同组"
-    bl_description = "选中与当前物体同一快照组的全部物体"
+    bl_label = _T("选择同组")
+    bl_description = _T("选中与当前物体同一快照组的全部物体")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -392,7 +393,7 @@ class OBJECT_OT_SelectSnapshotGroup(bpy.types.Operator):
             if gid:
                 break
         if not gid:
-            self.report({'WARNING'}, "未找到组ID：请先创建调节盒或保存快照")
+            self.report({'WARNING'}, _T("未找到组ID：请先创建调节盒或保存快照"))
             return {'CANCELLED'}
 
         bpy.ops.object.select_all(action='DESELECT')
@@ -406,13 +407,13 @@ class OBJECT_OT_SelectSnapshotGroup(bpy.types.Operator):
             count += 1
         if context.selected_objects:
             context.view_layer.objects.active = context.selected_objects[0]
-        self.report({'INFO'}, f"已选中同组 {count} 个对象")
+        self.report({'INFO'}, f"{_T('已选中同组')} {count} {_T('个对象')}")
         return {'FINISHED'}
 
 class OBJECT_OT_DeleteBackupCages(bpy.types.Operator):
     bl_idname = "object.delete_backup_cages"
-    bl_label = "删除备用盒"
-    bl_description = "删除选中的备用调节盒（不影响物体）"
+    bl_label = _T("删除备用盒")
+    bl_description = _T("删除选中的备用调节盒（不影响物体）")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -421,18 +422,18 @@ class OBJECT_OT_DeleteBackupCages(bpy.types.Operator):
         if not candidates and context.active_object and context.active_object.name.endswith(suffix):
             candidates = [context.active_object]
         if not candidates:
-            self.report({'WARNING'}, f"请选中备用调节盒（名称以 {suffix} 结尾）")
+            self.report({'WARNING'}, f"{_T('请选中备用调节盒（名称以')} {suffix} {_T('结尾）')}")
             return {'CANCELLED'}
 
         for cage in candidates:
             bpy.data.objects.remove(cage, do_unlink=True)
-        self.report({'INFO'}, f"已删除 {len(candidates)} 个备用盒")
+        self.report({'INFO'}, f"{_T('已删除')} {len(candidates)} {_T('个备用盒')}")
         return {'FINISHED'}
 
 class OBJECT_OT_FinishAndClean(bpy.types.Operator):
     bl_idname = "object.finish_and_clean"
-    bl_label = "完成(烘焙)"
-    bl_description = "应用尺寸，解除父级，并物理删除调节盒（保持场景干净）"
+    bl_label = _T("完成(烘焙)")
+    bl_description = _T("应用尺寸，解除父级，并物理删除调节盒（保持场景干净）")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -445,7 +446,7 @@ class OBJECT_OT_FinishAndClean(bpy.types.Operator):
             cages.append(active)
             
         if not cages:
-            self.report({'WARNING'}, "请选中调节盒")
+            self.report({'WARNING'}, _T("请选中调节盒"))
             return {'CANCELLED'}
 
         processed = 0
@@ -488,17 +489,17 @@ class OBJECT_OT_FinishAndClean(bpy.types.Operator):
             bpy.data.objects.remove(cage, do_unlink=True)
             processed += 1
 
-        self.report({'INFO'}, f"已清理 {processed} 个调节盒")
+        self.report({'INFO'}, f"{_T('已清理')} {processed} {_T('个调节盒')}")
         return {'FINISHED'}
 
 class OBJECT_OT_RestoreFromSnapshot(bpy.types.Operator):
     bl_idname = "object.restore_from_snapshot"
-    bl_label = "还原初始比例 (重建)"
-    bl_description = "根据物体内存留的快照数据，重新生成一个调节盒并还原比例"
+    bl_label = _T("还原初始比例 (重建)")
+    bl_description = _T("根据物体内存留的快照数据，重新生成一个调节盒并还原比例")
     bl_options = {'REGISTER', 'UNDO'}
 
     rebuild_cage: bpy.props.BoolProperty(
-        name="重建调节盒",
+        name=_T("重建调节盒"),
         default=True,
     )
 
@@ -506,7 +507,7 @@ class OBJECT_OT_RestoreFromSnapshot(bpy.types.Operator):
         ensure_object_mode(context)
         targets = _targets_from_context(context)
         if not targets:
-            self.report({'WARNING'}, "请选中至少一个网格物体或调节盒")
+            self.report({'WARNING'}, _T("请选中至少一个网格物体或调节盒"))
             return {'CANCELLED'}
 
         group_to_targets = _expand_by_group(context, targets)
@@ -635,26 +636,26 @@ class OBJECT_OT_RestoreFromSnapshot(bpy.types.Operator):
             total_missing += missing
 
         if not total_restored:
-            self.report({'WARNING'}, "未找到可用的矩阵快照，无法还原比例/位置")
+            self.report({'WARNING'}, _T("未找到可用的矩阵快照，无法还原比例/位置"))
             return {'CANCELLED'}
 
         if last_cage:
             context.view_layer.objects.active = last_cage
 
         if total_missing:
-            self.report({'INFO'}, f"已还原 {total_restored} 个物体（{total_missing} 个无法还原）")
+            self.report({'INFO'}, f"{_T('已还原')} {total_restored} {_T('个物体（')}{total_missing} {_T('个无法还原）')}")
         else:
-            self.report({'INFO'}, f"已还原 {total_restored} 个物体并重建调节盒")
+            self.report({'INFO'}, f"{_T('已还原')} {total_restored} {_T('个物体并重建调节盒')}")
         return {'FINISHED'}
 
 class OBJECT_OT_AutoAdjustZ(bpy.types.Operator):
     bl_idname = "object.auto_adjust_z"
-    bl_label = "同步 Z 轴比例"
+    bl_label = _T("同步 Z 轴比例")
 
     def execute(self, context):
         cage = context.active_object
         if not cage or CAGE_ORIG_SIZE_KEY not in cage:
-            self.report({"WARNING"}, "未找到原始尺寸数据")
+            self.report({"WARNING"}, _T("未找到原始尺寸数据"))
             return {'CANCELLED'}
         orig_x, orig_y, orig_z = cage[CAGE_ORIG_SIZE_KEY]
         curr_dims = cage.dimensions
@@ -662,20 +663,20 @@ class OBJECT_OT_AutoAdjustZ(bpy.types.Operator):
         scale_y = curr_dims.y / orig_y if orig_y != 0 else 1.0
         avg_scale = (scale_x + scale_y) / 2
         cage.dimensions.z = orig_z * avg_scale
-        self.report({"INFO"}, f"已同步 Z 轴比例（平均缩放 {avg_scale:.3f}）")
+        self.report({"INFO"}, f"{_T('已同步')} Z {_T('轴比例（平均缩放')} {avg_scale:.3f}{_T('）')}")
         return {'FINISHED'}
 
 class OBJECT_OT_ScaleProportional(bpy.types.Operator):
     bl_idname = "object.scale_proportional"
-    bl_label = "按比例同步"
-    bl_description = "根据所选基准轴的当前比例，自动同比例缩放其他轴"
+    bl_label = _T("按比例同步")
+    bl_description = _T("根据所选基准轴的当前比例，自动同比例缩放其他轴")
     bl_options = {'REGISTER', 'UNDO'}
 
     axis: bpy.props.EnumProperty(
         items=[
-            ('X', "X轴", "以X轴比例同步Y和Z轴"),
-            ('Y', "Y轴", "以Y轴比例同步X和Z轴"),
-            ('Z', "Z轴", "以Z轴比例同步X和Y轴"),
+            ('X', _T("X轴"), _T("以X轴比例同步Y和Z轴")),
+            ('Y', _T("Y轴"), _T("以Y轴比例同步X和Z轴")),
+            ('Z', _T("Z轴"), _T("以Z轴比例同步X和Y轴")),
         ],
         default='Z'
     )
@@ -683,7 +684,7 @@ class OBJECT_OT_ScaleProportional(bpy.types.Operator):
     def execute(self, context):
         cage = context.active_object
         if not cage or CAGE_ORIG_SIZE_KEY not in cage:
-            self.report({"WARNING"}, "未找到原始尺寸数据")
+            self.report({"WARNING"}, _T("未找到原始尺寸数据"))
             return {'CANCELLED'}
         orig_x, orig_y, orig_z = cage[CAGE_ORIG_SIZE_KEY]
         curr_dims = cage.dimensions
@@ -705,13 +706,13 @@ class OBJECT_OT_ScaleProportional(bpy.types.Operator):
             axis_name = "Z"
 
         cage["_last_cage_dims"] = tuple(cage.dimensions)
-        self.report({"INFO"}, f"已按 {axis_name} 轴同步全轴比例（缩放倍率 {scale:.3f}）")
+        self.report({"INFO"}, f"{_T('已按')} {axis_name} {_T('轴同步全轴比例（缩放倍率')} {scale:.3f}{_T('）')}")
         return {'FINISHED'}
 
 class OBJECT_OT_ClearSnapshot(bpy.types.Operator):
     bl_idname = "object.clear_size_snapshot"
-    bl_label = "清除快照"
-    bl_description = "删除选中物体上由本工具写入的快照键（不影响几何体）"
+    bl_label = _T("清除快照")
+    bl_description = _T("删除选中物体上由本工具写入的快照键（不影响几何体）")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -719,7 +720,7 @@ class OBJECT_OT_ClearSnapshot(bpy.types.Operator):
         if not targets and context.active_object and context.active_object.type == 'MESH':
             targets = [context.active_object]
         if not targets:
-            self.report({'WARNING'}, "请选中至少一个网格物体")
+            self.report({'WARNING'}, _T("请选中至少一个网格物体"))
             return {'CANCELLED'}
 
         cleared = 0
@@ -732,7 +733,7 @@ class OBJECT_OT_ClearSnapshot(bpy.types.Operator):
             if removed_any:
                 cleared += 1
 
-        self.report({'INFO'}, f"已清除 {cleared} 个物体的快照")
+        self.report({'INFO'}, f"{_T('已清除')} {cleared} {_T('个物体的快照')}")
         return {'FINISHED'}
 
 _is_internal_cage_updating = False

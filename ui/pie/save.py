@@ -17,6 +17,7 @@ from ...ops.file.save_pie_ops import (
 )
 from ...ops.misc.screencast import M8_OT_InternalScreencast
 from ...utils.adapter import get_adapter_blender_icon as _ICON
+from ...utils.i18n import _T
 from ..icons import get_icon_id
 
 def _safe_operator(layout, idname, text="", icon='NONE', icon_value=0, emboss=True, depress=False, **props):
@@ -71,18 +72,18 @@ def draw_top_ui(layout):
     box = col_left.box()
     col = box.column(align=True)
     row = col.row(align=True)
-    _safe_menu(row, "TOPBAR_MT_file_open_recent", text="(R) 最近打开文件", icon_value=get_icon_id("recent"), icon="FILE_HIDDEN")
+    _safe_menu(row, "TOPBAR_MT_file_open_recent", text=_T("(R) 最近打开文件"), icon_value=get_icon_id("recent"), icon="FILE_HIDDEN")
     
     # Box 2: Open/Reload
     box = col_left.box()
     col = box.column(align=True)
     row = col.row(align=True)
-    _safe_operator(row, M8_OT_OpenCurrentFolder.bl_idname, text="打开当前", icon_value=get_icon_id("open"), icon="FILE_FOLDER")
-    _safe_operator(row, M8_OT_OpenTempDir.bl_idname, text="打开临时", icon_value=get_icon_id("temp"), icon="FILE_CACHE")
+    _safe_operator(row, M8_OT_OpenCurrentFolder.bl_idname, text=_T("打开当前"), icon_value=get_icon_id("open"), icon="FILE_FOLDER")
+    _safe_operator(row, M8_OT_OpenTempDir.bl_idname, text=_T("打开临时"), icon_value=get_icon_id("temp"), icon="FILE_CACHE")
     
     row = col.row(align=True)
-    _safe_operator(row, "wm.revert_mainfile", text="重新加载", icon="FILE_REFRESH")
-    _safe_operator(row, M8_OT_OpenAutoSave.bl_idname, text="自动保存", icon_value=get_icon_id("autosave"), icon="RECOVER_LAST")
+    _safe_operator(row, "wm.revert_mainfile", text=_T("重新加载"), icon="FILE_REFRESH")
+    _safe_operator(row, M8_OT_OpenAutoSave.bl_idname, text=_T("自动保存"), icon_value=get_icon_id("autosave"), icon="RECOVER_LAST")
     
     # Box 3: Screencast / Keymap
     box = col_left.box()
@@ -92,11 +93,11 @@ def draw_top_ui(layout):
     _safe_operator(
         row,
         M8_OT_ToggleScreencastKeys.bl_idname,
-        text="关闭屏幕投射" if is_running else "启用屏幕投射",
+        text=(_T("关闭屏幕投射") if is_running else _T("启用屏幕投射")),
         icon="PAUSE" if is_running else "PLAY",
         depress=is_running,
     )
-    _safe_operator(row, M8_OT_OpenPreferences.bl_idname, text="偏好设置", icon_value=get_icon_id("prefs"), icon="PREFERENCES")
+    _safe_operator(row, M8_OT_OpenPreferences.bl_idname, text=_T("偏好设置"), icon_value=get_icon_id("prefs"), icon="PREFERENCES")
 
     # --- Center Column (Import/Export) ---
     col_center = main_row.column(align=True)
@@ -110,14 +111,14 @@ def draw_top_ui(layout):
     
     c1 = split.column(align=True)
     c1.alignment = 'LEFT'
-    c1.label(text="全部")
+    c1.label(text=_T("全部"))
     
     split = split.split(factor=0.5)
     c2 = split.column(align=True)
-    c2.menu("TOPBAR_MT_file_import", text="导入", icon="TRIA_DOWN")
+    c2.menu("TOPBAR_MT_file_import", text=_T("导入"), icon="TRIA_DOWN")
     
     c3 = split.column(align=True)
-    c3.menu("TOPBAR_MT_file_export", text="导出", icon="TRIA_DOWN")
+    c3.menu("TOPBAR_MT_file_export", text=_T("导出"), icon="TRIA_DOWN")
 
     col.separator()
 
@@ -142,7 +143,7 @@ def draw_top_ui(layout):
         
         # Import
         c2 = split.column(align=True)
-        op = c2.operator(M8_OT_CallOperatorWithAddon.bl_idname, text="导入", icon="IMPORT")
+        op = c2.operator(M8_OT_CallOperatorWithAddon.bl_idname, text=_T("导入"), icon="IMPORT")
         op.module = module
         op.operator = imp
         op.invoke = True
@@ -153,9 +154,9 @@ def draw_top_ui(layout):
         # Export
         c3 = split.column(align=True)
         if is_fbx:
-            _safe_operator(c3, M8_OT_ExportFBX.bl_idname, text="导出", icon="EXPORT")
+            _safe_operator(c3, M8_OT_ExportFBX.bl_idname, text=_T("导出"), icon="EXPORT")
         else:
-            op = c3.operator(M8_OT_CallOperatorWithAddon.bl_idname, text="导出", icon="EXPORT")
+            op = c3.operator(M8_OT_CallOperatorWithAddon.bl_idname, text=_T("导出"), icon="EXPORT")
             op.module = module
             op.operator = exp
             op.invoke = True
@@ -179,7 +180,7 @@ def draw_top_ui(layout):
             _safe_operator(
                 sub,
                 M8_OT_ToggleUnityFBXPreset.bl_idname,
-                text="Unity 预设已开启" if enabled else "启用 Unity 预设",
+                text=(_T("Unity 预设已开启") if enabled else _T("启用 Unity 预设")),
                 icon_value=get_icon_id("unity"),
                 icon="EXPORT",       # fallback: 有效的内置图标
                 depress=enabled,
@@ -188,11 +189,11 @@ def draw_top_ui(layout):
     # Switch File Row (Below Import/Export)
     col.separator()
     row = col.row(align=True)
-    op_prev = _safe_operator(row, M8_OT_SwitchFile.bl_idname, text="上一个文件",
+    op_prev = _safe_operator(row, M8_OT_SwitchFile.bl_idname, text=_T("上一个文件"),
                               icon_value=get_icon_id("prev"), icon="TRIA_LEFT")
     if op_prev: op_prev.direction = "PREV"
-    
-    op_next = _safe_operator(row, M8_OT_SwitchFile.bl_idname, text="下一个文件",
+
+    op_next = _safe_operator(row, M8_OT_SwitchFile.bl_idname, text=_T("下一个文件"),
                               icon_value=get_icon_id("next"), icon="TRIA_RIGHT")
     if op_next: op_next.direction = "NEXT"
 
@@ -203,31 +204,31 @@ def draw_top_ui(layout):
     col = box.column(align=True)
     
     row = col.row(align=True)
-    _safe_operator(row, "wm.append", text="追加", icon="APPEND_BLEND")
-    _safe_operator(row, "wm.link", text="关联", icon="LINK_BLEND")
+    _safe_operator(row, "wm.append", text=_T("追加"), icon="APPEND_BLEND")
+    _safe_operator(row, "wm.link", text=_T("关联"), icon="LINK_BLEND")
     prev_ctx = row.operator_context
     row.operator_context = 'EXEC_DEFAULT'
-    _safe_operator(row, "outliner.orphans_purge", text="清除", icon="BRUSH_DATA")
+    _safe_operator(row, "outliner.orphans_purge", text=_T("清除"), icon="BRUSH_DATA")
     row.operator_context = prev_ctx
     
     row = col.row(align=True)
-    _safe_operator(row, M8_OT_PackResources.bl_idname, text="打包资源",
+    _safe_operator(row, M8_OT_PackResources.bl_idname, text=_T("打包资源"),
                    icon_value=get_icon_id("pack"), icon="PACKAGE")
-    _safe_operator(row, "object.material_slot_remove_unused", text="清理材质",
+    _safe_operator(row, "object.material_slot_remove_unused", text=_T("清理材质"),
                    icon_value=get_icon_id("purge"), icon="MATERIAL")
 
     row = col.row(align=True)
-    _safe_operator(row, M8_OT_CreateAssetGroup.bl_idname, text="创建组资产", icon="ASSET_MANAGER")
-    
+    _safe_operator(row, M8_OT_CreateAssetGroup.bl_idname, text=_T("创建组资产"), icon="ASSET_MANAGER")
+
     row = col.row(align=True)
-    _safe_operator(row, "wm.read_homefile", text="清空.blend文件", icon="FILE_BLANK")
-    _safe_operator(row, M8_OT_OrphansPurgeKeepAssets.bl_idname, text="保留资产", icon="LIBRARY_DATA_DIRECT")
+    _safe_operator(row, "wm.read_homefile", text=_T("清空.blend文件"), icon="FILE_BLANK")
+    _safe_operator(row, M8_OT_OrphansPurgeKeepAssets.bl_idname, text=_T("保留资产"), icon="LIBRARY_DATA_DIRECT")
 
 
 
 class VIEW3D_MT_M8SavePie(bpy.types.Menu):
     bl_idname = "VIEW3D_MT_m8_save_pie"
-    bl_label = "保存, 打开, 追加"
+    bl_label = _T("保存, 打开, 追加")
 
     def draw(self, context):
         layout = self.layout
@@ -235,13 +236,13 @@ class VIEW3D_MT_M8SavePie(bpy.types.Menu):
         dirty = bool(getattr(bpy.data, "is_dirty", False))
         
         # 1. West (4): Open
-        pie.operator("wm.open_mainfile", text="打开...", icon="FILE_FOLDER")
-        
+        pie.operator("wm.open_mainfile", text=_T("打开..."), icon="FILE_FOLDER")
+
         # 2. East (6): Save
-        pie.operator("wm.save_mainfile", text="保存*" if dirty else "保存", icon=_ICON("FILE_TICK"))
-        
+        pie.operator("wm.save_mainfile", text=(_T("保存*") if dirty else _T("保存")), icon=_ICON("FILE_TICK"))
+
         # 3. South (2): Save As
-        pie.operator("wm.save_as_mainfile", text="另存为*" if dirty else "另存为", icon="DUPLICATE")
+        pie.operator("wm.save_as_mainfile", text=(_T("另存为*") if dirty else _T("另存为")), icon="DUPLICATE")
         
         # 4. North (8): Top UI
         col = pie.column()
@@ -254,8 +255,8 @@ class VIEW3D_MT_M8SavePie(bpy.types.Menu):
         pie.separator()
         
         # 7. SW (1): New
-        pie.menu("TOPBAR_MT_file_new", text="新建", icon="FILE_NEW")
-        
+        pie.menu("TOPBAR_MT_file_new", text=_T("新建"), icon="FILE_NEW")
+
         # 8. SE (3): Incremental Save
-        pie.operator(M8_OT_IncrementalSave.bl_idname, text="增量保存*" if dirty else "增量保存", icon="EXPORT")
+        pie.operator(M8_OT_IncrementalSave.bl_idname, text=(_T("增量保存*") if dirty else _T("增量保存")), icon="EXPORT")
 

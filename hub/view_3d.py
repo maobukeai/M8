@@ -7,6 +7,7 @@ from gpu_extras.batch import batch_for_shader
 from mathutils import Color, Vector, Matrix
 
 from ..utils import get_pref, get_pref_value
+from ..utils.i18n import _T
 
 if bpy.app.background:
     SMOOTH_COLOR = None
@@ -280,9 +281,9 @@ class Hub3DItem(Shader):
             if vl == 3:
                 co = Vector(vl)
             else:
-                return Exception(f"顶点长度应为 3 输入为{vl}")
+                return Exception(f"{_T('顶点长度应为 3 输入为')}{vl}")
         else:
-            return Exception("请输入顶点坐标 bmesh.types.BMVert | Vector | list")
+            return Exception(_T("请输入顶点坐标 bmesh.types.BMVert | Vector | list"))
 
         if matrix:
             co = matrix @ co

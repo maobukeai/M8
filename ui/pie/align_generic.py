@@ -1,10 +1,11 @@
 import bpy
 from ...utils import get_menu_bl_idname
+from ...utils.i18n import _T
 
 class M8_OT_AlignPieContextCall(bpy.types.Operator):
     bl_idname = "m8.align_pie_context_call"
-    bl_label = "对齐菜单 (自动识别模式)"
-    bl_description = "根据当前模式弹出对应的对齐饼菜单"
+    bl_label = _T("对齐菜单 (自动识别模式)")
+    bl_description = _T("根据当前模式弹出对应的对齐饼菜单")
 
     def execute(self, context):
         try:
@@ -16,9 +17,9 @@ class M8_OT_AlignPieContextCall(bpy.types.Operator):
             elif context.mode == "OBJECT":
                 bpy.ops.wm.call_menu_pie(name=get_menu_bl_idname("ALIGN_OBJECT"))
             else:
-                self.report({'INFO'}, f"当前模式 ({context.mode}) 不支持对齐菜单")
+                self.report({'INFO'}, f"{_T('当前模式')} ({context.mode}) {_T('不支持对齐菜单')}")
         except Exception as e:
-            self.report({'ERROR'}, f"无法弹出对齐菜单: {e}")
+            self.report({'ERROR'}, f"{_T('无法弹出对齐菜单')}: {e}")
             return {'CANCELLED'}
             
         return {'FINISHED'}

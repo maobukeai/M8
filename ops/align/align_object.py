@@ -7,6 +7,7 @@ from .object_ways.to_distribution import ToDistribution
 from .object_ways.to_ground import ToGround
 from .object_ways.to_matrix import get_matrix
 from ...utils import get_operator_bl_idname
+from ...utils.i18n import _T
 from ...utils.translate import translate_lines_text
 
 DEBUG_ALIGN = False
@@ -107,7 +108,7 @@ class AlignObject(
     UI
 ):
     bl_idname = get_operator_bl_idname("align_object")
-    bl_label = "对齐"
+    bl_label = _T("对齐")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod

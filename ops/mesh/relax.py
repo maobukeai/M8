@@ -9,6 +9,7 @@ import mathutils
 from bpy.props import EnumProperty, BoolProperty
 
 from ...utils import get_operator_bl_idname
+from ...utils.i18n import _T
 
 
 # gather initial data
@@ -794,7 +795,7 @@ def relax_calculate_knots(loops):
 
 class Relax(bpy.types.Operator):
     bl_idname = get_operator_bl_idname("relax")
-    bl_label = "松弛"
+    bl_label = _T("松弛")
     bl_options = {'REGISTER', 'UNDO'}
     input: EnumProperty(
         name="Input",
@@ -900,7 +901,7 @@ class Relax(bpy.types.Operator):
         try:
             self._build_cache(context)
         except Exception as e:
-            self.report({'WARNING'}, f"Relax: 初始化失败 {e}")
+            self.report({'WARNING'}, f"Relax: {_T('初始化失败')} {e}")
             return {'CANCELLED'}
 
         bpy.context.window.cursor_set("MOVE_X")
@@ -953,8 +954,8 @@ class Relax(bpy.types.Operator):
 
         # 更新标题提示
         from bpy.app.translations import pgettext_iface
-        hint = "←→ 调整" if value == self._last_iterations else ""
-        text = f"Relax:  迭代={self.iterations}  (左键确认 / 右键取消)  {hint}"
+        hint = _T("←→ 调整") if value == self._last_iterations else ""
+        text = f"Relax:  {_T('迭代')}={self.iterations}  ({_T('左键确认')} / {_T('右键取消')})  {hint}"
         bpy.context.area.header_text_set(text)
 
         # 左键松开：用完整迭代数再跑一次最终结果
@@ -1039,5 +1040,5 @@ class Relax(bpy.types.Operator):
         if derived:
             bm_mod.free()
         terminate()
-        self.report({"INFO"}, f"已松弛网格（{int(self.iterations)} 次迭代）")
+        self.report({"INFO"}, f"{_T('已松弛网格（')}{int(self.iterations)}{_T(' 次迭代）')}")
         return {'FINISHED'}

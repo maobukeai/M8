@@ -1,9 +1,11 @@
 import bpy
 
+from ...utils.i18n import _T
+
 
 class M8_OT_QuickDelete(bpy.types.Operator):
     bl_idname = "m8.quick_delete"
-    bl_label = "快速删除"
+    bl_label = _T("快速删除")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -16,17 +18,17 @@ class M8_OT_QuickDelete(bpy.types.Operator):
         if context.area.type == 'NODE_EDITOR':
             try:
                 bpy.ops.node.delete()
-                self.report({"INFO"}, "已删除节点")
+                self.report({"INFO"}, _T("已删除节点"))
                 return {"FINISHED"}
             except Exception:
-                self.report({"WARNING"}, "删除节点失败")
+                self.report({"WARNING"}, _T("删除节点失败"))
                 return {"CANCELLED"}
 
         count = len(context.selected_objects)
         try:
             bpy.ops.object.delete(confirm=False)
         except Exception:
-            self.report({"WARNING"}, "删除物体失败")
+            self.report({"WARNING"}, _T("删除物体失败"))
             return {"CANCELLED"}
-        self.report({"INFO"}, f"已删除 {count} 个物体")
+        self.report({"INFO"}, f"{_T('已删除 ')}{count}{_T(' 个物体')}")
         return {"FINISHED"}

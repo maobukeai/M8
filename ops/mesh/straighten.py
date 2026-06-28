@@ -12,6 +12,7 @@ from ...utils.bmesh import (
     get_pair_edge_from_select_history,
 )
 from ...utils.bmesh.edge import get_continuously_edges_list
+from ...utils.i18n import _T
 
 
 def straighten_single_strip(matrix, pair, verts, hub):
@@ -31,7 +32,7 @@ def straighten_single_strip(matrix, pair, verts, hub):
 
 class Straighten(bpy.types.Operator):
     bl_idname = get_operator_bl_idname("straighten")
-    bl_label = "拉直"
+    bl_label = _T("拉直")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod

@@ -2,12 +2,13 @@ import bpy
 
 from ...ops.align.align_object_by_view import AlignObjectByView
 from ...utils import get_menu_bl_idname
+from ...utils.i18n import _T
 from ...utils.translate import translate_lines_text
 from ...utils.view import screen_relevant_direction_3d_axis
 
 
 class AlignObjectPie(bpy.types.Menu):
-    bl_label = "对齐物体"
+    bl_label = _T("对齐物体")
     bl_idname = get_menu_bl_idname("ALIGN_OBJECT")
 
     @classmethod

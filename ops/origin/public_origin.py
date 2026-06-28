@@ -5,6 +5,7 @@ from mathutils import Matrix, Vector
 from ...hub import hub_matrix
 from ...utils import get_pref
 from ...utils.math import scale_to_matrix, location_to_matrix, rotation_to_matrix
+from ...utils.i18n import _T
 
 
 def remember_matrix(context):
@@ -109,7 +110,7 @@ class PublicOrigin(bpy.types.Operator):
         to_matrix = to_matrix_fun(context) if to_matrix_fun else None
         get_obj_matrix = getattr(self, "get_obj_matrix", None)  # get_obj_matrix(context,object) -> Matrix
         if not to_matrix and not get_obj_matrix:
-            self.report({'ERROR'}, "缺少 to_matrix 或 get_obj_matrix 参数")
+            self.report({'ERROR'}, _T("缺少 to_matrix 或 get_obj_matrix 参数"))
             return {'CANCELLED'}
 
         preview_matrices = []

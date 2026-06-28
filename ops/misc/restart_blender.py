@@ -3,6 +3,7 @@ import platform
 import bpy
 
 from ...utils import get_operator_bl_idname, get_pref
+from ...utils.i18n import _T
 
 
 def get_event_key(event: bpy.types.Event):
@@ -157,7 +158,7 @@ class RestartBlender(
     PublicEvent,
 ):
     bl_idname = get_operator_bl_idname("restart_blender")
-    bl_label = "重启 Blender"
+    bl_label = _T("重启 Blender")
     bl_options = {"REGISTER"}
 
     @classmethod
@@ -218,9 +219,9 @@ class RestartBlender(
         if platform.system() == "Windows":
             self.run_cmd(event)
         elif platform.system() == "Linux":
-            self.report({"INFO"}, "此功能暂不支持 Linux 系统")
+            self.report({"INFO"}, _T("此功能暂不支持 Linux 系统"))
         else:
-            self.report({"INFO"}, "此功能暂不支持当前系统")
+            self.report({"INFO"}, _T("此功能暂不支持当前系统"))
         return {"FINISHED"}
 
 

@@ -2,12 +2,13 @@ import bpy
 from bpy.app.translations import pgettext_iface
 from ...utils import get_menu_bl_idname
 from ...utils.icon import get_custom_icon
+from ...utils.i18n import _T
 
 
 class AlignUVPie(bpy.types.Menu):
     bl_idname = get_menu_bl_idname("ALIGN_UV")
-    bl_label = "对齐 UV"
-    bl_description = "对齐 UV"
+    bl_label = _T("对齐 UV")
+    bl_description = _T("对齐 UV")
 
     def draw(self, context):
         from ...ops.align.align_uv import AlignUV

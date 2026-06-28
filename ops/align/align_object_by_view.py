@@ -2,6 +2,7 @@ import bpy
 from bpy.props import EnumProperty
 
 from ...utils import get_operator_bl_idname
+from ...utils.i18n import _T
 from ...utils.translate import translate_lines_text
 from ...utils.view import screen_relevant_direction_3d_axis
 
@@ -10,7 +11,7 @@ DEBUG_ALIGN = False
 
 class AlignObjectByView(bpy.types.Operator):
     bl_idname = get_operator_bl_idname("object_align_by_view")
-    bl_label = "按视图对齐物体"
+    bl_label = _T("按视图对齐物体")
     bl_options = {"REGISTER", "UNDO"}
 
     align_mode: EnumProperty(
@@ -89,7 +90,7 @@ class AlignObjectByView(bpy.types.Operator):
         context.view_layer.update()
         bpy.ops.m8.align_object("INVOKE_DEFAULT", **self.get_ops_args(context))
         context.view_layer.update()
-        self.report({"INFO"}, f"已按视图对齐 {len(context.selected_objects)} 个物体")
+        self.report({"INFO"}, f"{_T('已按视图对齐 ')}{len(context.selected_objects)}{_T(' 个物体')}")
         return {"FINISHED"}
 
     def get_ops_args(self, context):
