@@ -471,14 +471,14 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     switch_bone_mode_right: bpy.props.EnumProperty(items=_switch_bone_mode_target_items, name="Right", default=2)
 
     # --- Delete Pie Properties ---
-    delete_pie_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Left", default=0)
-    delete_pie_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Right", default=2)
-    delete_pie_down: bpy.props.EnumProperty(items=_delete_pie_items, name="Down", default=1)
-    delete_pie_up: bpy.props.EnumProperty(items=_delete_pie_items, name="Up", default=11)
-    delete_pie_top_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Top-Left", default=7)
-    delete_pie_top_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Top-Right", default=8)
-    delete_pie_bottom_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Left", default=9)
-    delete_pie_bottom_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Right", default=10)
+    delete_pie_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Left", default="DELETE_VERT")
+    delete_pie_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Right", default="DELETE_FACE")
+    delete_pie_down: bpy.props.EnumProperty(items=_delete_pie_items, name="Down", default="DELETE_EDGE")
+    delete_pie_up: bpy.props.EnumProperty(items=_delete_pie_items, name="Up", default="DISSOLVE_ALL")
+    delete_pie_top_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Top-Left", default="LIMITED_DISSOLVE")
+    delete_pie_top_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Top-Right", default="EDGE_LOOP")
+    delete_pie_bottom_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Left", default="EDGE_COLLAPSE")
+    delete_pie_bottom_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Right", default="ONLY_EDGE_FACE")
 
 
     switch_mode_smart_focus: bpy.props.BoolProperty(
