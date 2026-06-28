@@ -715,6 +715,28 @@ def register():
             logger.error(f"Failed to register class {cls.__name__}: {e}", exc_info=True)
     
     prefs = _get_addon_prefs()
+    if prefs and not getattr(prefs, "has_migrated_delete_pie", False):
+        try:
+            prefs.delete_pie_left = 'DELETE_VERT'
+            prefs.delete_pie_right = 'DELETE_FACE'
+            prefs.delete_pie_down = 'DELETE_EDGE'
+            prefs.delete_pie_up = 'DISSOLVE_ALL'
+            prefs.delete_pie_top_left = 'LIMITED_DISSOLVE'
+            prefs.delete_pie_top_right = 'EDGE_LOOP'
+            prefs.delete_pie_bottom_left = 'EDGE_COLLAPSE'
+            prefs.delete_pie_bottom_right = 'ONLY_EDGE_FACE'
+            prefs.has_migrated_delete_pie = True
+        except Exception as e:
+            logger.error(f"Failed to migrate delete pie default preferences: {e}", exc_info=True)
+
+    if prefs and not getattr(prefs, "has_migrated_clean_up_defaults", False):
+        try:
+            prefs.clean_up_do_merge_by_distance = False
+            prefs.clean_up_do_limited_dissolve = True
+            prefs.has_migrated_clean_up_defaults = True
+        except Exception as e:
+            logger.error(f"Failed to migrate clean up default preferences: {e}", exc_info=True)
+
     if prefs and getattr(prefs, "auto_new_object_origin_bottom", False):
         register_auto_origin()
     try:

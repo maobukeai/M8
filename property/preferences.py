@@ -210,10 +210,10 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         items=_clean_up_affect_items,
         default=0,
     )
-    clean_up_do_merge_by_distance: bpy.props.BoolProperty(name=_T("合并重复点"), default=True)
+    clean_up_do_merge_by_distance: bpy.props.BoolProperty(name=_T("合并重复点"), default=False)
     clean_up_do_dissolve_degenerate: bpy.props.BoolProperty(name=_T("溶解退化几何"), default=True)
     clean_up_degenerate_dist: bpy.props.FloatProperty(name=_T("退化阈值"), default=0.00001, min=0.0)
-    clean_up_do_limited_dissolve: bpy.props.BoolProperty(name=_T("有限溶解"), default=False)
+    clean_up_do_limited_dissolve: bpy.props.BoolProperty(name=_T("有限溶解"), default=True)
     clean_up_limited_dissolve_angle: bpy.props.FloatProperty(name=_T("有限溶解角度"), default=0.0872665, min=0.0, max=3.14159, subtype="ANGLE")
     clean_up_do_make_planar: bpy.props.BoolProperty(name=_T("平坦化面"), default=False)
     clean_up_planar_iterations: bpy.props.IntProperty(name=_T("平坦化迭代"), default=1, min=1, max=10)
@@ -221,6 +221,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     clean_up_do_delete_loose_edges: bpy.props.BoolProperty(name=_T("删除孤立边"), default=True)
     clean_up_do_delete_loose_verts: bpy.props.BoolProperty(name=_T("删除孤立点"), default=True)
     clean_up_recalc_normals: bpy.props.BoolProperty(name=_T("重算法线"), default=False)
+    has_migrated_clean_up_defaults: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
     activate_double_click_select_group: bpy.props.BoolProperty(name=_T("双击选择组"), default=False, update=_on_prefs_update)
     group_tool_radius: bpy.props.FloatProperty(name=_T("组半径"), default=1.0, min=0.1, unit='LENGTH')
     group_tool_empty_type: bpy.props.EnumProperty(
@@ -471,14 +472,15 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     switch_bone_mode_right: bpy.props.EnumProperty(items=_switch_bone_mode_target_items, name="Right", default=2)
 
     # --- Delete Pie Properties ---
-    delete_pie_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Left", default="DELETE_VERT")
-    delete_pie_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Right", default="DELETE_FACE")
-    delete_pie_down: bpy.props.EnumProperty(items=_delete_pie_items, name="Down", default="DELETE_EDGE")
-    delete_pie_up: bpy.props.EnumProperty(items=_delete_pie_items, name="Up", default="DISSOLVE_ALL")
-    delete_pie_top_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Top-Left", default="LIMITED_DISSOLVE")
-    delete_pie_top_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Top-Right", default="EDGE_LOOP")
-    delete_pie_bottom_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Left", default="EDGE_COLLAPSE")
-    delete_pie_bottom_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Right", default="ONLY_EDGE_FACE")
+    delete_pie_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Left", default=0)
+    delete_pie_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Right", default=2)
+    delete_pie_down: bpy.props.EnumProperty(items=_delete_pie_items, name="Down", default=1)
+    delete_pie_up: bpy.props.EnumProperty(items=_delete_pie_items, name="Up", default=11)
+    delete_pie_top_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Top-Left", default=6)
+    delete_pie_top_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Top-Right", default=7)
+    delete_pie_bottom_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Left", default=8)
+    delete_pie_bottom_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Right", default=9)
+    has_migrated_delete_pie: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
 
 
     switch_mode_smart_focus: bpy.props.BoolProperty(
