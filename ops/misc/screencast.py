@@ -337,10 +337,10 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
                     return {'PASS_THROUGH'}
 
             mods = []
-            if event.ctrl: mods.append("Ctrl")
-            if event.shift: mods.append("Shift")
-            if event.alt: mods.append("Alt")
-            if event.oskey: mods.append("Cmd")
+            if event.ctrl: mods.append("Ctrl\u200b")
+            if event.shift: mods.append("Shift\u200b")
+            if event.alt: mods.append("Alt\u200b")
+            if event.oskey: mods.append("Cmd\u200b")
 
             key_text = ""
             if is_mouse:
@@ -377,6 +377,7 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
                 else:
                     key_text = raw.replace('_', ' ').title()
 
+            key_text += "\u200b"
             full_text = " + ".join(mods + [key_text]) if mods else key_text
 
             if self.__class__._events:
@@ -676,6 +677,8 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
                     mouse_h = mouse_size * 1.35
                     mouse_w = mouse_size * 0.85
 
+            layout_mode = getattr(prefs, "screencast_layout_mode", "SIDE")
+
             box_padding = getattr(prefs, "screencast_box_padding", 10)
             box_radius = getattr(prefs, "screencast_box_radius", 20)
             show_box = getattr(prefs, "screencast_show_box", True)
@@ -688,8 +691,15 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
                 w = blf.dimensions(font_id, line)[0]
                 if w > max_txt_w: max_txt_w = w
 
-            total_content_w = max_txt_w + (mouse_w + 14 if show_mouse and display_lines else (mouse_w if show_mouse else 0))
-            total_content_h = max(len(display_lines) * line_height, mouse_h) if display_lines else mouse_h
+            if layout_mode == "SIDE":
+                total_content_w = max_txt_w + (mouse_w + 14 if show_mouse and display_lines else (mouse_w if show_mouse else 0))
+                total_content_h = max(len(display_lines) * line_height, mouse_h) if display_lines else mouse_h
+            else:
+                total_content_w = max(max_txt_w, mouse_w)
+                if show_mouse and display_lines:
+                    total_content_h = len(display_lines) * line_height + 10 + mouse_h
+                else:
+                    total_content_h = len(display_lines) * line_height if display_lines else mouse_h
 
             if total_content_w <= 0 and not show_mouse:
                 return
@@ -741,8 +751,23 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
 
             # Draw Mouse (Custom Texture or Sleek Vector)
             if show_mouse:
-                mx = base_x
-                my = base_y + (total_content_h - mouse_h) / 2
+                if layout_mode == "SIDE":
+                    mx = base_x
+                    my = base_y + (total_content_h - mouse_h) / 2
+                else: # ABOVE or BELOW
+                    if align == 'LEFT':
+                        mx = base_x
+                    elif align == 'RIGHT':
+                        mx = base_x + total_content_w - mouse_w
+                    else: # CENTER
+                        mx = base_x + (total_content_w - mouse_w) / 2
+
+                if layout_mode == "SIDE":
+                    pass # already set
+                elif layout_mode == "ABOVE":
+                    my = base_y
+                else: # BELOW
+                    my = base_y + total_content_h - mouse_h
                 
                 drawn_custom = False
                 if is_custom_tex and tex_obj:
@@ -768,13 +793,37 @@ class M8_OT_InternalScreencast(bpy.types.Operator):
 
             # Draw Text Lines
             if display_lines:
-                text_x = base_x + (mouse_w + 14 if show_mouse else 0)
-                if stack_direction == "DOWN":
-                    curr_y = base_y + total_content_h - font_size
-                    step = -line_height
-                else:
-                    curr_y = base_y + 4
-                    step = line_height
+                if layout_mode == "SIDE":
+                    text_x = base_x + (mouse_w + 14 if show_mouse else 0)
+                    if stack_direction == "DOWN":
+                        curr_y = base_y + total_content_h - font_size
+                        step = -line_height
+                    else:
+                        curr_y = base_y + 4
+                        step = line_height
+                else: # ABOVE or BELOW
+                    if align == 'LEFT':
+                        text_x = base_x
+                    elif align == 'RIGHT':
+                        text_x = base_x + total_content_w - max_txt_w
+                    else: # CENTER
+                        text_x = base_x + (total_content_w - max_txt_w) / 2
+
+                if layout_mode == "ABOVE":
+                    if stack_direction == "DOWN":
+                        curr_y = base_y + total_content_h - font_size
+                        step = -line_height
+                    else:
+                        curr_y = base_y + (mouse_h + 10 if show_mouse else 4)
+                        step = line_height
+                elif layout_mode == "BELOW":
+                    if stack_direction == "DOWN":
+                        text_h = len(display_lines) * line_height
+                        curr_y = base_y + text_h - font_size
+                        step = -line_height
+                    else:
+                        curr_y = base_y + 4
+                        step = line_height
 
                 for line in display_lines:
                     if show_shadow:

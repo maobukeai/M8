@@ -454,6 +454,15 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         items=_screencast_stack_direction_items,
         default=0
     )
+    screencast_layout_mode: bpy.props.EnumProperty(
+        name=_T("排版模式"),
+        items=[
+            ("SIDE", _T("并排"), _T("鼠标在左侧，文字在右侧")),
+            ("ABOVE", _T("文字在上方"), _T("文字显示在鼠标图标的上方")),
+            ("BELOW", _T("文字在下方"), _T("文字显示在鼠标图标的下方")),
+        ],
+        default="SIDE"
+    )
     screencast_use_custom_mouse: bpy.props.BoolProperty(name=_T("使用自定义鼠标贴图"), default=False)
     screencast_mouse_img_base: bpy.props.StringProperty(name=_T("基础鼠标贴图"), subtype='FILE_PATH')
     screencast_mouse_img_lmouse: bpy.props.StringProperty(name=_T("左键按压贴图"), subtype='FILE_PATH')
@@ -1745,6 +1754,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         box.label(text=_T("位置与对齐 (Position)"), icon=_ICON("RESTRICT_VIEW_OFF"))
         box.prop(self, "screencast_align", text=_T("对齐位置"))
         box.prop(self, "screencast_stack_direction", text=_T("堆叠方向"))
+        box.prop(self, "screencast_layout_mode", text=_T("排版模式"))
         row = box.row(align=True)
         row.prop(self, "screencast_offset_x", text=_T("X 偏移"))
         row.prop(self, "screencast_offset_y", text=_T("Y 偏移"))
