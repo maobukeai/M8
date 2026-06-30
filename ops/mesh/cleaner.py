@@ -8,32 +8,23 @@ from ...utils.bmesh_selection import get_edge_loop, get_edge_ring, sort_edge_loo
 from ...utils.i18n import _T
 
 def safe_dissolve_edges(bm, mesh, edges_to_dissolve):
-    """安全地融并边，保护边界、弧度转角与非流形顶点不被删除以防止网格变形塌陷"""
+    """融并边，直接调用 Blender 系统原生操作以完美清理顶点而不留残留"""
     if not edges_to_dissolve:
         return
-    valid_edges = [e for e in edges_to_dissolve if e.is_valid and len(e.link_faces) >= 2]
-    if not valid_edges:
-        return
     
-    # 1. 融并边线（暂不融并顶点）
-    bmesh.ops.dissolve_edges(bm, edges=valid_edges, use_verts=False)
+    # 同步当前选择状态到编辑网格
+    bmesh.update_edit_mesh(mesh)
     
-    # 2. 精准筛选内部平直顶点进行清理，保护弧度转角与边界顶点
-    verts_to_dissolve = []
-    for v in bm.verts:
-        if v.is_valid and v.is_manifold and len(v.link_edges) == 2:
-            e1, e2 = v.link_edges
-            v1_other = e1.other_vert(v)
-            v2_other = e2.other_vert(v)
-            vec1 = (v1_other.co - v.co).normalized()
-            vec2 = (v2_other.co - v.co).normalized()
-            # 如果两条边形成直线（夹角接近180度，点积接近-1），说明是平直顶点，可以安全融并；如果是弧度转角，则保留
-            if vec1.dot(vec2) < -0.95:
-                verts_to_dissolve.append(v)
-                
-    if verts_to_dissolve:
-        bmesh.ops.dissolve_verts(bm, verts=verts_to_dissolve)
-        
+    try:
+        # 调用系统的融并边操作，同时融并顶点（use_verts=True）
+        bpy.ops.mesh.dissolve_edges(use_verts=True)
+    except Exception as e:
+        print(f"System dissolve_edges failed, using fallback: {e}")
+        # 如果系统操作由于某些原因失败，则使用 bmesh.ops 进行备用融并
+        valid_edges = [e for e in edges_to_dissolve if e.is_valid]
+        if valid_edges:
+            bmesh.ops.dissolve_edges(bm, edges=valid_edges, use_verts=True)
+            
     bmesh.update_edit_mesh(mesh)
 
 # -------------------------------------------------------------------

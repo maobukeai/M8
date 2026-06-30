@@ -3,7 +3,7 @@ from .utils.i18n import _T
 bl_info = {
     "name": _T("M8全能工具箱"),
     "author": _T("猫步可爱"),
-    "version": (3, 6, 2),
+    "version": (3, 6, 3),
     "blender": (4, 0, 0),
     "location": "View3D > Sidebar (N) > M8 Tool",
     "description": _T("在复杂的 3D 建模项目中，效率就是生命。M8 不仅仅是一个工具箱，它是你工作流中的润滑剂。"),
