@@ -228,6 +228,14 @@ class M8_OT_BatchCopyAlign(bpy.types.Operator):
     remove_target: bpy.props.BoolProperty(name=_T("删除目标物体"), default=False)
     hide_target: bpy.props.BoolProperty(name=_T("隐藏目标物体"), default=True)
     move_target: bpy.props.BoolProperty(name=_T("移动到集合"), default=False)
+    copy_type: bpy.props.EnumProperty(
+        name=_T("复制类型"),
+        items=[
+            ('INSTANCE', _T("实例复制 (Alt+D)"), _T("生成与原物体共享网格数据块的关联副本")),
+            ('NORMAL', _T("普通复制 (Shift+D)"), _T("生成完全独立的独立副本")),
+        ],
+        default='INSTANCE'
+    )
 
     @classmethod
     def poll(cls, context):
@@ -256,6 +264,8 @@ class M8_OT_BatchCopyAlign(bpy.types.Operator):
                 self.hide_target = False
                 self.move_target = False
                 
+            self.copy_type = props.copy_type
+                
         return self.execute(context)
 
     def execute(self, context):
@@ -279,6 +289,8 @@ class M8_OT_BatchCopyAlign(bpy.types.Operator):
 
         for target in targets:
             new_obj = source_obj.copy()
+            if self.copy_type == 'NORMAL' and source_obj.data:
+                new_obj.data = source_obj.data.copy()
             context.collection.objects.link(new_obj)
             new_obj.matrix_world = target.matrix_world
             created_objects.append(new_obj)
@@ -410,6 +422,14 @@ class M8_CustomTools_Props(bpy.types.PropertyGroup):
         ],
         default='HIDE'
     )
+    copy_type: bpy.props.EnumProperty(
+        name=_T("复制类型"),
+        items=[
+            ('INSTANCE', _T("实例复制 (Alt+D)"), _T("生成与原物体共享网格数据块的关联副本")),
+            ('NORMAL', _T("普通复制 (Shift+D)"), _T("生成完全独立的独立副本")),
+        ],
+        default='INSTANCE'
+    )
 
 # 5. 面板类
 class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
@@ -452,6 +472,9 @@ class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
         if hasattr(context.scene, "m8"):
             props = context.scene.m8.custom_tools
             col.prop(props, "copy_align_mode", text="")
+            row = col.row(align=True)
+            row.prop(props, "copy_type", expand=True)
 
         col.operator("m8.batch_copy_align", icon='COPYDOWN', text=_T("批量复制"))
         col.operator("m8.align_origin_to_normal", icon='ORIENTATION_NORMAL', text=_T("原点对齐法向"))
+        

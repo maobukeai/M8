@@ -60,6 +60,7 @@ from .keymap_helpers import (
     _find_double_click_select_group_keymap_items,
     _find_smart_pie_keymap_items,
     _find_toggle_area_keymap_items,
+    _find_fast_loop_keymap_items,
 )
 
 class M8_MP7_MockDrawProperty(bpy.types.PropertyGroup):
@@ -255,6 +256,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             ("TOGGLE_AREA", _T("区域切换"), "Toggle Area (T)"),
             ("SWITCH_EDITOR", _T("切换窗口"), "Switch Editor Pie (F12)"),
             ("SUBDIVISION", _T("细分级别"), "Subdivision Set"),
+            ("FAST_LOOP", _T("快速循环切刀"), "Fast Loop Cut"),
             ("SCREENCAST", _T("按键显示"), "Screencast"),
             ("OTHER", _T("其它设置"), "Other Settings"),
             ("ABOUT", _T("关于"), "About"),
@@ -380,6 +382,45 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     ui_show_switch_editor_advanced: bpy.props.BoolProperty(name=_T("映射(SwitchEditor)"), default=False)
     ui_show_subdivision_advanced: bpy.props.BoolProperty(name=_T("高级(Subdivision)"), default=False)
     ui_show_rename_keymap: bpy.props.BoolProperty(name=_T("快捷键(Rename)"), default=False)
+
+    # --- Fast Loop Properties ---
+    activate_fast_loop: bpy.props.BoolProperty(name=_T("启用快速循环切刀"), default=True, update=_on_prefs_update)
+    fast_loop_segments: bpy.props.IntProperty(name=_T("默认段数 (Cuts)"), default=1, min=1, max=100)
+    fast_loop_vertex_mode: bpy.props.BoolProperty(name=_T("默认顶点模式"), default=False)
+    fast_loop_guide_mode: bpy.props.BoolProperty(name=_T("默认引导模式"), default=False)
+    fast_loop_snap_divisions: bpy.props.IntProperty(name=_T("吸附等分数"), default=4, min=1, max=100)
+    fast_loop_use_even: bpy.props.BoolProperty(name=_T("默认等距模式"), default=False)
+    fast_loop_flipped: bpy.props.BoolProperty(name=_T("默认反转方向"), default=False)
+    fast_loop_mirrored: bpy.props.BoolProperty(name=_T("默认对称镜像"), default=False)
+    fast_loop_perpendicular: bpy.props.BoolProperty(name=_T("默认法向投影"), default=False)
+    fast_loop_use_curvature: bpy.props.BoolProperty(name=_T("默认曲率平滑"), default=False)
+    fast_loop_enable_edge_flow: bpy.props.BoolProperty(
+        name=_T("默认启用 EdgeFlow"),
+        description=_T("启动工具时默认开启 EdgeFlow 模式（左键点击直接平滑切线）"),
+        default=False
+    )
+    fast_loop_keep_selection: bpy.props.BoolProperty(
+        name=_T("保持选择 (S键)"),
+        description=_T("加线后保持新线和原有选择均处于选中状态。此选项会被记忆，下次打开工具时继承。"),
+        default=False
+    )
+    # EdgeFlow parameters (mirroring the original Fast-Loop set_flow options)
+    fast_loop_tension: bpy.props.IntProperty(
+        name=_T("Tension"),
+        description=_T("EdgeFlow 张力。默认 180，正值越大越贴近曲面，负值将弄到反面。"),
+        default=180, min=-500, max=500
+    )
+    fast_loop_iterations: bpy.props.IntProperty(
+        name=_T("Iterations"),
+        description=_T("EdgeFlow 平滑迭代次数"),
+        default=1, min=1, max=32
+    )
+    fast_loop_min_angle: bpy.props.IntProperty(
+        name=_T("Min Angle"),
+        description=_T("EdgeFlow 最小转角阈値（度），小于此角度的边不平滑"),
+        default=0, min=0, max=180
+    )
+    ui_show_fast_loop_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(Fast Loop)"), default=False)
 
     # --- Screencast Properties ---
     def _on_screencast_enabled_update(self, context):
@@ -783,6 +824,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "TOGGLE_AREA": "activate_toggle_area",
             "SWITCH_EDITOR": "activate_switch_editor_pie",
             "SUBDIVISION": "activate_subdivision_shortcuts",
+            "FAST_LOOP": "activate_fast_loop",
             "RENAME": "activate_advanced_rename",
             "SCREENCAST": "screencast_enabled",
         }
@@ -817,6 +859,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "TOGGLE_AREA": (_T("区域切换"), _T("T 键切换 Toolbar/Sidebar 及 Asset Browser/Shelf")),
             "SWITCH_EDITOR": (_T("切换窗口"), _T("配置 F12 切换窗口饼菜单映射")),
             "SUBDIVISION": (_T("细分级别"), _T("物体模式下 Ctrl+1/2/3/4 设置细分级别，Ctrl+0 清零细分级别")),
+            "FAST_LOOP": (_T("快速循环切刀"), _T("编辑模式下 Ctrl+Shift+E 交互式添加循环边或顶点，支持吸附、等距、对称、法向等高级控制")),
 
             "SCREENCAST": (_T("按键显示"), _T("实时在视口显示键盘鼠标操作，支持自定义外观")),
             "OTHER": (_T("系统设置"), _T("包含备份设置、新建物体默认行为等全局选项")),
@@ -844,6 +887,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "TOGGLE_AREA": "FULLSCREEN_ENTER",
             "SWITCH_EDITOR": "WINDOW",
             "SUBDIVISION": "MOD_SUBSURF",
+            "FAST_LOOP": "EDGESEL",
 
             "SCREENCAST": "WINDOW",
             "OTHER": "PREFERENCES",
@@ -873,6 +917,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         self._draw_sidebar_button(col_nav, "FULLSCREEN_ENTER", _T("区域切换 (T)"), "TOGGLE_AREA")
         self._draw_sidebar_button(col_nav, "WINDOW", _T("切换窗口 (F12)"), "SWITCH_EDITOR")
         self._draw_sidebar_button(col_nav, "MOD_SUBSURF", _T("细分级别 (Ctrl+0..4)"), "SUBDIVISION")
+        self._draw_sidebar_button(col_nav, "EDGESEL", _T("快速循环切刀 (Ctrl+Shift+E)"), "FAST_LOOP")
 
         col_nav.separator()
         col_nav.label(text=_T("实用工具"), icon="TOOL_SETTINGS")
@@ -933,6 +978,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 "TOGGLE_AREA",
                 "SWITCH_EDITOR",
                 "SUBDIVISION",
+                "FAST_LOOP",
                 "SCREENCAST",
                 "OTHER",
                 "ABOUT",
@@ -970,6 +1016,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     self.draw_switch_editor_settings(sub)
                 elif key == "SUBDIVISION":
                     self.draw_subdivision_settings(sub)
+                elif key == "FAST_LOOP":
+                    self.draw_fast_loop_settings(sub)
                 elif key == "SCREENCAST":
                     self.draw_screencast_settings(sub)
                 elif key == "OTHER":
@@ -1006,6 +1054,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 self.draw_switch_editor_settings(box)
             elif nav_tab == "SUBDIVISION":
                 self.draw_subdivision_settings(box)
+            elif nav_tab == "FAST_LOOP":
+                self.draw_fast_loop_settings(box)
             elif nav_tab == "SCREENCAST":
                 self.draw_screencast_settings(box)
             elif nav_tab == "OTHER":
@@ -1100,6 +1150,69 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                         sub_col.label(text=_T("未找到细分级别绑定"), icon="INFO")
                     else:
                         for kc, km, kmi in subdiv_items:
+                            rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
+                except Exception:
+                    pass
+
+    def draw_fast_loop_settings(self, layout):
+        col = layout.column()
+        if "activate_fast_loop" in self.bl_rna.properties:
+            col.prop(self, "activate_fast_loop")
+
+        activate_fl = getattr(self, "activate_fast_loop", False)
+        
+        if activate_fl:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            if "ui_show_fast_loop_keymap" in self.bl_rna.properties:
+                row.prop(self, "ui_show_fast_loop_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            col.separator()
+
+            box = col.box()
+            box.label(text=_T("默认启动属性 (Default Launch Settings)"), icon="TOOL_SETTINGS")
+            
+            flow = box.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=False, align=True)
+            flow.prop(self, "fast_loop_segments")
+            flow.prop(self, "fast_loop_snap_divisions")
+            flow.prop(self, "fast_loop_vertex_mode")
+            flow.prop(self, "fast_loop_guide_mode")
+            flow.prop(self, "fast_loop_use_even")
+            flow.prop(self, "fast_loop_flipped")
+            flow.prop(self, "fast_loop_mirrored")
+            flow.prop(self, "fast_loop_perpendicular")
+            flow.prop(self, "fast_loop_use_curvature")
+            flow.prop(self, "fast_loop_enable_edge_flow")
+
+            # EdgeFlow params sub-box
+            ef_box = box.box()
+            ef_col = ef_box.column(align=True)
+            ef_col.label(text="EdgeFlow 参数 (Shift+左键 / EdgeFlow 开启时生效)", icon="MOD_SMOOTH")
+            ef_row = ef_col.row(align=True)
+            ef_row.prop(self, "fast_loop_tension")
+            ef_row.prop(self, "fast_loop_iterations")
+            ef_row.prop(self, "fast_loop_min_angle")
+
+            col.separator(factor=0.5)
+
+            # Persistent behavior settings (saved immediately on toggle, remembered across sessions)
+            box2 = col.box()
+            box2.label(text=_T("持久行为设置 (Persistent Behavior)"), icon="LOCKED")
+            row2 = box2.row(align=True)
+            row2.prop(self, "fast_loop_keep_selection", toggle=True, icon="RESTRICT_SELECT_OFF")
+
+            show_keymap = getattr(self, "ui_show_fast_loop_keymap", False)
+            if show_keymap:
+                sub_col = col.column()
+                try:
+                    import rna_keymap_ui
+                    fl_items = _find_fast_loop_keymap_items()
+                    
+                    if not fl_items:
+                        sub_col.label(text=_T("未找到快速循环切刀绑定"), icon="INFO")
+                    else:
+                        for kc, km, kmi in fl_items:
                             rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
                 except Exception:
                     pass

@@ -830,3 +830,15 @@ def _restore_conflicts_for_signatures(kc, signatures, extra_keymap_names=()):
                         logger.error(f"Failed to restore conflict {kmi.idname}: {e}")
                     break
     return restored
+
+def _find_fast_loop_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    km = kc.keymaps.get("Mesh")
+    if km:
+        for kmi in km.keymap_items:
+            if kmi.idname == "m8.fast_loop":
+                items.append((kc, km, kmi))
+    return items

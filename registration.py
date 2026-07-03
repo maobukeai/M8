@@ -215,6 +215,7 @@ from .ops.file.image_save_preset import (
 )
 from .ops.file.auto_pack import register as register_auto_pack, unregister as unregister_auto_pack
 from .ops.misc.screencast import M8_OT_InternalScreencast
+from .ops.misc.fast_loop import M8_OT_FastLoop
 from .ops.misc.restart_blender import RestartBlender, draw_restart_blender_top_bar
 from .ops.misc.hotkey_wrappers import M8_OT_SmartPassThroughWrapper
 from .ops.misc.diagnostics import (
@@ -434,6 +435,7 @@ CLASSES = [
     FILEBROWSER_PT_m8_image_save_presets,
     FILEBROWSER_PT_m8_image_save_presets_extra,
     M8_OT_InternalScreencast,
+    M8_OT_FastLoop,
     RestartBlender,
     M8_OT_SmartPassThroughWrapper,
     M8_OT_RunHealthCheck,
@@ -685,6 +687,10 @@ def _set_windows_console_utf8():
     except Exception:
         pass
 
+def draw_fast_loop_menu(self, context):
+    self.layout.separator()
+    self.layout.operator("m8.fast_loop", icon='EDGESEL')
+
 def register():
     global _startup_timer_registered
     global _startup_apply_runs
@@ -771,6 +777,12 @@ def register():
     if hasattr(bpy.types, "VIEW3D_MT_object_context_menu"):
         _install_menu_draw(bpy.types.VIEW3D_MT_object_context_menu, draw_group_context_menu, prepend=True)
 
+    # Register Fast Loop Context Menus
+    if hasattr(bpy.types, "VIEW3D_MT_edit_mesh_context_menu"):
+        _install_menu_draw(bpy.types.VIEW3D_MT_edit_mesh_context_menu, draw_fast_loop_menu)
+    if hasattr(bpy.types, "VIEW3D_MT_edit_mesh_edge"):
+        _install_menu_draw(bpy.types.VIEW3D_MT_edit_mesh_edge, draw_fast_loop_menu)
+
     if prefs:
         try:
             enabled = bool(getattr(prefs, "auto_pack_resources_on_save", False)) or bool(getattr(prefs, "auto_purge_unused_materials_on_save", False))
@@ -849,6 +861,12 @@ def unregister():
     # Unregister Group Tool Context Menu
     if hasattr(bpy.types, "VIEW3D_MT_object_context_menu"):
         _remove_menu_draw(bpy.types.VIEW3D_MT_object_context_menu, draw_group_context_menu)
+
+    # Unregister Fast Loop Context Menus
+    if hasattr(bpy.types, "VIEW3D_MT_edit_mesh_context_menu"):
+        _remove_menu_draw(bpy.types.VIEW3D_MT_edit_mesh_context_menu, draw_fast_loop_menu)
+    if hasattr(bpy.types, "VIEW3D_MT_edit_mesh_edge"):
+        _remove_menu_draw(bpy.types.VIEW3D_MT_edit_mesh_edge, draw_fast_loop_menu)
 
     try:
         unregister_auto_origin()

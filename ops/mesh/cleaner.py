@@ -940,10 +940,14 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
                         # Mark edges that connect faces with any significant angle
                         if len(edge.link_faces) == 2:
                             face1, face2 = edge.link_faces
-                            angle = face1.normal.angle(face2.normal)
-                            # Lower threshold and remove length requirement to catch more edges
-                            if angle > 0.174:  # 10 degrees - catches more subtle angles
-                                edges_to_mark.add(edge)
+                            if face1.normal.length > 1e-6 and face2.normal.length > 1e-6:
+                                try:
+                                    angle = face1.normal.angle(face2.normal)
+                                    # Lower threshold and remove length requirement to catch more edges
+                                    if angle > 0.174:  # 10 degrees - catches more subtle angles
+                                        edges_to_mark.add(edge)
+                                except ValueError:
+                                    pass
             
             # Mark edges as sharp
             for edge in edges_to_mark:
@@ -1118,10 +1122,14 @@ class MESH_OT_unbevel_selected(bpy.types.Operator):
                         # Mark edges that connect faces with any significant angle
                         if len(edge.link_faces) == 2:
                             face1, face2 = edge.link_faces
-                            angle = face1.normal.angle(face2.normal)
-                            # Lower threshold to catch more edges
-                            if angle > 0.174:  # 10 degrees - catches more subtle angles
-                                edges_to_mark.add(edge)
+                            if face1.normal.length > 1e-6 and face2.normal.length > 1e-6:
+                                try:
+                                    angle = face1.normal.angle(face2.normal)
+                                    # Lower threshold to catch more edges
+                                    if angle > 0.174:  # 10 degrees - catches more subtle angles
+                                        edges_to_mark.add(edge)
+                                except ValueError:
+                                    pass
             
             # Mark edges as sharp
             for edge in edges_to_mark:
@@ -1282,8 +1290,13 @@ class MESH_OT_flat_loop_cleaner(bpy.types.Operator):
         if not e.is_manifold or len(e.link_faces) != 2:
             return False
         n1, n2 = e.link_faces[0].normal, e.link_faces[1].normal
-        angle = n1.angle(n2)
-        return angle < threshold
+        if n1.length < 1e-6 or n2.length < 1e-6:
+            return False
+        try:
+            angle = n1.angle(n2)
+            return angle < threshold
+        except ValueError:
+            return False
 
     def execute(self, context):
         obj = context.object
@@ -1406,7 +1419,11 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
         for edge in selected_edges:
             if edge.is_manifold and len(edge.link_faces) == 2:
                 n1, n2 = edge.link_faces[0].normal, edge.link_faces[1].normal
-                reference_angles.append(n1.angle(n2))
+                if n1.length > 1e-6 and n2.length > 1e-6:
+                    try:
+                        reference_angles.append(n1.angle(n2))
+                    except ValueError:
+                        pass
 
         if not reference_angles:
             self.report({'WARNING'}, _T("所选边必须恰好有 2 个相邻面"))
@@ -1418,13 +1435,17 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
         for edge in bm.edges:
             if edge.is_manifold and len(edge.link_faces) == 2:
                 n1, n2 = edge.link_faces[0].normal, edge.link_faces[1].normal
-                edge_angle = n1.angle(n2)
+                if n1.length > 1e-6 and n2.length > 1e-6:
+                    try:
+                        edge_angle = n1.angle(n2)
 
-                # Check if this edge's angle is similar to any reference angle
-                for ref_angle in reference_angles:
-                    if abs(edge_angle - ref_angle) <= self.angle_threshold:
-                        similar_edges.add(edge)
-                        break
+                        # Check if this edge's angle is similar to any reference angle
+                        for ref_angle in reference_angles:
+                            if abs(edge_angle - ref_angle) <= self.angle_threshold:
+                                similar_edges.add(edge)
+                                break
+                    except ValueError:
+                        pass
 
         if not similar_edges:
             self.report({'INFO'}, _T("未找到相似边"))

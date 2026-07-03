@@ -311,6 +311,13 @@ def register_keymaps(force_default=False):
         kmi.active = active
         add_keymap_item(km, kmi)
 
+    # 16. Fast Loop Shortcut (Ctrl + Shift + E)
+    active = get_pref("activate_fast_loop", True)
+    km = kc.keymaps.new(name="Mesh", space_type="EMPTY")
+    kmi = km.keymap_items.new('m8.fast_loop', 'E', 'PRESS', ctrl=True, shift=True)
+    kmi.active = active
+    add_keymap_item(km, kmi)
+
 
 def unregister_keymaps():
     global addon_keymaps
@@ -418,6 +425,9 @@ def update_keymaps(self, context):
     def is_subdivision_shortcut(kmi):
         return kmi.idname == 'm8.subdivision_set'
 
+    def is_fast_loop(kmi):
+        return kmi.idname == 'm8.fast_loop'
+
     # Get pref values
     p_transform = getattr(self, "enable_transform_pie", False)
     p_switch = getattr(self, "activate_switch_mode", False)
@@ -436,6 +446,7 @@ def update_keymaps(self, context):
     p_toggle_area = getattr(self, "activate_toggle_area", False)
     p_switch_editor = getattr(self, "activate_switch_editor_pie", False)
     p_subdivision = getattr(self, "activate_subdivision_shortcuts", False)
+    p_fast_loop = getattr(self, "activate_fast_loop", False)
 
     for km, kmi in addon_keymaps:
         try:
@@ -457,6 +468,7 @@ def update_keymaps(self, context):
             elif is_toggle_area(kmi): kmi.active = p_toggle_area
             elif is_switch_editor_pie(kmi): kmi.active = p_switch_editor
             elif is_subdivision_shortcut(kmi): kmi.active = p_subdivision
+            elif is_fast_loop(kmi): kmi.active = p_fast_loop
         except Exception:
             pass
 

@@ -60,7 +60,12 @@ def check_tow_direction_vector_perpendicular(a, b):
     (pi - a.angle(b)) > 0.001
     False
     """
-    return not ((pi - a.angle(b)) > 0.001)
+    if a.length < 1e-6 or b.length < 1e-6:
+        return False
+    try:
+        return not ((pi - a.angle(b)) > 0.001)
+    except ValueError:
+        return False
 
 
 def find_max_difference(num_list):
