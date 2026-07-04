@@ -1122,7 +1122,16 @@ class M8_OT_FastLoop(bpy.types.Operator):
                     self.trigger_update(context, event)
                 context.area.tag_redraw()
                 return {'RUNNING_MODAL'}
-            return {'RUNNING_MODAL'}
+            else:
+                # Clicked on empty space (no edge ring detected)
+                # S mode ON: clear all kept selection (like Blender's "click empty to deselect")
+                if self.keep_selection and self.bm:
+                    for e in self.bm.edges:
+                        e.select = False
+                    self.bm.select_flush_mode()
+                    bmesh.update_edit_mesh(self.target_object.data)
+                    context.area.tag_redraw()
+                return {'RUNNING_MODAL'}
 
         # Confirm and Exit
         elif event.type in {'RET', 'NUMPAD_ENTER'} and event.value == 'PRESS':
