@@ -896,19 +896,19 @@ class M8_OT_FastLoop(bpy.types.Operator):
         # Allow view navigation to pass through
         if event.type in {'MIDDLEMOUSE', 'NDOF_MOTION'}:
             return {'PASS_THROUGH'}
-        # Ctrl+scroll → viewport zoom passthrough; plain scroll → adjust segment count
+        # Plain scroll → viewport zoom (pass through); Ctrl/Shift+scroll → adjust segment count
         if event.type == 'WHEELUPMOUSE':
-            if event.ctrl:
-                return {'PASS_THROUGH'}
-            self.segments += 1
-            self.trigger_update(context, event)
-            return {'RUNNING_MODAL'}
+            if event.ctrl or event.shift:
+                self.segments += 1
+                self.trigger_update(context, event)
+                return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
         if event.type == 'WHEELDOWNMOUSE':
-            if event.ctrl:
-                return {'PASS_THROUGH'}
-            self.segments = max(1, self.segments - 1)
-            self.trigger_update(context, event)
-            return {'RUNNING_MODAL'}
+            if event.ctrl or event.shift:
+                self.segments = max(1, self.segments - 1)
+                self.trigger_update(context, event)
+                return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
 
         context.area.tag_redraw()
 
@@ -1146,8 +1146,9 @@ class M8_OT_FastLoop(bpy.types.Operator):
         # Trigger update on mouse movements or modifier state changes (Ctrl / Shift)
         if event.type == 'MOUSEMOVE' or modifiers_changed:
             self.trigger_update(context, event)
+            return {'RUNNING_MODAL'}
 
-        return {'RUNNING_MODAL'}
+        return {'PASS_THROUGH'}
 
     def draw_callback_3d(self, context):
         """Draw viewport preview geometry."""
@@ -1233,7 +1234,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
             # Segments
             blf.position(font_id, text_x, text_y + line_height * 10 - 5, 0)
-            blf.draw(font_id, f"[滚轮/1-9/↑↓] {_T('段数 (Cuts)')}: {self.segments}")
+            blf.draw(font_id, f"[Shift+滚轮/1-9/↑↓] {_T('段数 (Cuts)')}: {self.segments}")
 
             # Snap
             snap_str = _T("开启") if self.snap_enabled else _T("关闭")
