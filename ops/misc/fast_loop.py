@@ -758,6 +758,29 @@ class M8_OT_FastLoop(bpy.types.Operator):
             self._draw_handler_3d = None
         context.area.tag_redraw()
 
+    def get_valid_bm_and_bvh(self, obj):
+        """Ensure both BMesh and BVHTree are valid and in sync for the object."""
+        bm_updated = False
+        try:
+            bm = self.bms.get(obj.name)
+            if not bm or not bm.is_valid:
+                bm_updated = True
+        except (ReferenceError, AttributeError):
+            bm_updated = True
+            
+        if bm_updated:
+            try:
+                bm = bmesh.from_edit_mesh(obj.data)
+                self.bms[obj.name] = bm
+                self.bvhs[obj.name] = BVHTree.FromBMesh(bm)
+                if obj == self.target_object:
+                    self.bm = bm
+                    self.bvh = self.bvhs[obj.name]
+            except Exception as e:
+                print(f"Failed to rebuild BMesh/BVH for {obj.name}: {e}")
+                
+        return self.bms.get(obj.name), self.bvhs.get(obj.name)
+
     def cancel(self, context):
         self.end_modal(context)
 
@@ -893,6 +916,31 @@ class M8_OT_FastLoop(bpy.types.Operator):
             self.update_ring_and_preview(context, -1, None)
 
     def modal(self, context, event):
+        # Ensure all BMeshes and BVHTrees are valid at the start of modal tick
+        valid_edit_objects = []
+        for o in self.edit_objects:
+            try:
+                if o and o.name in bpy.data.objects:
+                    self.get_valid_bm_and_bvh(o)
+                    valid_edit_objects.append(o)
+            except ReferenceError:
+                pass
+        self.edit_objects = valid_edit_objects
+
+        # Check target_object validity
+        try:
+            target_valid = self.target_object and self.target_object.name in bpy.data.objects
+        except ReferenceError:
+            target_valid = False
+            
+        if not target_valid and self.edit_objects:
+            self.target_object = self.edit_objects[0]
+            try:
+                self.bm = self.bms.get(self.target_object.name)
+                self.bvh = self.bvhs.get(self.target_object.name)
+            except Exception:
+                pass
+
         # Allow view navigation to pass through
         if event.type in {'MIDDLEMOUSE', 'NDOF_MOTION'}:
             return {'PASS_THROUGH'}
