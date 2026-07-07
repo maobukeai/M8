@@ -167,43 +167,74 @@ class M8_OT_MergeNearbyObjects(bpy.types.Operator):
         
         actual_threshold = self.threshold * scale
 
-        selected_names = [obj.name for obj in context.selected_objects if obj.type == 'MESH']
-        merged_count = 0
-
         # 辅助函数：获取物体世界坐标下的几何中心
         def get_world_center(obj):
             local_bbox_center = 0.125 * sum((Vector(b) for b in obj.bound_box), Vector())
             return obj.matrix_world @ local_bbox_center
 
-        while selected_names:
-            current_name = selected_names.pop(0)
-            obj = bpy.data.objects.get(current_name)
-            if not obj:
+        selected_meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if len(selected_meshes) < 2:
+            self.report({'WARNING'}, _T("请至少选择两个网格物体"))
+            return {'CANCELLED'}
+
+        # 1. 缓存所有选定网格物体的世界中心，避免在内部循环中重复计算
+        objs_data = []
+        for obj in selected_meshes:
+            objs_data.append((obj, get_world_center(obj)))
+
+        # 2. 构建 3D 空间哈希网格 (Spatial Hash Grid)
+        # 用 actual_threshold 作为网格单元大小
+        cell_size = max(0.00001, actual_threshold)
+        grid = {}
+        
+        for obj, center in objs_data:
+            cell_coord = (
+                int(center.x / cell_size),
+                int(center.y / cell_size),
+                int(center.z / cell_size)
+            )
+            if cell_coord not in grid:
+                grid[cell_coord] = []
+            grid[cell_coord].append((obj, center))
+
+        # 先取消选择所有物体，避免后续循环中 select_all 导致对所有物体进行 O(N) 扫描
+        bpy.ops.object.select_all(action='DESELECT')
+
+        processed = set()
+        merged_count = 0
+
+        # 3. 基于空间网格进行近邻聚类合并
+        for obj, center_a in objs_data:
+            if obj.name in processed:
                 continue
             
-            # 获取当前物体的几何中心
-            center_a = get_world_center(obj)
-                
+            # 该物体作为新合并组的“种子”
             to_merge = [obj]
-            others_to_remove_from_list = []
-
-            for other_name in selected_names:
-                other_obj = bpy.data.objects.get(other_name)
-                if not other_obj:
-                    continue
-                
-                # 获取对比物体的几何中心
-                center_b = get_world_center(other_obj)
-                
-                # 计算几何中心距离，而不是原点距离
-                dist = (center_a - center_b).length
-                
-                if dist <= actual_threshold:
-                    to_merge.append(other_obj)
-                    others_to_remove_from_list.append(other_name)
+            
+            cell_x = int(center_a.x / cell_size)
+            cell_y = int(center_a.y / cell_size)
+            cell_z = int(center_a.z / cell_size)
+            
+            # 仅在周围 27 个相邻网格单元中搜索对比候选物体
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    for dz in (-1, 0, 1):
+                        neighbor_cell = (cell_x + dx, cell_y + dy, cell_z + dz)
+                        if neighbor_cell in grid:
+                            for other_obj, center_b in grid[neighbor_cell]:
+                                if other_obj == obj or other_obj.name in processed:
+                                    continue
+                                
+                                # 计算几何中心距离
+                                if (center_a - center_b).length <= actual_threshold:
+                                    to_merge.append(other_obj)
             
             if len(to_merge) > 1:
-                bpy.ops.object.select_all(action='DESELECT')
+                # 标记这些物体已被处理合并
+                for o in to_merge:
+                    processed.add(o.name)
+                
+                # 执行合并：仅选中当前组的物体，避免 select_all('DESELECT') 遍历全场景物体
                 for o in to_merge:
                     o.select_set(True)
                 
@@ -211,9 +242,11 @@ class M8_OT_MergeNearbyObjects(bpy.types.Operator):
                 bpy.ops.object.join()
                 merged_count += 1
                 
-                for name in others_to_remove_from_list:
-                    if name in selected_names:
-                        selected_names.remove(name)
+                # 合并完成后，新生成的物体仍处于选中状态，我们直接将其从选择中移除
+                to_merge[0].select_set(False)
+            else:
+                # 若未进行合并，也将此种子物体标记为已处理
+                processed.add(obj.name)
 
         self.report({'INFO'}, f"{_T('合并完成，共进行了')} {merged_count} {_T('组合并。')}")
         return {'FINISHED'}
