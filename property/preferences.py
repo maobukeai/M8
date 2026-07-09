@@ -287,6 +287,11 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     auto_pack_resources_on_save: bpy.props.BoolProperty(name=_T("保存时自动打包资源"), default=False, update=_on_autopack_update)
     auto_purge_unused_materials_on_save: bpy.props.BoolProperty(name=_T("保存时自动清除孤立数据"), default=False, update=_on_autopack_update)
+    incremental_save_prefix: bpy.props.StringProperty(
+        name=_T("增量保存版本前缀"),
+        description=_T("增量保存时使用的版本前缀，例如 '_v' 会生成 filename_v1.blend、filename_v2.blend"),
+        default="_v",
+    )
 
     auto_new_object_origin_bottom: bpy.props.BoolProperty(name=_T("新建物体默认原点到底部"), default=False, update=_on_autoorigin_update)
     auto_new_object_snap_to_floor: bpy.props.BoolProperty(name=_T("新建物体自动落地 (Z=0)"), default=False, update=_on_autoorigin_update)
@@ -1476,6 +1481,11 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             box_auto.prop(self, "auto_pack_resources_on_save", text=_T("保存时自动打包资源"))
         if "auto_purge_unused_materials_on_save" in self.bl_rna.properties:
             box_auto.prop(self, "auto_purge_unused_materials_on_save", text=_T("保存时自动清除孤立数据"))
+        if "incremental_save_prefix" in self.bl_rna.properties:
+            row = box_auto.row(align=True)
+            row.use_property_split = True
+            row.use_property_decorate = False
+            row.prop(self, "incremental_save_prefix", text=_T("增量保存版本前缀"))
         
         if activate_pie:
             row = col.row(align=True)

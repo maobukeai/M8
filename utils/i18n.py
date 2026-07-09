@@ -2373,6 +2373,15 @@ ZH_TO_EN = {
     "物体世界轴向包围盒 (AABB) 相交时合并": "Merge when Axis-Aligned Bounding Box (AABB) intersects",
     "合并所有共享相同材质的物体": "Merge all objects sharing the same material",
     "按命名中的前缀字符归类合并（例：Stone_01.001 -> Stone_01）": "Classify and merge by name prefix (e.g. Stone_01.001 -> Stone_01)",
+    "键入定位 (百分比/绝对值):": "Direct Input (Percentage/Absolute):",
+    "未找到 Edge Flow 插件，请先安装并启用它。": "Edge Flow addon not found. Please install and enable it first.",
+    "增量保存版本前缀": "Incremental Save Version Prefix",
+    "增量保存时使用的版本前缀，例如 '_v' 会生成 filename_v1.blend、filename_v2.blend": "Version prefix used in incremental save, e.g. '_v' generates filename_v1.blend, filename_v2.blend",
+    "保存文件并自动增加版本号 (filename_v1.blend)": "Save file and automatically increment version number (filename_v1.blend)",
+    "是否在切换前保存更改？": "Save changes before switching?",
+    "保存当前文件后再切换": "Save the current file, then switch",
+    "放弃修改直接切换": "Discard changes and switch directly",
+    "取消切换": "Cancel the switch",
 }
 
 

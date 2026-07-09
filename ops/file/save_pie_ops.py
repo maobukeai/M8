@@ -20,31 +20,23 @@ class M8_OT_SwitchFile(bpy.types.Operator):
         default="NEXT"
     )
 
-    def execute(self, context):
+    def _get_target_path(self):
+        """Compute the target .blend filepath based on direction."""
         current_path = bpy.data.filepath
         if not current_path:
-            self.report({'WARNING'}, _T("请先保存当前文件"))
-            return {'CANCELLED'}
-        
-        # Auto save before switching
-        try:
-            bpy.ops.wm.save_mainfile()
-        except Exception:
-            pass
+            return None
 
         directory = os.path.dirname(current_path)
         current_filename = os.path.basename(current_path)
 
         try:
             files = [f for f in os.listdir(directory) if f.lower().endswith(".blend")]
-            # Sort files naturally/alphabetically to ensure consistent order
             files.sort(key=lambda x: x.lower())
-        except Exception as e:
-            self.report({'ERROR'}, f"{_T('无法读取目录')}: {e}")
-            return {'CANCELLED'}
+        except Exception:
+            return None
 
         if not files:
-            return {'CANCELLED'}
+            return None
 
         try:
             current_index = files.index(current_filename)
@@ -55,20 +47,39 @@ class M8_OT_SwitchFile(bpy.types.Operator):
             new_index = current_index - 1
             if new_index < 0:
                 new_index = len(files) - 1
-        else: # NEXT
+        else:
             new_index = current_index + 1
             if new_index >= len(files):
                 new_index = 0
-        
+
         target_file = files[new_index]
         target_path = os.path.join(directory, target_file)
+        return target_path if target_path != current_path else None
 
-        if target_path == current_path:
-             self.report({'INFO'}, _T("只有一个文件"))
-             return {'FINISHED'}
+    def invoke(self, context, event):
+        current_path = bpy.data.filepath
+        if not current_path:
+            self.report({'WARNING'}, _T("请先保存当前文件"))
+            return {'CANCELLED'}
 
-        bpy.ops.wm.open_mainfile(filepath=target_path)
+        target_path = self._get_target_path()
+        if not target_path:
+            self.report({'INFO'}, _T("只有一个文件"))
+            return {'FINISHED'}
+
+        # Use Blender's own open operator with INVOKE_DEFAULT + display_file_selector=False.
+        # Blender will automatically show its native 3-button "Save / Don't Save / Cancel"
+        # dialog if the current file has unsaved changes, then open the target file.
+        try:
+            bpy.ops.wm.open_mainfile('INVOKE_DEFAULT', filepath=target_path, display_file_selector=False)
+        except Exception:
+            # Fallback for older Blender versions that may not support display_file_selector
+            bpy.ops.wm.open_mainfile(filepath=target_path)
         return {'FINISHED'}
+
+    def execute(self, context):
+        return self.invoke(context, None)
+
 
 
 class M8_OT_OpenAutoSave(bpy.types.Operator):
@@ -185,7 +196,7 @@ class M8_OT_OpenTempDir(bpy.types.Operator):
 class M8_OT_IncrementalSave(bpy.types.Operator):
     bl_idname = "m8.incremental_save"
     bl_label = _T("增量保存")
-    bl_description = _T("保存文件并自动增加版本号 (filename_01.blend)")
+    bl_description = _T("保存文件并自动增加版本号 (filename_v1.blend)")  # updated to _v style
 
     def execute(self, context):
         filepath = bpy.data.filepath
@@ -197,36 +208,45 @@ class M8_OT_IncrementalSave(bpy.types.Operator):
         filename = os.path.basename(filepath)
         name, ext = os.path.splitext(filename)
 
-        # Regex to find trailing numbers with optional separator and 'v' prefix
-        # Supports: name_01, name.01, name_v01, name-01
-        match = re.search(r'([_.-]*(?:v|V)?)(\d+)$', name)
-        
+        # Read user-defined version prefix from preferences (default: "_v")
+        try:
+            from ...utils import get_pref
+            prefs = get_pref()
+            prefix = getattr(prefs, "incremental_save_prefix", "_v") or "_v"
+        except Exception:
+            prefix = "_v"
+
+        # Escape prefix for use in regex (safe for special chars like "_", ".", etc.)
+        escaped_prefix = re.escape(prefix)
+
+        # Only increment if filename ends with exactly {prefix}{digits}
+        match = re.search(rf'({escaped_prefix})(\d+)$', name)
+
         if match:
-            prefix = match.group(1)
+            matched_prefix = match.group(1)
             num_str = match.group(2)
             num = int(num_str) + 1
-            # Maintain padding
+            # Maintain zero-padding width of the original number
             new_num_str = f"{num:0{len(num_str)}d}"
-            new_name = name[:match.start()] + f"{prefix}{new_num_str}"
+            new_name = name[:match.start()] + f"{matched_prefix}{new_num_str}"
         else:
-            # Append _01 if no number found
-            new_name = name + "_01"
-        
+            # No matching version suffix — append {prefix}1
+            new_name = name + f"{prefix}1"
+
         new_filepath = os.path.join(directory, new_name + ext)
-        
-        # Check if file exists, if so keep incrementing (safety)
+
+        # Safety: keep incrementing if the target file already exists
         while os.path.exists(new_filepath):
-            match = re.search(r'([_.-]*(?:v|V)?)(\d+)$', new_name)
+            match = re.search(rf'({escaped_prefix})(\d+)$', new_name)
             if match:
-                prefix = match.group(1)
+                matched_prefix = match.group(1)
                 num_str = match.group(2)
                 num = int(num_str) + 1
                 new_num_str = f"{num:0{len(num_str)}d}"
-                new_name = new_name[:match.start()] + f"{prefix}{new_num_str}"
-                new_filepath = os.path.join(directory, new_name + ext)
+                new_name = new_name[:match.start()] + f"{matched_prefix}{new_num_str}"
             else:
-                 new_name = new_name + "_01"
-                 new_filepath = os.path.join(directory, new_name + ext)
+                new_name = new_name + f"{prefix}1"
+            new_filepath = os.path.join(directory, new_name + ext)
 
         try:
             bpy.ops.wm.save_as_mainfile(filepath=new_filepath, copy=False)
@@ -234,8 +254,9 @@ class M8_OT_IncrementalSave(bpy.types.Operator):
         except Exception as e:
             self.report({'ERROR'}, f"{_T('保存失败')}: {e}")
             return {'CANCELLED'}
-            
+
         return {'FINISHED'}
+
 
 
 def _find_operator_override_context():
