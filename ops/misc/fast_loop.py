@@ -62,79 +62,75 @@ class M8_OT_FastLoop(bpy.types.Operator):
         return context.active_object and context.active_object.type == 'MESH' and context.mode == 'EDIT_MESH'
 
     def get_oriented_edge_ring(self, bm, start_edge):
-        """Find the edge ring and compute consistent orientations for each edge."""
+        """Trace a quad edge-ring with topology-derived, stable orientation.
+
+        The previous implementation chose each opposite edge direction by comparing
+        world-space distances.  That is ambiguous on folded, curved, or compact
+        topology and can make the slide direction flip between adjacent faces.
+        Face-loop winding provides the exact correspondence between the two
+        opposite edges of a quad, independently of the mesh shape.
+        """
         ring_map = {start_edge.index: False}
         visited = {start_edge}
 
-        # Walk direction 1 (first link face)
-        if len(start_edge.link_faces) > 0:
-            start_face = start_edge.link_faces[0]
+        def opposite_edge(face, edge, reversed_direction):
+            """Return the opposite quad edge and its matching start direction."""
+            if len(face.verts) != 4:
+                return None, False
+
+            for loop in face.loops:
+                if loop.edge != edge:
+                    continue
+
+                opposite_loop = loop.link_loop_next.link_loop_next
+                opposite = opposite_loop.edge
+                edge_start = edge.verts[1] if reversed_direction else edge.verts[0]
+
+                # In a quad A-B-C-D, a cut from A on AB connects to D on
+                # CD; a cut from B connects to C.  Use loop winding rather
+                # than coordinate distance to preserve this correspondence.
+                if edge_start == loop.vert:
+                    opposite_start = opposite_loop.link_loop_next.vert
+                elif edge_start == loop.link_loop_next.vert:
+                    opposite_start = opposite_loop.vert
+                else:
+                    return None, False
+
+                return opposite, opposite.verts[1] == opposite_start
+
+            return None, False
+
+        def walk(start_face):
             curr_face = start_face
             curr_edge = start_edge
             curr_rev = False
-            while curr_face and len(curr_face.verts) == 4:
-                opp_edge = None
-                loops = curr_face.loops
-                for i, l in enumerate(loops):
-                    if l.edge == curr_edge:
-                        opp_edge = loops[(i + 2) % 4].edge
-                        break
-                if not opp_edge or opp_edge in visited:
+
+            while curr_face:
+                opp_edge, opp_rev = opposite_edge(curr_face, curr_edge, curr_rev)
+                if opp_edge is None or opp_edge in visited:
                     break
-                
-                # Determine orientation of opp_edge relative to curr_edge
-                p0 = curr_edge.verts[1].co if curr_rev else curr_edge.verts[0].co
-                d0 = (p0 - opp_edge.verts[0].co).length
-                d1 = (p0 - opp_edge.verts[1].co).length
-                opp_rev = d0 > d1
-                
+
                 ring_map[opp_edge.index] = opp_rev
                 visited.add(opp_edge)
-                
-                # Move next
-                next_face = None
-                for f in opp_edge.link_faces:
-                    if f != curr_face and len(f.verts) == 4:
-                        next_face = f
-                        break
-                curr_face = next_face
+
+                # A ring cannot pass unambiguously through non-manifold or
+                # branching topology.  Stop there, matching Loop Cut's safe
+                # behaviour instead of selecting an arbitrary adjacent face.
+                next_faces = [
+                    face for face in opp_edge.link_faces
+                    if face != curr_face and len(face.verts) == 4
+                ]
+                if len(next_faces) != 1:
+                    break
+
+                curr_face = next_faces[0]
                 curr_edge = opp_edge
                 curr_rev = opp_rev
 
-        # Walk direction 2 (second link face)
-        if len(start_edge.link_faces) > 1:
-            start_face = start_edge.link_faces[1]
-            curr_face = start_face
-            curr_edge = start_edge
-            curr_rev = False
-            while curr_face and len(curr_face.verts) == 4:
-                opp_edge = None
-                loops = curr_face.loops
-                for i, l in enumerate(loops):
-                    if l.edge == curr_edge:
-                        opp_edge = loops[(i + 2) % 4].edge
-                        break
-                if not opp_edge or opp_edge in visited:
-                    break
-                
-                # Determine orientation of opp_edge relative to curr_edge
-                p0 = curr_edge.verts[1].co if curr_rev else curr_edge.verts[0].co
-                d0 = (p0 - opp_edge.verts[0].co).length
-                d1 = (p0 - opp_edge.verts[1].co).length
-                opp_rev = d0 > d1
-                
-                ring_map[opp_edge.index] = opp_rev
-                visited.add(opp_edge)
-                
-                # Move next
-                next_face = None
-                for f in opp_edge.link_faces:
-                    if f != curr_face and len(f.verts) == 4:
-                        next_face = f
-                        break
-                curr_face = next_face
-                curr_edge = opp_edge
-                curr_rev = opp_rev
+        # Each linked quad face is one direction of the ring.  Walking both
+        # also handles boundary loops while the shared visited set closes rings.
+        for face in start_edge.link_faces:
+            walk(face)
 
         return ring_map
 
@@ -430,10 +426,26 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 for l in f.loops:
                     orig_uvs[(f.index, l.vert.index)] = l[uv_layer].uv.copy()
 
-        # Create temporary face layer to track original faces
-        orig_face_idx_layer = self.bm.faces.layers.int.new("orig_face_idx")
+        # Temporary layers preserve the per-face UV seam source through the
+        # subdivision and the external EdgeFlow operator.
+        orig_face_layer_name = "m8_fast_loop_orig_face"
+        source_edge_layer_name = "m8_fast_loop_source_edge"
+        old_face_layer = self.bm.faces.layers.int.get(orig_face_layer_name)
+        if old_face_layer:
+            self.bm.faces.layers.int.remove(old_face_layer)
+        old_source_layer = self.bm.verts.layers.int.get(source_edge_layer_name)
+        if old_source_layer:
+            self.bm.verts.layers.int.remove(old_source_layer)
+
+        orig_face_idx_layer = self.bm.faces.layers.int.new(orig_face_layer_name)
+        source_edge_layer = self.bm.verts.layers.int.new(source_edge_layer_name)
         for f in self.bm.faces:
             f[orig_face_idx_layer] = f.index
+
+        edge_sources = {
+            edge_index: (v1_index, v2_index, p1.copy(), p2.copy())
+            for v1_index, v2_index, p1, p2, edge_index in orig_segments
+        }
 
         old_vert_indices = {v.index for v in self.bm.verts}
         old_edges = set(self.bm.edges)
@@ -469,6 +481,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
         # Fallback: if the heuristic returned nothing (rare mesh topologies), use all new edges
         if not new_loop_edges:
             new_loop_edges = all_new_edges
+        new_loop_edge_indices = {e.index for e in new_loop_edges}
 
         # Group new vertices by original edge segment
         from collections import defaultdict
@@ -480,6 +493,8 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 dist = (v.co - proj_co).length
                 if dist < 0.0001:
                     edge_to_new_verts[e_idx].append((v, factor, v1_idx, v2_idx, p1_co, p2_co))
+                    # +1 distinguishes an untagged original vertex from edge 0.
+                    v[source_edge_layer] = e_idx + 1
                     break
 
         # Compute slide factors for hovered edge
@@ -573,9 +588,6 @@ class M8_OT_FastLoop(bpy.types.Operator):
                             uv2 = orig_uvs[key2]
                             l[uv_layer].uv = uv1 * (1.0 - t_final) + uv2 * t_final
 
-        # Remove temporary layer
-        self.bm.faces.layers.int.remove(orig_face_idx_layer)
-
         # Automerge support
         if context.scene.tool_settings.use_mesh_automerge:
             threshold = context.scene.tool_settings.double_threshold
@@ -586,6 +598,44 @@ class M8_OT_FastLoop(bpy.types.Operator):
         ef_tension = getattr(prefs, 'fast_loop_tension', 180) if prefs else 180
         ef_iterations = getattr(prefs, 'fast_loop_iterations', 1) if prefs else 1
         ef_min_angle = getattr(prefs, 'fast_loop_min_angle', 0) if prefs else 0
+        reproject_uv_after_flow = getattr(prefs, 'fast_loop_reproject_uv_after_edge_flow', True) if prefs else True
+
+        def reproject_flow_uvs():
+            """Reparameterize only newly cut vertices after EdgeFlow.
+
+            Each loop corner keeps its original face ID, so UV seams remain
+            independent.  The new interpolation factor is based on the final
+            vertex position relative to the two original cut-edge endpoints.
+            """
+            if not reproject_uv_after_flow:
+                return
+
+            active_uv_layer = self.bm.loops.layers.uv.active
+            face_layer = self.bm.faces.layers.int.get(orig_face_layer_name)
+            source_layer = self.bm.verts.layers.int.get(source_edge_layer_name)
+            if not active_uv_layer or not face_layer or not source_layer:
+                return
+
+            for vert in self.bm.verts:
+                source_edge_index = vert[source_layer] - 1
+                source = edge_sources.get(source_edge_index)
+                if source is None:
+                    continue
+
+                v1_index, v2_index, p1_co, p2_co = source
+                distance_1 = (vert.co - p1_co).length
+                distance_2 = (vert.co - p2_co).length
+                total_distance = distance_1 + distance_2
+                if total_distance <= 1e-8:
+                    continue
+                factor = max(0.0, min(1.0, distance_1 / total_distance))
+
+                for loop in vert.link_loops:
+                    original_face_index = loop.face[face_layer]
+                    uv1 = orig_uvs.get((original_face_index, v1_index))
+                    uv2 = orig_uvs.get((original_face_index, v2_index))
+                    if uv1 is not None and uv2 is not None:
+                        loop[active_uv_layer].uv = uv1.lerp(uv2, factor)
 
         # Determine if we should run EdgeFlow:
         # shift XOR enable_edge_flow == True means "run edge flow"
@@ -593,37 +643,43 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
         if run_edge_flow:
             if hasattr(bpy.ops.mesh, "set_edge_flow"):
-                # ---- Match original Fast-Loop behavior exactly ----
-                # 1. Do NOT clear pre-existing selection — add new loop edges on top of it.
-                #    EdgeFlow will see: pre-existing selected edges + new loop edges.
-                #    This produces the correct outward-curving ("往外") result.
-                for e in new_loop_edges:
-                    if e.is_valid:
-                        e.select = True
-                self.bm.select_flush_mode()
+                # EdgeFlow operates on every selected edge.  Passing the user's
+                # previous selection here also moves surrounding loops after their
+                # UVs have already been interpolated, which produces severe UV
+                # stretching.  Isolate the newly-created loop for the operation,
+                # then restore the user's selection below.
+                for e in self.bm.edges:
+                    e.select = e.index in new_loop_edge_indices
+                # Do not flush here.  In vertex/face selection modes a flush can
+                # clear these edge flags, leaving EdgeFlow with an empty input.
                 bmesh.update_edit_mesh(self.target_object.data)
                 try:
-                    bpy.ops.mesh.set_edge_flow(
+                    result = bpy.ops.mesh.set_edge_flow(
+                        # EdgeFlow initializes its runtime state in invoke().
+                        # EXEC_DEFAULT skips that step and raises on current
+                        # Blender/EdgeFlow versions.
                         'INVOKE_DEFAULT',
                         tension=ef_tension,
                         iterations=ef_iterations,
                         min_angle=ef_min_angle
                     )
+                    if 'FINISHED' not in result:
+                        self.report({'WARNING'}, "Edge Flow cancelled; the new loop was kept without smoothing")
                 except Exception as ex:
                     self.report({'ERROR'}, f"Edge Flow failed: {str(ex)}")
 
-                # 2. After EdgeFlow: deselect only the new loop edges (original v0.8 behavior).
-                #    Pre-existing selected edges remain selected.
-                #    If S (keep_selection) is ON: also keep new loop edges selected.
+                # Restore the selection that existed before the cut.  Keep the
+                # newly created loop only when the persistent-selection option is
+                # explicitly enabled.
                 self.bm = bmesh.from_edit_mesh(self.target_object.data)
                 self.bms[self.target_object.name] = self.bm
+                reproject_flow_uvs()
 
-                if not self.keep_selection:
-                    # Deselect new loop edges; pre-existing stay selected (original v0.8 behaviour)
-                    for e in self.bm.edges:
-                        if e.index not in originally_selected_edge_indices:
-                            e.select = False
-                # else S ON: keep everything (new + pre-existing) selected — nothing to do
+                for e in self.bm.edges:
+                    e.select = (
+                        e.index in originally_selected_edge_indices or
+                        (self.keep_selection and e.index in new_loop_edge_indices)
+                    )
 
                 self.bm.select_flush_mode()
                 bmesh.update_edit_mesh(self.target_object.data)
@@ -661,6 +717,16 @@ class M8_OT_FastLoop(bpy.types.Operator):
             bmesh.update_edit_mesh(self.target_object.data)
             self.bms[self.target_object.name] = self.bm
 
+        # These layers are only needed while the cut is being processed.  Their
+        # removal prevents temporary data from accumulating in edit meshes.
+        face_layer = self.bm.faces.layers.int.get(orig_face_layer_name)
+        if face_layer:
+            self.bm.faces.layers.int.remove(face_layer)
+        source_layer = self.bm.verts.layers.int.get(source_edge_layer_name)
+        if source_layer:
+            self.bm.verts.layers.int.remove(source_layer)
+        bmesh.update_edit_mesh(self.target_object.data)
+
 
     def invoke(self, context, event):
         if context.space_data.type != 'VIEW_3D':
@@ -676,7 +742,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
         if not self.edit_objects:
             self.report({'WARNING'}, _T("未选择任何编辑模式下的网格"))
             return {'CANCELLED'}
-            
+
         self.bms = {}
         self.bvhs = {}
         for o in self.edit_objects:

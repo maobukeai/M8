@@ -42,36 +42,30 @@ def __secure_call_args__():
     }
 
 
-__shield_hazard_type__ = {'Del',
-                          'Import',
-                          'Lambda',
-                          'Return',
-                          'Global',
-                          'Assert',
-                          'ClassDef',
-                          'ImportFrom',
-                          'Call',
-                          #   'Module',
-                          #   'Expr',
-                          #   'Call',
-                          }
+_ALLOWED_AST_NODES = {
+    ast.Expression, ast.BoolOp, ast.BinOp, ast.UnaryOp, ast.Compare,
+    ast.Name, ast.Load, ast.Constant, ast.List, ast.Tuple, ast.Dict,
+    ast.And, ast.Or, ast.Not, ast.USub, ast.UAdd,
+    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod,
+    ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.In, ast.NotIn,
+}
 
 
-def __check_shield__(eval_string):
-    dump_data = ast.dump(ast.parse(eval_string), indent=2)
-    is_shield = {i for i in __shield_hazard_type__ if i in dump_data}
-    if is_shield:
-        e = Exception(f'input poll_string is invalid\t{is_shield} of {eval_string}')
-        print(e)
-        return e
-    return None
+def _validate_expression(expression):
+    tree = ast.parse(expression, mode="eval")
+    names = __secure_call_args__()
+    for node in ast.walk(tree):
+        if type(node) not in _ALLOWED_AST_NODES:
+            raise ValueError(f"Unsupported expression element: {type(node).__name__}")
+        if isinstance(node, ast.Name) and node.id not in names:
+            raise ValueError(f"Unknown expression name: {node.id}")
+    return tree
 
 
 def secure_call_eval(eval_string: str):
-    if __check_shield__(eval_string) is None:
-        return eval(eval_string, __secure_call_globals__, __secure_call_args__())
+    tree = _validate_expression(eval_string)
+    return eval(compile(tree, "<m8-expression>", "eval"), __secure_call_globals__, __secure_call_args__())
 
 
 def secure_call_exec(eval_string: str):
-    if __check_shield__(eval_string) is None:
-        return exec(eval_string, __secure_call_globals__, __secure_call_args__())
+    raise RuntimeError("secure_call_exec is disabled; use secure_call_eval with a supported expression")

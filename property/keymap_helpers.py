@@ -542,14 +542,24 @@ def _is_our_keymap_item(kmi):
 
 def _find_subdivision_keymap_items():
     wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
+    if not wm or not wm.keyconfigs:
+        return []
+
+    # Older M8 releases could leave a user-keyconfig copy behind.  Include it
+    # in priority repair so it cannot shadow the current add-on keymap.
+    keyconfigs = []
+    for kc in (wm.keyconfigs.addon, wm.keyconfigs.user):
+        if kc and kc not in keyconfigs:
+            keyconfigs.append(kc)
+
     items = []
-    for keymap_name, _ in SUBDIVISION_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_subdivision_item(kmi): items.append((kc, km, kmi))
+    for kc in keyconfigs:
+        for keymap_name, _ in SUBDIVISION_KEYMAP_BINDINGS:
+            km = kc.keymaps.get(keymap_name)
+            if km:
+                for kmi in km.keymap_items:
+                    if _is_our_subdivision_item(kmi):
+                        items.append((kc, km, kmi))
     return items
 
 def _find_pie_keymap_item():
@@ -736,6 +746,31 @@ def _find_toggle_area_keymap_items():
     return items
 
 # Conflict helpers
+_disabled_conflict_items = {}
+
+
+def _conflict_item_key(kc, km, kmi):
+    """Return a session-stable identity for a keymap item M8 changed."""
+    try:
+        return (kc.as_pointer(), km.as_pointer(), kmi.as_pointer())
+    except Exception:
+        return (id(kc), id(km), id(kmi))
+
+
+def restore_tracked_conflicts():
+    """Restore only shortcuts that this M8 session actually disabled."""
+    restored = 0
+    for key, kmi in list(_disabled_conflict_items.items()):
+        try:
+            if not kmi.active:
+                kmi.active = True
+                restored += 1
+            _disabled_conflict_items.pop(key, None)
+        except Exception as exc:
+            logger.warning(f"Failed to restore tracked shortcut: {exc}")
+    return restored
+
+
 def _kmi_signature(kmi):
     try:
         return (
@@ -785,13 +820,22 @@ def _conflict_keymap_names(extra_keymap_names=()):
             seen.add(keymap_name)
     return names
 
-def _disable_conflicts_for_signatures(kc, signatures, extra_keymap_names=()):
+def _disable_conflicts_for_signatures(
+    kc, signatures, extra_keymap_names=(), scan_all_keymaps=False, keymap_names=None
+):
     if not kc: return 0
     disabled = 0
 
-    for keymap_name in _conflict_keymap_names(extra_keymap_names):
-        km = kc.keymaps.get(keymap_name)
-        if not km: continue
+    if keymap_names is not None:
+        keymaps = [kc.keymaps.get(name) for name in keymap_names]
+    elif scan_all_keymaps:
+        keymaps = list(kc.keymaps)
+    else:
+        keymaps = [kc.keymaps.get(name) for name in _conflict_keymap_names(extra_keymap_names)]
+
+    for km in keymaps:
+        if not km:
+            continue
         
         for kmi in km.keymap_items:
             if not getattr(kmi, "active", True): continue
@@ -801,31 +845,45 @@ def _disable_conflicts_for_signatures(kc, signatures, extra_keymap_names=()):
                 if _match_signature(kmi, sig):
                     try:
                         kmi.active = False
+                        _disabled_conflict_items[_conflict_item_key(kc, km, kmi)] = kmi
                         disabled += 1
-                        logger.info(f"Disabled conflicting hotkey: {kmi.name} ({kmi.idname}) in {keymap_name}")
+                        logger.info(f"Disabled conflicting hotkey: {kmi.name} ({kmi.idname}) in {km.name}")
                     except Exception as e:
                         logger.error(f"Failed to disable conflict {kmi.idname}: {e}")
                     break
     return disabled
 
-def _restore_conflicts_for_signatures(kc, signatures, extra_keymap_names=()):
+def _restore_conflicts_for_signatures(
+    kc, signatures, extra_keymap_names=(), scan_all_keymaps=False, keymap_names=None
+):
     if not kc: return 0
     restored = 0
 
-    for keymap_name in _conflict_keymap_names(extra_keymap_names):
-        km = kc.keymaps.get(keymap_name)
-        if not km: continue
+    if keymap_names is not None:
+        keymaps = [kc.keymaps.get(name) for name in keymap_names]
+    elif scan_all_keymaps:
+        keymaps = list(kc.keymaps)
+    else:
+        keymaps = [kc.keymaps.get(name) for name in _conflict_keymap_names(extra_keymap_names)]
+
+    for km in keymaps:
+        if not km:
+            continue
         
         for kmi in km.keymap_items:
             if getattr(kmi, "active", True): continue
             if _is_our_keymap_item(kmi): continue
+            key = _conflict_item_key(kc, km, kmi)
+            if key not in _disabled_conflict_items:
+                continue
 
             for sig in signatures:
                 if _match_signature(kmi, sig):
                     try:
                         kmi.active = True
+                        _disabled_conflict_items.pop(key, None)
                         restored += 1
-                        logger.info(f"Restored conflicting hotkey: {kmi.name} ({kmi.idname}) in {keymap_name}")
+                        logger.info(f"Restored conflicting hotkey: {kmi.name} ({kmi.idname}) in {km.name}")
                     except Exception as e:
                         logger.error(f"Failed to restore conflict {kmi.idname}: {e}")
                     break

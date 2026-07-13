@@ -14,7 +14,11 @@ class M8TelemetryErrorHandler(logging.Handler):
         try:
             from ..property.keymap_helpers import _get_addon_prefs
             prefs = _get_addon_prefs()
-            if not prefs or not getattr(prefs, "auto_error_report", True):
+            if (
+                not prefs
+                or not getattr(prefs, "auto_error_report", False)
+                or getattr(prefs, "error_report_consent_version", 0) < 1
+            ):
                 return
         except Exception:
             return

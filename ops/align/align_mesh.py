@@ -68,8 +68,9 @@ class AlignMesh(
 
     @classmethod
     def poll(cls, context):
-        if context.object.type == "MESH" and context.object.mode == "EDIT":
-            bm = bmesh.from_edit_mesh(context.object.data)
+        obj = context.object
+        if obj and obj.type == "MESH" and obj.mode == "EDIT":
+            bm = bmesh.from_edit_mesh(obj.data)
             for v in bm.verts:
                 if v.select:
                     return True

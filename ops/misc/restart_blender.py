@@ -58,6 +58,9 @@ def start_blender(step=1, open_recent=False, factory_startup=False, recover_auto
         Open with lower left corner at <sx>, <sy> and width and height as <w>, <h>.
     https://docs.blender.org/manual/en/4.3/advanced/command_line/arguments.html#window-options
     """
+    if recover_auto_save:
+        raise ValueError("Automatic recovery through a temporary quit.blend is disabled")
+
     import subprocess
     import os
     
@@ -192,8 +195,7 @@ class RestartBlender(
         elif self.only_ctrl:
             # Ctrl: 恢复自动保存 (quit.blend)
             try:
-                start_blender(recover_auto_save=True)
-                bpy.ops.wm.quit_blender()
+                bpy.ops.wm.recover_auto_save('INVOKE_DEFAULT')
             except Exception as e:
                 self.report({"ERROR"}, str(e))
         elif self.only_shift:

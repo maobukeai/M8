@@ -472,10 +472,24 @@ class SIZE_TOOL_OT_ExclusiveSubdivisionHotkey(bpy.types.Operator):
         ]
         extra_keymap_names = ("Screen", "Screen Editing")
         
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures, extra_keymap_names)
-        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures, extra_keymap_names)
+        # Also inspect global and 3D View keymaps: a Window-level mapping can
+        # otherwise win before Object Mode sees Ctrl+number.  Do not scan
+        # unrelated editors such as Node Editor, where their shortcuts should
+        # remain independent.
+        subdivision_keymap_names = (
+            "Object Mode", "Object Non-modal",
+            "Window", "Screen", "Screen Editing", "3D View", "3D View Generic",
+        )
+        disabled = _disable_conflicts_for_signatures(
+            wm.keyconfigs.active, signatures, keymap_names=subdivision_keymap_names
+        )
+        disabled += _disable_conflicts_for_signatures(
+            wm.keyconfigs.addon, signatures, keymap_names=subdivision_keymap_names
+        )
         if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
+            disabled += _disable_conflicts_for_signatures(
+                wm.keyconfigs.user, signatures, keymap_names=subdivision_keymap_names
+            )
 
         items = _find_subdivision_keymap_items()
         for kc2, km2, kmi2 in items:
@@ -509,10 +523,20 @@ class SIZE_TOOL_OT_RestoreSubdivisionConflicts(bpy.types.Operator):
             ("FOUR", "PRESS", False, False, True, False, False, 'NONE'),
         ]
         extra_keymap_names = ("Screen", "Screen Editing")
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures, extra_keymap_names)
-        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures, extra_keymap_names)
+        subdivision_keymap_names = (
+            "Object Mode", "Object Non-modal",
+            "Window", "Screen", "Screen Editing", "3D View", "3D View Generic",
+        )
+        restored = _restore_conflicts_for_signatures(
+            wm.keyconfigs.active, signatures, keymap_names=subdivision_keymap_names
+        )
+        restored += _restore_conflicts_for_signatures(
+            wm.keyconfigs.addon, signatures, keymap_names=subdivision_keymap_names
+        )
         if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
+            restored += _restore_conflicts_for_signatures(
+                wm.keyconfigs.user, signatures, keymap_names=subdivision_keymap_names
+            )
 
         self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的细分快捷键')}")
         return {'FINISHED'}
@@ -589,6 +613,10 @@ class SIZE_TOOL_OT_ForceSubdivisionPriority(bpy.types.Operator):
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
+        try:
+            bpy.ops.size_tool.exclusive_subdivision_hotkey()
+        except Exception:
+            pass
         self.report({'INFO'}, f"{_T('已优先处理')} {len(items)} {_T('个细分快捷键绑定')}")
         return {'FINISHED'}
 

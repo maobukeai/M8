@@ -58,6 +58,7 @@ class M8_WMState(bpy.types.PropertyGroup):
     update_version: bpy.props.StringProperty(default="", options={"SKIP_SAVE"})
     update_changelog: bpy.props.StringProperty(default="", options={"SKIP_SAVE"})
     update_download_url: bpy.props.StringProperty(default="", options={"SKIP_SAVE"})
+    update_sha256: bpy.props.StringProperty(default="", options={"SKIP_SAVE"})
     update_status: bpy.props.StringProperty(default="idle", options={"SKIP_SAVE"})
     update_checked: bpy.props.BoolProperty(default=False, options={"SKIP_SAVE"})
 

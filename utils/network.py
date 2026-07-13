@@ -2,18 +2,127 @@ import threading
 import urllib.request
 import urllib.parse
 import json
+import hashlib
+import os
+import re
+import tomllib
+from pathlib import Path
+import shutil
+import tempfile
+import uuid
+import zipfile
 import bpy
 import sys
-import traceback
 from .i18n import _T
 
 PLUGIN_TOKEN  = "plg_362d15e623a7466ab4b1dfd0312df224"
 CHECK_URL     = "https://mao.591595.xyz/api/plugins/client/check-update"
 FEEDBACK_URL  = "https://mao.591595.xyz/api/plugins/client/feedback"
 
+ALLOWED_UPDATE_HOSTS = {"mao.591595.xyz"}
+MAX_UPDATE_BYTES = 100 * 1024 * 1024
+MAX_ARCHIVE_FILES = 2_000
+MAX_EXTRACTED_BYTES = 500 * 1024 * 1024
+
 _update_result = None
 _update_lock = threading.Lock()
 _reporting_error = False
+
+
+def _request_headers(content_type=None):
+    """Keep the client token out of URLs and request bodies."""
+    headers = {
+        "User-Agent": "Blender-M8-Client",
+        "X-Developer-Token": PLUGIN_TOKEN,
+    }
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
+
+
+def _is_allowed_https_url(url):
+    try:
+        parsed = urllib.parse.urlparse(url)
+        return parsed.scheme == "https" and parsed.hostname in ALLOWED_UPDATE_HOSTS
+    except Exception:
+        return False
+
+
+def _is_sha256(value):
+    if not isinstance(value, str) or len(value) != 64:
+        return False
+    try:
+        int(value, 16)
+        return True
+    except ValueError:
+        return False
+
+
+def _safe_extract_archive(zip_path, destination):
+    """Validate archive paths and size before extracting any update files."""
+    destination = Path(destination).resolve()
+    with zipfile.ZipFile(zip_path, "r") as archive:
+        members = archive.infolist()
+        if not members or len(members) > MAX_ARCHIVE_FILES:
+            raise ValueError("Update archive has an invalid number of files")
+        if sum(member.file_size for member in members) > MAX_EXTRACTED_BYTES:
+            raise ValueError("Update archive is too large")
+
+        for member in members:
+            target = (destination / member.filename).resolve()
+            if target != destination and destination not in target.parents:
+                raise ValueError(f"Unsafe path in update archive: {member.filename}")
+            if (member.external_attr >> 16) & 0o170000 == 0o120000:
+                raise ValueError(f"Symbolic links are not allowed in update archives: {member.filename}")
+
+        archive.extractall(destination)
+
+
+def _find_extension_root(extraction_dir):
+    extraction_dir = Path(extraction_dir).resolve()
+    contents = list(extraction_dir.iterdir())
+    root = contents[0] if len(contents) == 1 and contents[0].is_dir() else extraction_dir
+    manifest = root / "blender_manifest.toml"
+    if not manifest.is_file():
+        raise ValueError("Update archive does not contain blender_manifest.toml")
+    manifest_data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    if manifest_data.get("id") != "M8" or manifest_data.get("type") != "add-on":
+        raise ValueError("Update archive is not an M8 extension")
+    return root
+
+
+def _download_update_archive(url, destination, expected_sha256):
+    if not _is_allowed_https_url(url):
+        raise ValueError("Update URL must use HTTPS and an approved host")
+    if not _is_sha256(expected_sha256):
+        raise ValueError("Update server did not provide a valid SHA-256 checksum")
+
+    digest = hashlib.sha256()
+    total = 0
+    request = urllib.request.Request(url, headers=_request_headers())
+    with urllib.request.urlopen(request, timeout=60) as response, open(destination, "wb") as output:
+        if not _is_allowed_https_url(response.geturl()):
+            raise ValueError("Update redirect left the approved HTTPS host")
+        content_length = response.headers.get("Content-Length")
+        if content_length and int(content_length) > MAX_UPDATE_BYTES:
+            raise ValueError("Update download is too large")
+        while chunk := response.read(1024 * 1024):
+            total += len(chunk)
+            if total > MAX_UPDATE_BYTES:
+                raise ValueError("Update download is too large")
+            digest.update(chunk)
+            output.write(chunk)
+
+    if digest.hexdigest().lower() != expected_sha256.lower():
+        raise ValueError("Update checksum verification failed")
+
+
+def sanitize_error_report(content):
+    """Remove common local-path identifiers and cap telemetry payload size."""
+    content = re.sub(r"[A-Za-z]:\\Users\\[^\\/\r\n]+", r"<windows-user>", content)
+    content = re.sub(r"/home/[^/\r\n]+", r"<unix-user>", content)
+    content = re.sub(r'File "[^"]+"', 'File "<local path>"', content)
+    return content[:8_000]
 
 def version_tuple_to_str(v):
     if not v:
@@ -117,7 +226,21 @@ def _apply_update_results(is_manual):
     m8.update_available = bool(res.get("updateAvailable"))
     m8.update_version = res.get("latestVersion", "")
     m8.update_changelog = res.get("changelog", "")
-    m8.update_download_url = res.get("downloadUrl", "") or ""
+    download_url = res.get("downloadUrl", "") or ""
+    update_sha256 = res.get("sha256", res.get("downloadSha256", "")) or ""
+    if m8.update_available and (not _is_allowed_https_url(download_url) or not _is_sha256(update_sha256)):
+        m8.update_status = "error"
+        m8.update_available = False
+        m8.update_checked = True
+        if is_manual:
+            wm.popup_menu(
+                lambda self, context: self.layout.label(text="Update metadata failed security validation", icon="ERROR"),
+                title="Update check failed",
+                icon="ERROR",
+            )
+        return None
+    m8.update_download_url = download_url
+    m8.update_sha256 = update_sha256
     m8.update_checked = True
 
     if m8.update_available:
@@ -146,9 +269,8 @@ def check_for_updates_async(is_manual=False):
         global _update_result
         try:
             ver_str = version_tuple_to_str(get_addon_version())
-            # Use query parameter or x-developer-token header
-            url = f"{CHECK_URL}?token={PLUGIN_TOKEN}&version={ver_str}"
-            req = urllib.request.Request(url, headers={'User-Agent': 'Blender-M8-Client'})
+            url = f"{CHECK_URL}?{urllib.parse.urlencode({'version': ver_str})}"
+            req = urllib.request.Request(url, headers=_request_headers())
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
             
@@ -157,6 +279,7 @@ def check_for_updates_async(is_manual=False):
                     "updateAvailable": data.get("updateAvailable", False),
                     "latestVersion": data.get("latestVersion", ""),
                     "downloadUrl": data.get("downloadUrl", ""),
+                    "sha256": data.get("sha256", data.get("downloadSha256", "")),
                     "changelog": data.get("changelog", _T("暂无更新日志")),
                 }
         except Exception as e:
@@ -190,7 +313,6 @@ def send_feedback_async(feedback_type, content, callback=None):
         try:
             ver_str = version_tuple_to_str(get_addon_version())
             payload = {
-                "token": PLUGIN_TOKEN,
                 "clientVersion": ver_str,
                 "feedbackType": feedback_type,
                 "content": content
@@ -199,11 +321,7 @@ def send_feedback_async(feedback_type, content, callback=None):
             req = urllib.request.Request(
                 FEEDBACK_URL,
                 data=data_bytes,
-                headers={
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'Blender-M8-Client',
-                    'x-developer-token': PLUGIN_TOKEN
-                },
+                headers=_request_headers('application/json'),
                 method='POST'
             )
             with urllib.request.urlopen(req, timeout=15) as response:
@@ -222,7 +340,6 @@ def send_feedback_sync_silent(feedback_type, content):
     try:
         ver_str = version_tuple_to_str(get_addon_version())
         payload = {
-            "token": PLUGIN_TOKEN,
             "clientVersion": ver_str,
             "feedbackType": feedback_type,
             "content": content
@@ -231,11 +348,7 @@ def send_feedback_sync_silent(feedback_type, content):
         req = urllib.request.Request(
             FEEDBACK_URL,
             data=data_bytes,
-            headers={
-                'Content-Type': 'application/json',
-                'User-Agent': 'Blender-M8-Client',
-                'x-developer-token': PLUGIN_TOKEN
-            },
+            headers=_request_headers('application/json'),
             method='POST'
         )
         with urllib.request.urlopen(req, timeout=10) as response:
@@ -252,7 +365,7 @@ def send_error_report_background(content):
         global _reporting_error
         _reporting_error = True
         try:
-            send_feedback_sync_silent("BUG", content)
+            send_feedback_sync_silent("BUG", sanitize_error_report(content))
         except Exception:
             pass
         finally:
@@ -270,6 +383,20 @@ def _apply_install_results():
             return 0.1  # Poll again in 0.1s
         res = _install_result
         _install_result = None
+
+    if "zip_path" in res:
+        zip_path = res["zip_path"]
+        try:
+            if not install_downloaded_zip(zip_path):
+                raise RuntimeError("Update installer reported failure")
+            res = {"success": True}
+        except Exception as exc:
+            res = {"error": str(exc)}
+        finally:
+            try:
+                Path(zip_path).unlink(missing_ok=True)
+            except Exception:
+                pass
 
     wm = bpy.context.window_manager
     m8 = getattr(wm, "m8", None)
@@ -303,43 +430,36 @@ def download_and_install_update_async():
 
     def run():
         global _install_result
-        import tempfile
-        import os
+        zip_path = None
         try:
             if not m8 or not m8.update_download_url:
                 raise Exception(_T("未找到更新下载地址，请先检测更新"))
 
-            # Download to temp file
-            temp_dir = tempfile.gettempdir()
-            zip_path = os.path.join(temp_dir, "M8_update_temp.zip")
+            with tempfile.NamedTemporaryFile(prefix="M8_update_", suffix=".zip", delete=False) as temp_file:
+                zip_path = temp_file.name
             
             print(f"[M8] Downloading update from {m8.update_download_url} to {zip_path}...")
             
-            req = urllib.request.Request(m8.update_download_url, headers={'User-Agent': 'Blender-M8-Client'})
-            with urllib.request.urlopen(req, timeout=60) as response, open(zip_path, 'wb') as out_file:
-                out_file.write(response.read())
+            _download_update_archive(m8.update_download_url, zip_path, m8.update_sha256)
             
-            # Install
-            success = install_downloaded_zip(zip_path)
-            if success:
-                with _install_lock:
-                    _install_result = {"success": True}
-            else:
-                raise Exception(_T("安装更新包失败，请尝试手动安装"))
+            # Installation uses bpy.ops and must run on Blender's main thread.
+            with _install_lock:
+                _install_result = {"zip_path": zip_path}
+            zip_path = None
+            return
+
         except Exception as e:
             import traceback
             traceback.print_exc()
             with _install_lock:
                 _install_result = {"error": str(e)}
+        finally:
+            if zip_path:
+                Path(zip_path).unlink(missing_ok=True)
 
     threading.Thread(target=run, daemon=True).start()
 
 def install_downloaded_zip(zip_path):
-    import os
-    import shutil
-    import zipfile
-    import bpy
-
     # Method 1: If using Blender 4.2+ Extensions system (highly recommended for user_default/M8)
     if hasattr(bpy.ops, "extensions") and hasattr(bpy.ops.extensions, "user_install"):
         try:
@@ -350,50 +470,36 @@ def install_downloaded_zip(zip_path):
         except Exception as e:
             print(f"[M8] Extensions user_install failed: {e}. Falling back to manual extraction.")
 
-    # Method 2: Manual extraction fallback
+    # Method 2: Manual extraction fallback with a rollback backup.
     try:
-        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        parent_dir = os.path.dirname(current_dir)
-        addon_name = os.path.basename(current_dir)
+        if not zipfile.is_zipfile(zip_path):
+            raise ValueError("Downloaded update is not a ZIP archive")
 
-        # Extract to temp dir
-        temp_extract_dir = os.path.join(parent_dir, f"{addon_name}_temp_update")
-        if os.path.exists(temp_extract_dir):
-            shutil.rmtree(temp_extract_dir)
-        os.makedirs(temp_extract_dir)
+        current_dir = Path(__file__).resolve().parents[1]
+        parent_dir = current_dir.parent.resolve()
+        addon_name = current_dir.name
+        extraction_dir = Path(tempfile.mkdtemp(prefix=f"{addon_name}_update_", dir=parent_dir)).resolve()
+        backup_dir = parent_dir / f"{addon_name}_backup_{uuid.uuid4().hex}"
 
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(temp_extract_dir)
-
-        # Find src directory inside temp folder
-        src_folder = temp_extract_dir
-        contents = os.listdir(temp_extract_dir)
-        if len(contents) == 1 and os.path.isdir(os.path.join(temp_extract_dir, contents[0])):
-            src_folder = os.path.join(temp_extract_dir, contents[0])
-
-        # Rename old dir to avoid write locks on Windows
-        old_dir = os.path.join(parent_dir, f"{addon_name}_old")
-        if os.path.exists(old_dir):
+        try:
+            _safe_extract_archive(zip_path, extraction_dir)
+            source_dir = _find_extension_root(extraction_dir)
+            os.replace(current_dir, backup_dir)
             try:
-                shutil.rmtree(old_dir)
+                shutil.move(str(source_dir), str(current_dir))
             except Exception:
-                pass
-        
-        os.rename(current_dir, old_dir)
+                if not current_dir.exists() and backup_dir.exists():
+                    os.replace(backup_dir, current_dir)
+                raise
+        finally:
+            if extraction_dir.exists():
+                shutil.rmtree(extraction_dir, ignore_errors=True)
 
-        # Move new extracted folder into place
-        shutil.move(src_folder, current_dir)
-
-        # Cleanup temp folders
-        try:
-            shutil.rmtree(temp_extract_dir)
-        except Exception:
-            pass
-
-        try:
-            shutil.rmtree(old_dir)
-        except Exception:
-            pass
+        if backup_dir.exists():
+            try:
+                shutil.rmtree(backup_dir)
+            except OSError as cleanup_error:
+                print(f"[M8] Update installed, but backup cleanup failed: {cleanup_error}")
 
         print("[M8] Manual update extraction completed successfully.")
         return True

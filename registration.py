@@ -198,7 +198,8 @@ from .property.preferences import (
     M8_OT_ResetPrefsUI,
     register_keymaps,
     unregister_keymaps,
-    update_keymaps
+    update_keymaps,
+    restore_tracked_conflicts,
 )
 
 from .ops.file.save_pie_ops import (
@@ -654,8 +655,9 @@ def _startup_apply():
         if keymap_ok and exclusive_ok:
             _startup_done = True  # all good, no need for further full inits
             try:
-                from .utils.network import check_for_updates_async
-                check_for_updates_async(is_manual=False)
+                if getattr(prefs, "auto_check_updates", False):
+                    from .utils.network import check_for_updates_async
+                    check_for_updates_async(is_manual=False)
             except Exception:
                 pass
 
@@ -829,6 +831,7 @@ def unregister():
         pass
 
     _unregister_startup_timer()
+    restore_tracked_conflicts()
     unregister_keymaps()
     # Stop any running screencast session to avoid leaking draw handler + timer
     try:

@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "M8"
-version = "3.6.9"
+version = "3.7.0"
 name = "M8 Toolbox"
 tagline = "Efficiency is life in complex 3D modeling projects. M8 is not just a toolbox, it's the lubricant for your workflow."
 maintainer = "MaobuKawaii"

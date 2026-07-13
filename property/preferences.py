@@ -19,6 +19,12 @@ def _on_language_changed():
         pass
 
 
+def _on_auto_error_report_changed(self, context):
+    """Record explicit consent before allowing automated error uploads."""
+    if self.auto_error_report:
+        self.error_report_consent_version = 1
+
+
 from .keymap_constants import *
 from .keymap_helpers import (
     _get_addon_prefs,
@@ -61,6 +67,7 @@ from .keymap_helpers import (
     _find_smart_pie_keymap_items,
     _find_toggle_area_keymap_items,
     _find_fast_loop_keymap_items,
+    restore_tracked_conflicts,
 )
 
 class M8_MP7_MockDrawProperty(bpy.types.PropertyGroup):
@@ -148,7 +155,14 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     auto_error_report: bpy.props.BoolProperty(
         name=_T("自动发送错误报告"),
         description=_T("当插件运行出错时自动上报Traceback到服务器以利于后续修复"),
-        default=True
+        default=False,
+        update=_on_auto_error_report_changed,
+    )
+    error_report_consent_version: bpy.props.IntProperty(default=0, options={'HIDDEN'})
+    auto_check_updates: bpy.props.BoolProperty(
+        name=_T("自动检查更新"),
+        description=_T("启动后自动连接更新服务器检查新版本"),
+        default=True,
     )
 
     backup_suffix: bpy.props.StringProperty(name=_T("备用盒后缀"), default="_Backup")
@@ -403,6 +417,11 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         name=_T("默认启用 EdgeFlow"),
         description=_T("启动工具时默认开启 EdgeFlow 模式（左键点击直接平滑切线）"),
         default=False
+    )
+    fast_loop_reproject_uv_after_edge_flow: bpy.props.BoolProperty(
+        name=_T("EdgeFlow 后重投影 UV"),
+        description=_T("按 EdgeFlow 后的新环线长度重新插值 UV，并保留 UV 缝。关闭可保留旧版 UV 行为。"),
+        default=True
     )
     fast_loop_keep_selection: bpy.props.BoolProperty(
         name=_T("保持选择 (S键)"),
@@ -668,6 +687,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         row_telemetry = box.row(align=True)
         row_telemetry.alignment = 'CENTER'
         row_telemetry.prop(self, "auto_error_report")
+        row_telemetry.prop(self, "auto_check_updates")
         
         col.separator()
         
@@ -1189,6 +1209,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             flow.prop(self, "fast_loop_perpendicular")
             flow.prop(self, "fast_loop_use_curvature")
             flow.prop(self, "fast_loop_enable_edge_flow")
+            flow.prop(self, "fast_loop_reproject_uv_after_edge_flow")
 
             # EdgeFlow params sub-box
             ef_box = box.box()

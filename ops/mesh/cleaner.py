@@ -840,9 +840,12 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
             self.report({'ERROR'}, _T("没有活动的网格物体"))
             return {'CANCELLED'}
 
-        # Enter edit mode if not already
+        # This tool operates on selected edges.  Entering Edit Mode from Object
+        # Mode cannot provide a meaningful edge selection and previously left
+        # the user in a different mode when the operation cancelled.
         if active_obj.mode != 'EDIT':
-            bpy.ops.object.mode_set(mode='EDIT')
+            self.report({'WARNING'}, _T("请在编辑模式选择要反倒角的边后运行"))
+            return {'CANCELLED'}
 
         bm = bmesh.from_edit_mesh(active_obj.data)
         bm.edges.ensure_lookup_table()
@@ -860,11 +863,15 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
         reference_edge = selected_edges[0]
         reference_length = reference_edge.calc_length()
         
+        # Combine the user-provided absolute tolerance with a relative one so
+        # the result stays useful for assets authored at different scales.
+        tolerance = max(self.similarity_threshold, reference_length * self.similarity_threshold)
+
         # Find all edges with similar length
         similar_edges = []
         for edge in bm.edges:
             edge_length = edge.calc_length()
-            if abs(edge_length - reference_length) <= self.similarity_threshold:
+            if abs(edge_length - reference_length) <= tolerance:
                 similar_edges.append(edge)
         
         # Store vertices and their connected edges before unbeveling for sharp marking
@@ -986,9 +993,9 @@ class MESH_OT_select_short_edges(bpy.types.Operator):
             self.report({'ERROR'}, _T("没有活动的网格物体"))
             return {'CANCELLED'}
 
-        # Enter edit mode if not already
         if active_obj.mode != 'EDIT':
-            bpy.ops.object.mode_set(mode='EDIT')
+            self.report({'WARNING'}, _T("请在编辑模式运行短边选择"))
+            return {'CANCELLED'}
 
         bm = bmesh.from_edit_mesh(active_obj.data)
         bm.edges.ensure_lookup_table()
@@ -1053,9 +1060,9 @@ class MESH_OT_unbevel_selected(bpy.types.Operator):
             self.report({'ERROR'}, _T("没有活动的网格物体"))
             return {'CANCELLED'}
             
-        # Enter edit mode if not already
         if active_obj.mode != 'EDIT':
-            bpy.ops.object.mode_set(mode='EDIT')
+            self.report({'WARNING'}, _T("请在编辑模式选择要反倒角的边后运行"))
+            return {'CANCELLED'}
         
         bm = bmesh.from_edit_mesh(active_obj.data)
         bm.edges.ensure_lookup_table()

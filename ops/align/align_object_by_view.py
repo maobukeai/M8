@@ -84,8 +84,17 @@ class AlignObjectByView(bpy.types.Operator):
 
     def execute(self, context):
         context.view_layer.update()
+        # Redo can call execute() without invoke(), so do not rely on the
+        # transient matrix cache being initialized by the original click.
+        if not self.matrix_dict:
+            self.matrix_dict = {
+                obj.name: obj.matrix_world.copy()
+                for obj in context.selected_objects
+            }
         for obj in context.selected_objects:
-            obj.matrix_world = self.matrix_dict[obj.name]
+            original_matrix = self.matrix_dict.get(obj.name)
+            if original_matrix is not None:
+                obj.matrix_world = original_matrix
             context.view_layer.update()
         context.view_layer.update()
         bpy.ops.m8.align_object("INVOKE_DEFAULT", **self.get_ops_args(context))
