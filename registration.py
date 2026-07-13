@@ -130,7 +130,7 @@ from .ops.misc.smart_tools import (
     M8_OT_SmartEdgeToggleMode,
 )
 from .ops.misc.toggle_area import M8_OT_ToggleArea
-from .ops.misc.telemetry import M8_OT_CheckUpdate, M8_OT_SubmitFeedback, M8_OT_InstallUpdate
+from .ops.misc.telemetry import M8_OT_CheckUpdate, M8_OT_SubmitFeedback, M8_OT_InstallUpdate, M8_OT_TriggerTestError
 from .ui.pie.smart_pie import VIEW3D_MT_M8SmartPie
 from .ops.mesh.cleaner import (
     M8_Clean_Props,
@@ -262,6 +262,7 @@ CLASSES = [
     M8_OT_CheckUpdate,
     M8_OT_SubmitFeedback,
     M8_OT_InstallUpdate,
+    M8_OT_TriggerTestError,
     M8_OT_SortMaterials,
     M8_OT_MergeNearbyObjects,
     M8_OT_BatchCopyAlign,
@@ -693,7 +694,49 @@ def draw_fast_loop_menu(self, context):
     self.layout.separator()
     self.layout.operator("m8.fast_loop", icon='EDGESEL')
 
+_original_register_class = bpy.utils.register_class
+
+def _m8_register_class_wrapper(cls):
+    try:
+        if issubclass(cls, bpy.types.Operator):
+            if cls.__module__.startswith(__package__ or ""):
+                for name in ("execute", "invoke", "modal"):
+                    orig_method = getattr(cls, name, None)
+                    if orig_method and not getattr(orig_method, "_m8_wrapped", False):
+                        def make_wrapper(method, method_name):
+                            if method_name == "execute":
+                                def wrapped(self, context):
+                                    try:
+                                        return method(self, context)
+                                    except Exception as e:
+                                        from .utils.logger import get_logger
+                                        logger = get_logger()
+                                        logger.error(f"Error in {cls.__name__}.{method_name}: {e}", exc_info=True)
+                                        raise
+                            else:  # invoke or modal
+                                def wrapped(self, context, event):
+                                    try:
+                                        return method(self, context, event)
+                                    except Exception as e:
+                                        from .utils.logger import get_logger
+                                        logger = get_logger()
+                                        logger.error(f"Error in {cls.__name__}.{method_name}: {e}", exc_info=True)
+                                        raise
+                            wrapped._m8_wrapped = True
+                            try:
+                                wrapped.__name__ = method.__name__
+                                wrapped.__doc__ = method.__doc__
+                            except Exception:
+                                pass
+                            return wrapped
+                        setattr(cls, name, make_wrapper(orig_method, name))
+    except Exception:
+        pass
+    return _original_register_class(cls)
+
 def register():
+    if bpy.utils.register_class is not _m8_register_class_wrapper:
+        bpy.utils.register_class = _m8_register_class_wrapper
     global _startup_timer_registered
     global _startup_apply_runs
     global _startup_done

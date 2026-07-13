@@ -688,6 +688,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         row_telemetry.alignment = 'CENTER'
         row_telemetry.prop(self, "auto_error_report")
         row_telemetry.prop(self, "auto_check_updates")
+        if self.auto_error_report:
+            row_telemetry.operator("m8.trigger_test_error", text=_T("测试报错上报"), icon='ERROR')
         
         col.separator()
         

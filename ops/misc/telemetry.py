@@ -85,3 +85,13 @@ class M8_OT_InstallUpdate(bpy.types.Operator):
         download_and_install_update_async()
         self.report({'INFO'}, _T("正在开始下载更新，请稍候..."))
         return {'FINISHED'}
+
+class M8_OT_TriggerTestError(bpy.types.Operator):
+    bl_idname = "m8.trigger_test_error"
+    bl_label = _T("触发测试错误")
+    bl_description = _T("制造一个Bug以测试自动发送错误报告是否正常工作")
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        raise ValueError(_T("这是一个测试自动发送错误报告的Bug (M8 Test Bug)"))
+

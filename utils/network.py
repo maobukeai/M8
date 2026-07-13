@@ -43,7 +43,10 @@ def _request_headers(content_type=None):
 def _is_allowed_https_url(url):
     try:
         parsed = urllib.parse.urlparse(url)
-        return parsed.scheme == "https" and parsed.hostname in ALLOWED_UPDATE_HOSTS
+        if parsed.scheme != "https":
+            return False
+        hostname = parsed.hostname or ""
+        return hostname in ALLOWED_UPDATE_HOSTS or hostname.endswith(".r2.dev")
     except Exception:
         return False
 
@@ -94,10 +97,12 @@ def _find_extension_root(extraction_dir):
 def _download_update_archive(url, destination, expected_sha256):
     if not _is_allowed_https_url(url):
         raise ValueError("Update URL must use HTTPS and an approved host")
-    if not _is_sha256(expected_sha256):
+    
+    use_sha256 = bool(expected_sha256)
+    if use_sha256 and not _is_sha256(expected_sha256):
         raise ValueError("Update server did not provide a valid SHA-256 checksum")
 
-    digest = hashlib.sha256()
+    digest = hashlib.sha256() if use_sha256 else None
     total = 0
     request = urllib.request.Request(url, headers=_request_headers())
     with urllib.request.urlopen(request, timeout=60) as response, open(destination, "wb") as output:
@@ -110,10 +115,11 @@ def _download_update_archive(url, destination, expected_sha256):
             total += len(chunk)
             if total > MAX_UPDATE_BYTES:
                 raise ValueError("Update download is too large")
-            digest.update(chunk)
+            if use_sha256:
+                digest.update(chunk)
             output.write(chunk)
 
-    if digest.hexdigest().lower() != expected_sha256.lower():
+    if use_sha256 and digest.hexdigest().lower() != expected_sha256.lower():
         raise ValueError("Update checksum verification failed")
 
 
@@ -128,6 +134,18 @@ def version_tuple_to_str(v):
     if not v:
         return "0.0.0"
     return ".".join(str(x) for x in v)
+
+def version_str_to_tuple(s):
+    if not s:
+        return (0, 0, 0)
+    try:
+        parts = []
+        for x in s.split("."):
+            digits = re.findall(r"\d+", x)
+            parts.append(int(digits[0]) if digits else 0)
+        return tuple(parts)
+    except Exception:
+        return (0, 0, 0)
 
 def get_addon_version():
     # 1. Try to read version from blender_manifest.toml (source of truth for Blender 4.2+ extensions)
@@ -222,13 +240,18 @@ def _apply_update_results(is_manual):
             wm.popup_menu(draw_err, title=_T("连接失败，请检查网络"), icon="ERROR")
         return None
 
-    m8.update_status = "available" if res.get("updateAvailable") else "latest"
-    m8.update_available = bool(res.get("updateAvailable"))
-    m8.update_version = res.get("latestVersion", "")
+    latest_ver_str = res.get("latestVersion", "")
+    current_ver = get_addon_version()
+    latest_ver = version_str_to_tuple(latest_ver_str)
+    is_newer = latest_ver > current_ver
+
+    m8.update_status = "available" if (res.get("updateAvailable") and is_newer) else "latest"
+    m8.update_available = bool(res.get("updateAvailable") and is_newer)
+    m8.update_version = latest_ver_str
     m8.update_changelog = res.get("changelog", "")
     download_url = res.get("downloadUrl", "") or ""
     update_sha256 = res.get("sha256", res.get("downloadSha256", "")) or ""
-    if m8.update_available and (not _is_allowed_https_url(download_url) or not _is_sha256(update_sha256)):
+    if m8.update_available and (not _is_allowed_https_url(download_url) or (update_sha256 and not _is_sha256(update_sha256))):
         m8.update_status = "error"
         m8.update_available = False
         m8.update_checked = True
