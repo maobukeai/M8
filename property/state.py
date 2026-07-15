@@ -47,6 +47,19 @@ class M8_SceneState(bpy.types.PropertyGroup):
         description=_T("修改调节盒任意轴尺寸时，其他两轴按相同比例自动同步调整"),
         default=False
     )
+    # 快照历史栈：JSON 字符串，格式 [{"label":"快照 1","x":1.0,"y":0.5,"z":0.8}, ...]
+    # 最多保存 5 条，超出时自动删除最旧的
+    cage_snapshot_stack: bpy.props.StringProperty(
+        name=_T("快照历史栈"),
+        description=_T("保存调节盒尺寸快照的历史记录（JSON格式，最多5条）"),
+        default="[]",
+    )
+    # 独轴锁定比例：默认关闭；开启后修改任意轴，其余两轴以相同比例跟随
+    cage_lock_proportional: bpy.props.BoolProperty(
+        name=_T("锁定比例"),
+        description=_T("修改某一轴时，以该轴的变化比例自动缩放其他两轴"),
+        default=False,
+    )
     clean: bpy.props.PointerProperty(type=M8_Clean_Props)
     custom_tools: bpy.props.PointerProperty(type=M8_CustomTools_Props)
     image_save_preset: bpy.props.PointerProperty(type=M8_ImageSavePresetProps)

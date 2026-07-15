@@ -97,6 +97,9 @@ from .ops.object.cage_tool import (
     OBJECT_OT_AutoAdjustZ,
     OBJECT_OT_ScaleProportional,
     OBJECT_OT_ClearSnapshot,
+    OBJECT_OT_PushSnapshotToStack,
+    OBJECT_OT_RestoreSnapshotFromStack,
+    OBJECT_OT_DeleteSnapshotFromStack,
     register as register_cage_tool,
     unregister as unregister_cage_tool
 )
@@ -196,6 +199,7 @@ from .property.preferences import (
     M8_OT_ResetSwitchModePrefs,
 
     M8_OT_ResetPrefsUI,
+    M8_OT_ImportMouseImages,
     register_keymaps,
     unregister_keymaps,
     update_keymaps,
@@ -300,6 +304,7 @@ CLASSES = [
     M8_OT_ResetSwitchModePrefs,
 
     M8_OT_ResetPrefsUI,
+    M8_OT_ImportMouseImages,
     SIZE_TOOL_OT_ForceDeletePiePriority,
     SIZE_TOOL_OT_ForceRenamePriority,
     SIZE_TOOL_OT_ForceShadingPiePriority,
@@ -394,6 +399,9 @@ CLASSES = [
     OBJECT_OT_AutoAdjustZ,
     OBJECT_OT_ScaleProportional,
     OBJECT_OT_ClearSnapshot,
+    OBJECT_OT_PushSnapshotToStack,
+    OBJECT_OT_RestoreSnapshotFromStack,
+    OBJECT_OT_DeleteSnapshotFromStack,
     SCENE_OT_SwitchUnit,
     SCENE_OT_ResetSizeToolPadding,
     VIEW3D_PT_SizeAdjustPanel,

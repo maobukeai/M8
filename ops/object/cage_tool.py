@@ -1,5 +1,6 @@
 import bpy
 import uuid
+import json
 from mathutils import Vector, Matrix
 from ...utils import (
     ensure_object_mode,
@@ -736,6 +737,118 @@ class OBJECT_OT_ClearSnapshot(bpy.types.Operator):
         self.report({'INFO'}, f"{_T('已清除')} {cleared} {_T('个物体的快照')}")
         return {'FINISHED'}
 
+# ─────────────────────────────────────────────
+# 快照历史栈操作符
+# ─────────────────────────────────────────────
+
+_SNAPSHOT_STACK_MAX = 5
+
+
+def _parse_snapshot_stack(context):
+    """从场景属性中解析快照历史栈，返回 list[dict]。失败时返回空列表。"""
+    try:
+        return json.loads(context.scene.m8.cage_snapshot_stack)
+    except Exception:
+        return []
+
+
+def _save_snapshot_stack(context, stack):
+    """将快照历史栈序列化并存入场景属性。"""
+    context.scene.m8.cage_snapshot_stack = json.dumps(stack, ensure_ascii=False)
+
+
+class OBJECT_OT_PushSnapshotToStack(bpy.types.Operator):
+    bl_idname = "object.push_cage_snapshot"
+    bl_label = _T("保存历史快照")
+    bl_description = _T("将当前调节盒尺寸保存到历史快照栈（最多保留 5 条）")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and is_size_cage(obj)
+
+    def execute(self, context):
+        cage = context.active_object
+        dims = cage.dimensions
+        stack = _parse_snapshot_stack(context)
+
+        # 自动生成标签
+        existing_indices = set()
+        for item in stack:
+            label = item.get("label", "")
+            if label.startswith(_T("快照 ")):
+                try:
+                    existing_indices.add(int(label.split()[-1]))
+                except Exception:
+                    pass
+        n = 1
+        while n in existing_indices:
+            n += 1
+        label = f"{_T('快照')} {n}"
+
+        stack.append({"label": label, "x": dims.x, "y": dims.y, "z": dims.z})
+        # 超出上限时删除最旧的
+        if len(stack) > _SNAPSHOT_STACK_MAX:
+            stack = stack[-_SNAPSHOT_STACK_MAX:]
+
+        _save_snapshot_stack(context, stack)
+        self.report({'INFO'}, f"{_T('已保存快照：')} {label} ({dims.x:.3f}, {dims.y:.3f}, {dims.z:.3f})")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_RestoreSnapshotFromStack(bpy.types.Operator):
+    bl_idname = "object.restore_cage_snapshot"
+    bl_label = _T("还原快照")
+    bl_description = _T("将调节盒尺寸还原为指定历史快照")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    index: bpy.props.IntProperty(name="Index", default=0, options={'HIDDEN'})
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and is_size_cage(obj)
+
+    def execute(self, context):
+        cage = context.active_object
+        stack = _parse_snapshot_stack(context)
+        if not stack or self.index < 0 or self.index >= len(stack):
+            self.report({'WARNING'}, _T("快照索引无效"))
+            return {'CANCELLED'}
+
+        item = stack[self.index]
+        try:
+            cage.dimensions = (item["x"], item["y"], item["z"])
+        except Exception as e:
+            self.report({'WARNING'}, f"{_T('还原失败：')} {e}")
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, f"{_T('已还原快照：')} {item.get('label', self.index)}")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_DeleteSnapshotFromStack(bpy.types.Operator):
+    bl_idname = "object.delete_cage_snapshot"
+    bl_label = _T("删除快照")
+    bl_description = _T("从历史快照栈中删除指定条目")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    index: bpy.props.IntProperty(name="Index", default=0, options={'HIDDEN'})
+
+    def execute(self, context):
+        stack = _parse_snapshot_stack(context)
+        if not stack or self.index < 0 or self.index >= len(stack):
+            self.report({'WARNING'}, _T("快照索引无效"))
+            return {'CANCELLED'}
+
+        removed = stack.pop(self.index)
+        _save_snapshot_stack(context, stack)
+        self.report({'INFO'}, f"{_T('已删除快照：')} {removed.get('label', self.index)}")
+        return {'FINISHED'}
+
+
+# ─────────────────────────────────────────────
 _is_internal_cage_updating = False
 
 @bpy.app.handlers.persistent
@@ -745,7 +858,14 @@ def cage_depsgraph_update_handler(scene, depsgraph):
         return
 
     m8 = getattr(scene, "m8", None)
-    if not m8 or not getattr(m8, "lock_aspect_ratio", False):
+    if not m8:
+        return
+
+    lock_aspect = getattr(m8, "lock_aspect_ratio", False)
+    lock_prop   = getattr(m8, "cage_lock_proportional", False)
+
+    # 两个锁都关闭时直接跳过，避免不必要的运算
+    if not lock_aspect and not lock_prop:
         return
 
     try:
@@ -780,18 +900,36 @@ def cage_depsgraph_update_handler(scene, depsgraph):
     _is_internal_cage_updating = True
     try:
         new_dims = Vector(curr_dims)
-        if rx >= ry and rx >= rz and rx > 1e-5:
-            scale = curr_dims.x / last_dims.x if last_dims.x > 1e-5 else 1.0
-            new_dims.y = last_dims.y * scale
-            new_dims.z = last_dims.z * scale
-        elif ry >= rx and ry >= rz and ry > 1e-5:
-            scale = curr_dims.y / last_dims.y if last_dims.y > 1e-5 else 1.0
-            new_dims.x = last_dims.x * scale
-            new_dims.z = last_dims.z * scale
-        elif rz > 1e-5:
-            scale = curr_dims.z / last_dims.z if last_dims.z > 1e-5 else 1.0
-            new_dims.x = last_dims.x * scale
-            new_dims.y = last_dims.y * scale
+        if lock_aspect:
+            # ── 原有逻辑：全局等比例（三轴同比缩放）──
+            # 找出相对变化最大的轴，以它的绝对比例驱动其余两轴
+            if rx >= ry and rx >= rz and rx > 1e-5:
+                scale = curr_dims.x / last_dims.x if last_dims.x > 1e-5 else 1.0
+                new_dims.y = last_dims.y * scale
+                new_dims.z = last_dims.z * scale
+            elif ry >= rx and ry >= rz and ry > 1e-5:
+                scale = curr_dims.y / last_dims.y if last_dims.y > 1e-5 else 1.0
+                new_dims.x = last_dims.x * scale
+                new_dims.z = last_dims.z * scale
+            elif rz > 1e-5:
+                scale = curr_dims.z / last_dims.z if last_dims.z > 1e-5 else 1.0
+                new_dims.x = last_dims.x * scale
+                new_dims.y = last_dims.y * scale
+        elif lock_prop:
+            # ── 新逻辑：独轴驱动（以变化最大轴的比例驱动其余两轴）──
+            # 与 lock_aspect 相同算法，但通过独立开关控制，互不影响
+            if rx >= ry and rx >= rz and rx > 1e-5:
+                scale = curr_dims.x / last_dims.x if last_dims.x > 1e-5 else 1.0
+                new_dims.y = last_dims.y * scale
+                new_dims.z = last_dims.z * scale
+            elif ry >= rx and ry >= rz and ry > 1e-5:
+                scale = curr_dims.y / last_dims.y if last_dims.y > 1e-5 else 1.0
+                new_dims.x = last_dims.x * scale
+                new_dims.z = last_dims.z * scale
+            elif rz > 1e-5:
+                scale = curr_dims.z / last_dims.z if last_dims.z > 1e-5 else 1.0
+                new_dims.x = last_dims.x * scale
+                new_dims.y = last_dims.y * scale
 
         obj.dimensions = new_dims
         obj["_last_cage_dims"] = tuple(new_dims)

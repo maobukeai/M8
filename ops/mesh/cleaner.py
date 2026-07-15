@@ -1217,79 +1217,57 @@ class MESH_OT_flat_loop_cleaner(bpy.types.Operator):
         return loops
 
     def trace_edge_loop(self, bm, start_edge):
-        """Trace a complete edge loop or edge sequence starting from an edge"""
+        """Trace a quad-topology edge loop or an open edge-loop sequence.
+
+        Edge-loop continuation is a topological relation: at a regular quad
+        vertex the next edge is the one that shares neither adjacent face with
+        the current edge.  Using the geometric direction instead causes rings
+        on curved meshes to jump to unrelated edges and makes closed rings get
+        traced twice (once from each end of ``start_edge``).
+        """
         if not start_edge.is_manifold:
             return None
 
-        def get_edge_direction(edge):
-            """Get the direction vector of an edge"""
-            return (edge.verts[1].co - edge.verts[0].co).normalized()
+        def opposite_edge(current_edge, vert):
+            current_faces = set(current_edge.link_faces)
+            candidates = [
+                edge for edge in vert.link_edges
+                if edge != current_edge
+                and edge.is_manifold
+                and not (set(edge.link_faces) & current_faces)
+            ]
+            # A valid quad loop has exactly one topological opposite edge.  Do
+            # not guess at poles, triangles, or branching/non-quad topology.
+            return candidates[0] if len(candidates) == 1 else None
 
-        def are_edges_continuous(edge1, edge2, shared_vert):
-            """Check if two edges form a continuous sequence"""
-            # They must share exactly one vertex
-            shared_verts = set(edge1.verts) & set(edge2.verts)
-            if len(shared_verts) != 1 or shared_vert not in shared_verts:
-                return False
-
-            # Get directions
-            dir1 = get_edge_direction(edge1)
-            dir2 = get_edge_direction(edge2)
-
-            # If the shared vertex is edge1.verts[0], we might need to flip dir1
-            if edge1.verts[0] == shared_vert:
-                dir1 = -dir1
-
-            # If the shared vertex is edge2.verts[1], we might need to flip dir2  
-            if edge2.verts[1] == shared_vert:
-                dir2 = -dir2
-
-            # Check if directions are roughly aligned (allowing for curves)
-            dot_product = abs(dir1.dot(dir2))
-            return dot_product > 0.7  # Allow for some curvature
-
-        def trace_direction(edge, start_vert):
-            sequence = [edge]
-            current_edge = edge
+        def trace_direction(start_vert):
+            sequence = [start_edge]
+            current_edge = start_edge
             current_vert = start_vert
 
-            while True:
-                # Find candidate edges
-                candidate_edges = [e for e in current_vert.link_edges 
-                                 if e.is_manifold and e != current_edge]
-
-                # Filter by continuity
-                next_edge = None
-                for candidate in candidate_edges:
-                    if are_edges_continuous(current_edge, candidate, current_vert):
-                        next_edge = candidate
-                        break
-
-                if not next_edge or next_edge in sequence:
-                    break
+            while len(sequence) <= len(bm.edges):
+                next_edge = opposite_edge(current_edge, current_vert)
+                if next_edge is None:
+                    return sequence, False
+                if next_edge == start_edge:
+                    return sequence, True
+                if next_edge in sequence:
+                    return sequence, False
 
                 sequence.append(next_edge)
+                current_vert = next_edge.other_vert(current_vert)
                 current_edge = next_edge
-                current_vert = current_edge.other_vert(current_vert)
 
-                # Safety check
-                if len(sequence) > len(bm.edges):
-                    break
+            return sequence, False
 
-            return sequence
+        first_sequence, is_closed = trace_direction(start_edge.verts[0])
+        if is_closed:
+            return first_sequence if len(first_sequence) > 1 else None
 
-        # Trace from both vertices of the start edge
-        sequence1 = trace_direction(start_edge, start_edge.verts[0])
-        sequence2 = trace_direction(start_edge, start_edge.verts[1])
-
-        # Combine sequences, removing the duplicate start_edge
-        if len(sequence2) > 1:
-            sequence2.reverse()
-            sequence2.pop()  # Remove the start_edge duplicate
-            loop = sequence2 + sequence1
-        else:
-            loop = sequence1
-
+        second_sequence, _ = trace_direction(start_edge.verts[1])
+        # The two directions each include start_edge.  Reverse the second path
+        # to preserve a continuous order, then append the first without it.
+        loop = list(reversed(second_sequence)) + first_sequence[1:]
         return loop if len(loop) > 1 else None
 
     def is_flat_edge(self, e, threshold):

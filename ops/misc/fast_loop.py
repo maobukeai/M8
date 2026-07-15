@@ -140,6 +140,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
         self.dimension_draws = []
         if edge_idx < 0 or not self.bm:
             self.edge_ring_edges = []
+            self.edge_ring_edge_indices = []
             self.edge_ring_orientations = {}
             self.preview_points = []
             self.preview_lines = []
@@ -168,6 +169,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
             self.edge_ring_orientations = self.get_oriented_edge_ring(self.bm, start_edge)
 
         self.edge_ring_edges = [self.bm.edges[idx] for idx in self.edge_ring_orientations.keys() if idx < len(self.bm.edges)]
+        self.edge_ring_edge_indices = [edge.index for edge in self.edge_ring_edges]
 
         # 2. Compute Slide Factor on Hovered Edge
         is_start_rev = self.edge_ring_orientations[start_edge.index]
@@ -390,6 +392,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
         
         # Reset hovered state
         self.hovered_edge_idx = -1
+        self.edge_ring_edge_indices = []
         self.last_hit_loc = None
         self.preview_points = []
         self.preview_lines = []
@@ -397,17 +400,55 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
     def perform_cut(self, context, shift=False):
         """Apply subdivision and UV correction onto the edit bmesh."""
-        if not self.bm or not self.edge_ring_edges:
+        if not self.bm or not getattr(self, "edge_ring_edge_indices", None):
             return
 
-        # Cache which edges were pre-selected by the user before this cut
-        originally_selected_edge_indices = {e.index for e in self.bm.edges if e.select}
+        # An edit-mesh update invalidates every cached BMEdge wrapper.  Resolve
+        # fresh edges from the last preview's indices before cutting again.
+        self.bm = bmesh.from_edit_mesh(self.target_object.data)
+        self.bms[self.target_object.name] = self.bm
+        self.bm.edges.ensure_lookup_table()
+
+        # Creating/removing a BMesh custom-data layer can invalidate BMEdge
+        # wrappers.  Set up every temporary edge layer before resolving any
+        # edges that will be kept across this method.
+        selected_edge_layer_name = "m8_fast_loop_was_selected"
+        new_loop_edge_layer_name = "m8_fast_loop_new_loop"
+        for layer_name in (selected_edge_layer_name, new_loop_edge_layer_name):
+            old_layer = self.bm.edges.layers.int.get(layer_name)
+            if old_layer:
+                self.bm.edges.layers.int.remove(old_layer)
+        selected_edge_layer = self.bm.edges.layers.int.new(selected_edge_layer_name)
+        new_loop_edge_layer = self.bm.edges.layers.int.new(new_loop_edge_layer_name)
+
+        ring_edges = [
+            self.bm.edges[index]
+            for index in self.edge_ring_edge_indices
+            if 0 <= index < len(self.bm.edges)
+        ]
+        if (
+            not ring_edges
+            or self.hovered_edge_idx not in self.edge_ring_orientations
+            or not 0 <= self.hovered_edge_idx < len(self.bm.edges)
+        ):
+            return
+
+        start_edge = self.bm.edges[self.hovered_edge_idx]
+        is_start_rev = self.edge_ring_orientations[self.hovered_edge_idx]
+        v1_ref = (start_edge.verts[1] if is_start_rev else start_edge.verts[0]).co.copy()
+        v2_ref = (start_edge.verts[0] if is_start_rev else start_edge.verts[1]).co.copy()
+        L_active = (v2_ref - v1_ref).length
+
+        # Preserve the user's selected edges in custom data rather than by
+        # BMesh index.  Subdivide replaces edges and may reassign indices.
+        for edge in self.bm.edges:
+            edge[selected_edge_layer] = int(edge.select)
 
         uv_layer = self.bm.loops.layers.uv.active
 
         # Store original vertices/segments info consistently using our edge orientations
         orig_segments = []
-        for e in self.edge_ring_edges:
+        for e in ring_edges:
             is_rev = self.edge_ring_orientations[e.index]
             v1 = e.verts[1] if is_rev else e.verts[0]
             v2 = e.verts[0] if is_rev else e.verts[1]
@@ -458,9 +499,9 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
         # Perform native BMesh subdivision
         if self.vertex_mode:
-            bmesh.ops.subdivide_edges(self.bm, edges=self.edge_ring_edges, cuts=cuts_count)
+            bmesh.ops.subdivide_edges(self.bm, edges=ring_edges, cuts=cuts_count)
         else:
-            bmesh.ops.subdivide_edgering(self.bm, edges=self.edge_ring_edges, cuts=cuts_count, interp_mode='LINEAR')
+            bmesh.ops.subdivide_edgering(self.bm, edges=ring_edges, cuts=cuts_count, interp_mode='LINEAR')
 
         self.bm.verts.ensure_lookup_table()
         self.bm.edges.ensure_lookup_table()
@@ -481,7 +522,23 @@ class M8_OT_FastLoop(bpy.types.Operator):
         # Fallback: if the heuristic returned nothing (rare mesh topologies), use all new edges
         if not new_loop_edges:
             new_loop_edges = all_new_edges
-        new_loop_edge_indices = {e.index for e in new_loop_edges}
+
+        # Mark the actual cut loop.  The temporary layer was created before
+        # resolving BMesh edges, so assigning it cannot invalidate this list.
+        for edge in new_loop_edges:
+            edge[new_loop_edge_layer] = 1
+
+        def restore_kept_selection(bm):
+            """Restore pre-cut selection and select the new loop for S mode."""
+            selected_layer = bm.edges.layers.int.get(selected_edge_layer_name)
+            loop_layer = bm.edges.layers.int.get(new_loop_edge_layer_name)
+            if not self.keep_selection or not selected_layer or not loop_layer:
+                return
+            for edge in bm.edges:
+                if edge[selected_layer] or edge[loop_layer]:
+                    # select_set propagates to vertices; assigning edge.select
+                    # alone fails to display the result in vertex selection mode.
+                    edge.select_set(True)
 
         # Group new vertices by original edge segment
         from collections import defaultdict
@@ -497,23 +554,14 @@ class M8_OT_FastLoop(bpy.types.Operator):
                     v[source_edge_layer] = e_idx + 1
                     break
 
-        # Compute slide factors for hovered edge
-        start_edge = self.bm.edges[self.hovered_edge_idx]
-        is_start_rev = self.edge_ring_orientations[start_edge.index]
-        v1_ref = start_edge.verts[1] if is_start_rev else start_edge.verts[0]
-        v2_ref = start_edge.verts[0] if is_start_rev else start_edge.verts[1]
-        L_active = (v2_ref.co - v1_ref.co).length
-
         # Position and correct UVs
         if self.use_curvature:
             self.bm.normal_update()
         for e_idx, n_verts in edge_to_new_verts.items():
-            # Find edge orientation
-            edge_obj = self.bm.edges[e_idx]
-            is_rev = self.edge_ring_orientations[edge_obj.index]
-            ev1 = edge_obj.verts[1] if is_rev else edge_obj.verts[0]
-            ev2 = edge_obj.verts[0] if is_rev else edge_obj.verts[1]
-            L_edge = (ev2.co - ev1.co).length
+            # Subdivision may reassign the original edge index.  The cached
+            # endpoints are stable and contain the exact pre-cut length.
+            _, _, edge_p1, edge_p2 = edge_sources[e_idx]
+            L_edge = (edge_p2 - edge_p1).length
 
             # Sort new verts by factor (from start to end)
             n_verts.sort(key=lambda x: x[1])
@@ -546,8 +594,8 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
                 # Apply Perpendicular plane adjustment
                 if self.perpendicular:
-                    plane_origin = v1_ref.co.lerp(v2_ref.co, slide_factor)
-                    plane_normal = (v2_ref.co - v1_ref.co).normalized()
+                    plane_origin = v1_ref.lerp(v2_ref, slide_factor)
+                    plane_normal = (v2_ref - v1_ref).normalized()
                     isect_point = mathutils.geometry.intersect_line_plane(p1_co, p2_co, plane_origin, plane_normal)
                     if isect_point is not None:
                         _, slide_factor = mathutils.geometry.intersect_point_line(isect_point, p1_co, p2_co)
@@ -643,13 +691,16 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
         if run_edge_flow:
             if hasattr(bpy.ops.mesh, "set_edge_flow"):
-                # EdgeFlow operates on every selected edge.  Passing the user's
-                # previous selection here also moves surrounding loops after their
-                # UVs have already been interpolated, which produces severe UV
-                # stretching.  Isolate the newly-created loop for the operation,
-                # then restore the user's selection below.
+                # EdgeFlow operates on every selected edge.  S explicitly opts
+                # into including the user's pre-selected edges alongside the
+                # newly-created loop in the Set Flow calculation.
+                loop_layer = self.bm.edges.layers.int.get(new_loop_edge_layer_name)
+                selected_layer = self.bm.edges.layers.int.get(selected_edge_layer_name)
                 for e in self.bm.edges:
-                    e.select = e.index in new_loop_edge_indices
+                    e.select = bool(
+                        (loop_layer and e[loop_layer])
+                        or (self.keep_selection and selected_layer and e[selected_layer])
+                    )
                 # Do not flush here.  In vertex/face selection modes a flush can
                 # clear these edge flags, leaving EdgeFlow with an empty input.
                 bmesh.update_edit_mesh(self.target_object.data)
@@ -675,12 +726,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 self.bms[self.target_object.name] = self.bm
                 reproject_flow_uvs()
 
-                for e in self.bm.edges:
-                    e.select = (
-                        e.index in originally_selected_edge_indices or
-                        (self.keep_selection and e.index in new_loop_edge_indices)
-                    )
-
+                restore_kept_selection(self.bm)
                 self.bm.select_flush_mode()
                 bmesh.update_edit_mesh(self.target_object.data)
             else:
@@ -689,13 +735,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 for e in all_new_edges:
                     if e.is_valid:
                         e.select = False
-                if self.keep_selection:
-                    for e in new_loop_edges:
-                        if e.is_valid:
-                            e.select = True
-                    for e in self.bm.edges:
-                        if e.index in originally_selected_edge_indices:
-                            e.select = True
+                restore_kept_selection(self.bm)
                 self.bm.select_flush_mode()
                 bmesh.update_edit_mesh(self.target_object.data)
                 self.bms[self.target_object.name] = self.bm
@@ -706,13 +746,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
             for e in all_new_edges:
                 if e.is_valid:
                     e.select = False
-            if self.keep_selection:
-                for e in new_loop_edges:
-                    if e.is_valid:
-                        e.select = True
-                for e in self.bm.edges:
-                    if e.index in originally_selected_edge_indices:
-                        e.select = True
+            restore_kept_selection(self.bm)
             self.bm.select_flush_mode()
             bmesh.update_edit_mesh(self.target_object.data)
             self.bms[self.target_object.name] = self.bm
@@ -725,6 +759,12 @@ class M8_OT_FastLoop(bpy.types.Operator):
         source_layer = self.bm.verts.layers.int.get(source_edge_layer_name)
         if source_layer:
             self.bm.verts.layers.int.remove(source_layer)
+        selected_edge_layer = self.bm.edges.layers.int.get(selected_edge_layer_name)
+        if selected_edge_layer:
+            self.bm.edges.layers.int.remove(selected_edge_layer)
+        new_loop_edge_layer = self.bm.edges.layers.int.get(new_loop_edge_layer_name)
+        if new_loop_edge_layer:
+            self.bm.edges.layers.int.remove(new_loop_edge_layer)
         bmesh.update_edit_mesh(self.target_object.data)
 
 
@@ -766,6 +806,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
         self.last_ctrl = False
         self.last_shift = False
         self.edge_ring_edges = []
+        self.edge_ring_edge_indices = []
         self.edge_ring_orientations = {}
         self.preview_points = []
         self.preview_lines = []
@@ -1199,6 +1240,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
             self.bm.faces.ensure_lookup_table()
             # Reset hovered state
             self.hovered_edge_idx = -1
+            self.edge_ring_edge_indices = []
             self.last_hit_loc = None
             self.preview_points = []
             self.preview_lines = []
@@ -1228,6 +1270,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
                     self.bm.faces.ensure_lookup_table()
                     # Reset hovered state
                     self.hovered_edge_idx = -1
+                    self.edge_ring_edge_indices = []
                     self.last_hit_loc = None
                     self.preview_points = []
                     self.preview_lines = []
@@ -1238,13 +1281,6 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 return {'RUNNING_MODAL'}
             else:
                 # Clicked on empty space (no edge ring detected)
-                # S mode ON: clear all kept selection (like Blender's "click empty to deselect")
-                if self.keep_selection and self.bm:
-                    for e in self.bm.edges:
-                        e.select = False
-                    self.bm.select_flush_mode()
-                    bmesh.update_edit_mesh(self.target_object.data)
-                    context.area.tag_redraw()
                 return {'RUNNING_MODAL'}
 
         # Confirm and Exit
@@ -1395,11 +1431,11 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 blf.color(font_id, 1.0, 1.0, 1.0, 0.4)
                 blf.draw(font_id, f"[W] {_T('线圈间距')} ({_T('仅多段可用')})")
 
-            # Keep Selection
+            # Include the current selection when calculating Set Flow.
             keep_sel_str = _T("开启") if self.keep_selection else _T("关闭")
             blf.color(font_id, 1.0, 1.0, 1.0, 0.85)
             blf.position(font_id, text_x, text_y + line_height * 1 - 5, 0)
-            blf.draw(font_id, f"[S] {_T('保持选择')}: {keep_sel_str}")
+            blf.draw(font_id, f"[S] {_T('选中边参与 Set Flow')}: {keep_sel_str}")
 
             # Confirm / Cancel Info
             if self.is_remove_mode:
@@ -1413,7 +1449,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
             else:
                 blf.color(font_id, 1.0, 0.8, 0.0, 0.95)
                 blf.position(font_id, text_x, text_y - 5, 0)
-                blf.draw(font_id, f"[L-Click] {_T('添加/重复加线')} | [Shift+R-Click] {_T('居中切')} | [Esc] {_T('确认退出')}")
+                blf.draw(font_id, f"[L-Click] {_T('添加/重复加线')} | [Shift+L-Click] Set Flow | [Shift+R-Click] {_T('居中切')} | [Esc] {_T('确认退出')}")
 
             # 3. Draw 3D dimensions near hovered edge sub-segments
             if not self.is_remove_mode and self.dimension_draws:

@@ -424,8 +424,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         default=True
     )
     fast_loop_keep_selection: bpy.props.BoolProperty(
-        name=_T("保持选择 (S键)"),
-        description=_T("加线后保持新线和原有选择均处于选中状态。此选项会被记忆，下次打开工具时继承。"),
+        name=_T("选中边参与 Set Flow (S键)"),
+        description=_T("执行 Set Flow 时，把切割前已选中的边和新循环边一起参与计算。此选项会被记忆。"),
         default=False
     )
     # EdgeFlow parameters (mirroring the original Fast-Loop set_flow options)
@@ -1947,6 +1947,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         box.label(text=_T("自定义鼠标贴图 (Custom Mouse Image)"), icon=_ICON("FILE_IMAGE"))
         box.prop(self, "screencast_use_custom_mouse", text=_T("使用自定义贴图"))
         if self.screencast_use_custom_mouse:
+            row_btn = box.row()
+            row_btn.operator("m8.import_mouse_images", text=_T("导入并自动匹配鼠标贴图"), icon="FILE_IMAGE")
             row = box.row(align=True)
             
             col_b = row.column()
@@ -1993,6 +1995,158 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         sub = col.column()
         sub.enabled = self.auto_new_object_origin_bottom
         sub.prop(self, "auto_new_object_snap_to_floor", text=_T("新建物体自动落地 (Z=0)"))
+
+
+class M8_OT_ImportMouseImages(bpy.types.Operator):
+    bl_idname = "m8.import_mouse_images"
+    bl_label = _T("导入并自动匹配鼠标贴图")
+    bl_description = _T("选择 1 张（自动在同文件夹下搜索）或多张鼠标贴图，根据名称自动分配给基础、左键、右键、中键")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    directory: bpy.props.StringProperty(subtype='DIR_PATH')
+
+    files: bpy.props.CollectionProperty(
+        type=bpy.types.OperatorFileListElement,
+        options={'HIDDEN', 'SKIP_SAVE'}
+    )
+
+    filter_glob: bpy.props.StringProperty(
+        default="*.png;*.jpg;*.jpeg;*.bmp;*.tga",
+        options={'HIDDEN'}
+    )
+
+    # 关键字表（优先级：左 > 右 > 中 > 基础，越靠前越具体）
+    _LEFT_KW   = ["left", "lmouse", "click_l", "_l.", "_l_", "lkey", "左键", "左"]
+    _RIGHT_KW  = ["right", "rmouse", "click_r", "_r.", "_r_", "rkey", "右键", "右"]
+    _MIDDLE_KW = ["middle", "mmouse", "click_m", "_m.", "_m_", "mkey", "mid", "中键", "中"]
+    _BASE_KW   = ["base", "idle", "default", "pointer", "鼠标", "基础", "普通", "默认"]
+
+    @classmethod
+    def _get_role(cls, filename):
+        """识别文件名对应槽位：'left'|'right'|'middle'|'base'|None"""
+        n = filename.lower()
+        if any(kw in n for kw in cls._LEFT_KW):
+            return 'left'
+        if any(kw in n for kw in cls._RIGHT_KW):
+            return 'right'
+        if any(kw in n for kw in cls._MIDDLE_KW):
+            return 'middle'
+        if any(kw in n for kw in cls._BASE_KW):
+            return 'base'
+        return None
+
+    @staticmethod
+    def _lcp_len(s1, s2):
+        """最长公共前缀长度，用于相似度评分"""
+        n = min(len(s1), len(s2))
+        for i in range(n):
+            if s1[i] != s2[i]:
+                return i
+        return n
+
+    def execute(self, context):
+        import os
+        prefs = _get_addon_prefs()
+        if not prefs:
+            self.report({'WARNING'}, _T("未找到插件偏好设置"))
+            return {'CANCELLED'}
+
+        selected_paths = [os.path.join(self.directory, f.name) for f in self.files if f.name]
+        if not selected_paths:
+            self.report({'WARNING'}, _T("未选择任何贴图文件"))
+            return {'CANCELLED'}
+
+        slots = {'base': "", 'left': "", 'right': "", 'middle': ""}
+
+        if len(selected_paths) == 1:
+            # 单选模式：识别该文件的槽位，再扫描同目录补全剩余槽位
+            sole_path = selected_paths[0]
+            sole_name = os.path.basename(sole_path)
+            sole_stem = os.path.splitext(sole_name)[0].lower()
+            dir_name  = os.path.dirname(sole_path)
+
+            role = self._get_role(sole_name) or 'base'
+            slots[role] = sole_path
+
+            # 扫描同目录，收集各槽候选文件
+            candidates = {'base': [], 'left': [], 'right': [], 'middle': []}
+            try:
+                for entry in os.scandir(dir_name):
+                    if not entry.is_file():
+                        continue
+                    if not entry.name.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tga')):
+                        continue
+                    if entry.path == sole_path:
+                        continue
+                    r = self._get_role(entry.name)
+                    if r:
+                        candidates[r].append(entry.path)
+            except Exception as e:
+                self.report({'WARNING'}, f"{_T('扫描文件夹失败')}: {e}")
+
+            # 对每个空槽，选与已选文件名前缀最相似的候选（最长公共前缀评分）
+            for slot_name, cands in candidates.items():
+                if slots[slot_name] or not cands:
+                    continue
+                if len(cands) == 1:
+                    slots[slot_name] = cands[0]
+                else:
+                    def _score(p, _stem=sole_stem):
+                        return self._lcp_len(_stem, os.path.splitext(os.path.basename(p))[0].lower())
+                    slots[slot_name] = max(cands, key=_score)
+
+        else:
+            # 多选模式：按关键字分类，同一槽位保留第一个匹配，其余加入 unmatched
+            unmatched = []
+            for path in selected_paths:
+                role = self._get_role(os.path.basename(path))
+                if role and not slots[role]:
+                    slots[role] = path
+                else:
+                    unmatched.append(path)
+
+            # 剩余未识别文件按顺序填入空槽（基础 → 左 → 右 → 中）
+            for path in unmatched:
+                for slot_name in ('base', 'left', 'right', 'middle'):
+                    if not slots[slot_name]:
+                        slots[slot_name] = path
+                        break
+
+        # 写入偏好设置
+        if slots['base']:
+            prefs.screencast_mouse_img_base   = slots['base']
+        if slots['left']:
+            prefs.screencast_mouse_img_lmouse = slots['left']
+        if slots['right']:
+            prefs.screencast_mouse_img_rmouse = slots['right']
+        if slots['middle']:
+            prefs.screencast_mouse_img_mmouse = slots['middle']
+
+        # 报告匹配结果
+        label_map = {
+            'base':   _T("基础"),
+            'left':   _T("左键"),
+            'right':  _T("右键"),
+            'middle': _T("中键"),
+        }
+        details = []
+        missing = []
+        for slot_name in ('base', 'left', 'right', 'middle'):
+            label = label_map[slot_name]
+            if slots[slot_name]:
+                details.append(f"{label}: {os.path.basename(slots[slot_name])}")
+            else:
+                missing.append(label)
+
+        self.report({'INFO'}, f"{_T('已匹配鼠标贴图：')} {', '.join(details)}")
+        if missing:
+            self.report({'WARNING'}, f"{_T('未匹配到以下按键的贴图')}：{', '.join(missing)}")
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
 
 
 # Re-expose properties and keymap registration/exclusive operators for registration.py and other files

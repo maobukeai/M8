@@ -1,4 +1,5 @@
 import bpy
+import json
 from ...utils import SNAP_MATRIX_WORLD_KEY, SNAP_SIZE_KEY, get_backup_suffix, is_size_cage
 from ...utils.i18n import _T
 
@@ -49,7 +50,17 @@ class VIEW3D_PT_SizeAdjustPanel(bpy.types.Panel):
             box = layout.box()
             header = box.row(align=True)
             header.label(text=_T("调节盒控制中:"), icon='OBJECT_DATA')
+            # 原有的等比例开关
             header.prop(context.scene.m8, "lock_aspect_ratio", text=_T("等比例调整"), toggle=True, icon='LINKED')
+            # 新增：独轴锁定比例开关（锁头图标，默认关闭）
+            m8_scene = context.scene.m8
+            lock_prop = getattr(m8_scene, "cage_lock_proportional", False)
+            header.prop(
+                m8_scene, "cage_lock_proportional",
+                text="",
+                toggle=True,
+                icon='LOCKED' if lock_prop else 'UNLOCKED',
+            )
 
             box.prop(obj, "dimensions", text="")
 
@@ -60,6 +71,34 @@ class VIEW3D_PT_SizeAdjustPanel(bpy.types.Panel):
             op.axis = 'Y'
             op = row.operator("object.scale_proportional", text=_T("同步 Z 轴比例"))
             op.axis = 'Z'
+
+            layout.separator()
+
+            # ── 快照历史栈区域 ──────────────────────────────────
+            snap_box = layout.box()
+            snap_header = snap_box.row(align=True)
+            snap_header.label(text=_T("快照历史"), icon='BOOKMARKS')
+            snap_header.operator("object.push_cage_snapshot", text=_T("保存"), icon='ADD')
+
+            # 解析当前快照列表
+            try:
+                stack = json.loads(getattr(context.scene.m8, "cage_snapshot_stack", "[]"))
+            except Exception:
+                stack = []
+
+            if stack:
+                for i, item in enumerate(stack):
+                    label = item.get("label", f"{_T('快照')} {i + 1}")
+                    row = snap_box.row(align=True)
+                    row.label(text=label)
+                    op_restore = row.operator("object.restore_cage_snapshot", text=_T("还原"), icon='LOOP_BACK')
+                    op_restore.index = i
+                    op_del = row.operator("object.delete_cage_snapshot", text="", icon='TRASH')
+                    op_del.index = i
+            else:
+                snap_box.label(text=_T("暂无快照，点击「保存」记录当前尺寸"), icon='INFO')
+            # ──────────────────────────────────────────────────
+
             layout.separator()
             layout.operator("object.update_size_snapshot", icon='FILE_TICK')
             layout.separator()
@@ -88,6 +127,7 @@ class VIEW3D_PT_SizeAdjustPanel(bpy.types.Panel):
 
         if not has_snapshot:
             layout.label(text=_T("未检测到快照：请先创建调节盒再尝试还原"))
+
 
 class VIEW3D_PT_SizeToolToolboxPanel(bpy.types.Panel):
     bl_label = ""
