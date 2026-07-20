@@ -617,6 +617,211 @@ class M8_OT_AlignOriginToNormal(bpy.types.Operator):
         self.report({'INFO'}, f"{_T('处理完成：')}{count} {_T('个物体已对齐。')}")
         return {'FINISHED'}
 
+# 5. 花蕊/面片聚类拆分工具
+_PREDICT_STAMEN_CACHE = {"threshold": None, "result": None, "obj_name": None}
+
+
+def _copy_uv_to_new_mesh(src_mesh, dst_mesh, face_indices):
+    """将源网格所有 UV 层的面数据复制到新网格（面顶点顺序一致）"""
+    for src_uv in src_mesh.uv_layers:
+        dst_uv = dst_mesh.uv_layers.new(name=src_uv.name)
+        dst_mesh.uv_layers.active = dst_uv
+        for new_f_idx, old_f_idx in enumerate(face_indices):
+            old_poly = src_mesh.polygons[old_f_idx]
+            new_poly = dst_mesh.polygons[new_f_idx]
+            for k in range(old_poly.loop_total):
+                dst_uv.data[new_poly.loop_start + k].uv = \
+                    src_uv.data[old_poly.loop_start + k].uv
+
+
+def _build_mesh_from_faces(mesh, face_indices, name="TempMesh"):
+    """从原始网格中提取指定面，构建一个新网格（携带 UV）"""
+    used_vert_indices = set()
+    for f_idx in face_indices:
+        poly = mesh.polygons[f_idx]
+        for li in poly.loop_indices:
+            used_vert_indices.add(mesh.loops[li].vertex_index)
+
+    old_to_new = {}
+    new_verts = []
+    for old_idx in sorted(used_vert_indices):
+        old_to_new[old_idx] = len(new_verts)
+        new_verts.append(mesh.vertices[old_idx].co.copy())
+
+    new_polygons = []
+    for f_idx in face_indices:
+        poly = mesh.polygons[f_idx]
+        vert_indices = [mesh.loops[li].vertex_index for li in poly.loop_indices]
+        new_loop_indices = [old_to_new[vi] for vi in vert_indices]
+        new_polygons.append(new_loop_indices)
+
+    new_mesh = bpy.data.meshes.new(name=name)
+    new_mesh.from_pydata(new_verts, [], new_polygons)
+    new_mesh.update()
+
+    _copy_uv_to_new_mesh(mesh, new_mesh, face_indices)
+    return new_mesh
+
+
+def _cluster_selected_faces(obj, threshold_ratio):
+    """对编辑模式下选中的面进行聚类（KD-tree 加速），返回 (簇列表[面索引], 总选中面数) 或 None"""
+    from mathutils.kdtree import KDTree
+
+    mesh = obj.data
+    bm = bmesh.from_edit_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+    selected = [f for f in bm.faces if f.select]
+    if len(selected) < 2:
+        bm.free()
+        return None
+
+    matrix = obj.matrix_world
+    centers = []
+    for face in selected:
+        center = Vector((0.0, 0.0, 0.0))
+        for vert in face.verts:
+            center += vert.co
+        center /= len(face.verts)
+        centers.append(matrix @ center)
+
+    # 用选中面总范围（包围盒对角线）自动缩放阈值，消除死区
+    min_c = Vector(centers[0])
+    max_c = Vector(centers[0])
+    for c in centers[1:]:
+        for axis in range(3):
+            if c[axis] < min_c[axis]:
+                min_c[axis] = c[axis]
+            if c[axis] > max_c[axis]:
+                max_c[axis] = c[axis]
+    bbox_diag = (max_c - min_c).length
+    actual_dist = threshold_ratio * bbox_diag if bbox_diag > 0.001 else threshold_ratio
+
+    n = len(centers)
+    parent = list(range(n))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    kd = KDTree(n)
+    for i, c in enumerate(centers):
+        kd.insert(c, i)
+    kd.balance()
+
+    for i in range(n):
+        for _, j, _ in kd.find_range(centers[i], actual_dist):
+            if i < j:
+                rx, ry = find(i), find(j)
+                if rx != ry:
+                    parent[ry] = rx
+
+    groups = {}
+    for i in range(n):
+        root = find(i)
+        groups.setdefault(root, []).append(i)
+
+    clusters = []
+    for indices in groups.values():
+        clusters.append([selected[i].index for i in indices])
+
+    bm.free()
+    return clusters, len(selected)
+
+
+def predict_stamen_cluster_count(obj, threshold):
+    """仅预测簇数量（带缓存），返回 (簇数, 选中面数) 或 None。"""
+    global _PREDICT_STAMEN_CACHE
+    if (
+        _PREDICT_STAMEN_CACHE["obj_name"] == obj.name
+        and _PREDICT_STAMEN_CACHE["threshold"] is not None
+        and abs(threshold - _PREDICT_STAMEN_CACHE["threshold"]) < 1e-6
+    ):
+        return _PREDICT_STAMEN_CACHE["result"]
+
+    result = _cluster_selected_faces(obj, threshold)
+    if result is None:
+        _PREDICT_STAMEN_CACHE = {"threshold": threshold, "result": None, "obj_name": obj.name}
+        return None
+    clusters, total = result
+    res = (len(clusters), total)
+    _PREDICT_STAMEN_CACHE = {"threshold": threshold, "result": res, "obj_name": obj.name}
+    return res
+
+
+class M8_OT_SplitStamens(bpy.types.Operator):
+    bl_idname = "m8.split_stamens"
+    bl_label = _T("拆分花蕊")
+    bl_description = _T("在编辑模式下按空间距离聚类拆分选中的面片为独立物体")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    threshold: bpy.props.FloatProperty(
+        name=_T("拆分距离比例"),
+        default=0.02,
+        min=0.001,
+        max=1.0,
+        step=0.001,
+        precision=3,
+        description=_T("聚类敏感度（相对于选中面总范围的比值），数值越小拆分簇越多")
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'EDIT_MESH' and context.edit_object is not None and context.edit_object.type == 'MESH'
+
+    def invoke(self, context, event):
+        if hasattr(context.scene, "m8"):
+            props = context.scene.m8.custom_tools
+            self.threshold = props.split_stamens_threshold
+        return self.execute(context)
+
+    def execute(self, context):
+        obj = context.edit_object
+        if obj is None or obj.type != 'MESH':
+            self.report({'WARNING'}, _T("请先选中一个网格物体并进入编辑模式"))
+            return {'CANCELLED'}
+
+        threshold = self.threshold
+        if hasattr(context.scene, "m8"):
+            threshold = context.scene.m8.custom_tools.split_stamens_threshold
+
+        mesh = obj.data
+        result = _cluster_selected_faces(obj, threshold)
+        if result is None:
+            self.report({'WARNING'}, _T("请至少选中 2 个面"))
+            return {'CANCELLED'}
+
+        cluster_face_indices, total_faces = result
+        if len(cluster_face_indices) <= 1:
+            self.report({'WARNING'}, f"{_T('未检测到多个独立簇（阈值=')}{threshold:.3f}{_T('），请降低阈值')}")
+            return {'CANCELLED'}
+
+        # 退出编辑模式
+        bpy.ops.object.mode_set(mode='OBJECT')
+        context.view_layer.update()
+
+        new_objects = []
+        base_name = obj.name
+        for idx, face_indices in enumerate(cluster_face_indices):
+            new_mesh = _build_mesh_from_faces(mesh, face_indices, name=f"{base_name}_Stamen_{idx:03d}")
+            new_obj = bpy.data.objects.new(f"{base_name}_Stamen_{idx:03d}", new_mesh)
+            new_obj.matrix_world = obj.matrix_world.copy()
+            for mat in mesh.materials:
+                new_obj.data.materials.append(mat)
+            context.collection.objects.link(new_obj)
+            new_objects.append(new_obj)
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in new_objects:
+            o.select_set(True)
+        if new_objects:
+            context.view_layer.objects.active = new_objects[0]
+
+        self.report({'INFO'}, f"{_T('成功拆分')} {len(cluster_face_indices)} {_T('个物体（源物体已保留）')}")
+        return {'FINISHED'}
+
+
 class M8_CustomTools_Props(bpy.types.PropertyGroup):
     sort_mode: bpy.props.EnumProperty(
         name=_T("排序方式"),
@@ -666,6 +871,16 @@ class M8_CustomTools_Props(bpy.types.PropertyGroup):
         default='CENTER'
     )
 
+    split_stamens_threshold: bpy.props.FloatProperty(
+        name=_T("聚类阈值"),
+        default=0.02,
+        min=0.001,
+        max=1.0,
+        step=0.001,
+        precision=3,
+        description=_T("聚类敏感度（相对于选中面总范围的比值），0.01=1%。数值越小簇越多")
+    )
+
     copy_align_mode: bpy.props.EnumProperty(
         name=_T("目标处理"),
         items=[
@@ -685,7 +900,7 @@ class M8_CustomTools_Props(bpy.types.PropertyGroup):
         default='INSTANCE'
     )
 
-# 5. 面板类
+# 6. 面板类
 class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
     bl_label = _T("M8 常用工具")
     bl_idname = "VIEW3D_PT_m8_custom_tools"
@@ -697,25 +912,25 @@ class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        
+
         # 材质工具
         col = layout.column(align=True)
         col.label(text=_T("材质工具"), icon='MATERIAL')
-        
+
         if hasattr(context.scene, "m8"):
             props = context.scene.m8.custom_tools
             col.prop(props, "sort_mode", text="")
             col.prop(props, "remove_unused")
-        
+
         col.operator("m8.sort_materials", icon='SORTALPHA', text=_T("执行排序"))
-        
+
         col.separator()
-        col.label(text=_T("物体合并"), icon='GROUP')
-        
+        col.label(text=_T("物体合并与拆分"), icon='GROUP')
+
         if hasattr(context.scene, "m8"):
             props = context.scene.m8.custom_tools
             col.prop(props, "merge_mode", text="")
-            
+
             # Show threshold setting only for distance-based modes (CENTER, VERTEX, AABB)
             if props.merge_mode in {'CENTER', 'VERTEX', 'AABB'}:
                 row = col.row(align=True)
@@ -723,10 +938,30 @@ class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
                 row.prop(props, "merge_unit", text="")
 
         col.operator("m8.merge_nearby_objects", icon='MOD_BUILD', text=_T("执行合并"))
-        
+
+        # 聚类拆分工具
+        box = col.box()
+        box.label(text=_T("智能相近拆分 (花蕊/面片)"), icon='PARTICLEMODE')
+        if hasattr(context.scene, "m8"):
+            props = context.scene.m8.custom_tools
+            box.prop(props, "split_stamens_threshold", text=_T("聚类阈值 (比值)"))
+
+        if context.mode == 'EDIT_MESH' and context.edit_object:
+            pred = predict_stamen_cluster_count(
+                context.edit_object,
+                props.split_stamens_threshold if hasattr(context.scene, "m8") else 0.02
+            )
+            if pred is not None:
+                n_clusters, total = pred
+                box.label(text=f"{_T('当前选中面数')}: {total}", icon='MESH_DATA')
+                icon = 'GROUP' if n_clusters > 1 else 'ERROR'
+                box.label(text=f"{_T('预计拆分')}: {n_clusters} {_T('簇')}", icon=icon)
+
+        box.operator("m8.split_stamens", icon='UNLINKED', text=_T("执行拆分"))
+
         col.separator()
         col.label(text=_T("复制与对齐"), icon='DUPLICATE')
-        
+
         if hasattr(context.scene, "m8"):
             props = context.scene.m8.custom_tools
             col.prop(props, "copy_align_mode", text="")
@@ -735,4 +970,5 @@ class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
 
         col.operator("m8.batch_copy_align", icon='COPYDOWN', text=_T("批量复制"))
         col.operator("m8.align_origin_to_normal", icon='ORIENTATION_NORMAL', text=_T("原点对齐法向"))
+
         

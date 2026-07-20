@@ -154,6 +154,7 @@ from .ops.mesh.cleaner import (
 from .ops.misc.custom_tools import (
     M8_OT_SortMaterials,
     M8_OT_MergeNearbyObjects,
+    M8_OT_SplitStamens,
     M8_OT_BatchCopyAlign,
     M8_OT_AlignOriginToNormal,
     VIEW3D_PT_M8_CustomTools,
@@ -269,6 +270,7 @@ CLASSES = [
     M8_OT_TriggerTestError,
     M8_OT_SortMaterials,
     M8_OT_MergeNearbyObjects,
+    M8_OT_SplitStamens,
     M8_OT_BatchCopyAlign,
     M8_OT_AlignOriginToNormal,
     VIEW3D_PT_M8_CustomTools,
