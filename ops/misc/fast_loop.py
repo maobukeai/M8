@@ -565,6 +565,10 @@ class M8_OT_FastLoop(bpy.types.Operator):
                         curr_edge = opp_edge
                         curr_rev = opp_rev
 
+            vert_pair_to_edge_idx = {
+                (min(e.verts[0].index, e.verts[1].index), max(e.verts[0].index, e.verts[1].index)): e.index
+                for e in all_edges_to_cut
+            }
             self.bm.normal_update()
             edge_info = {}
             for e in all_edges_to_cut:
@@ -592,12 +596,43 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
             from collections import defaultdict
             edge_to_new_verts = defaultdict(list)
+
+            # Robust topological tracking: find the original edge endpoints for each new vertex
             for v in new_verts:
-                for e_idx, (v1_i, v2_i, p1_co, p2_co, n1_co, n2_co) in edge_info.items():
-                    proj_co, t_proj = mathutils.geometry.intersect_point_line(v.co, p1_co, p2_co)
-                    if (v.co - proj_co).length < 0.0005:
-                        edge_to_new_verts[e_idx].append(v)
-                        break
+                matched_edge_idx = None
+                found_old = set()
+                visited_v = {v}
+                queue = [v]
+                while queue and len(found_old) < 2:
+                    curr_v = queue.pop(0)
+                    for e in curr_v.link_edges:
+                        other_v = e.verts[0] if e.verts[1] == curr_v else e.verts[1]
+                        if other_v in visited_v:
+                            continue
+                        if other_v.index in old_vert_indices:
+                            found_old.add(other_v.index)
+                        else:
+                            visited_v.add(other_v)
+                            queue.append(other_v)
+
+                if len(found_old) == 2:
+                    v1_i, v2_i = list(found_old)
+                    pair = (min(v1_i, v2_i), max(v1_i, v2_i))
+                    matched_edge_idx = vert_pair_to_edge_idx.get(pair)
+
+                # Fallback to bounded geometric projection
+                if matched_edge_idx is None:
+                    best_dist = float('inf')
+                    for e_idx, (v1_i, v2_i, p1_co, p2_co, n1_co, n2_co) in edge_info.items():
+                        proj_co, t_proj = mathutils.geometry.intersect_point_line(v.co, p1_co, p2_co)
+                        if -0.01 <= t_proj <= 1.01:
+                            dist = (v.co - proj_co).length
+                            if dist < best_dist and dist < 0.005:
+                                best_dist = dist
+                                matched_edge_idx = e_idx
+
+                if matched_edge_idx is not None:
+                    edge_to_new_verts[matched_edge_idx].append(v)
 
             # Reposition new vertices with exact curvature sagitta
             should_apply_curvature = run_edge_flow or self.use_curvature
@@ -611,6 +646,10 @@ class M8_OT_FastLoop(bpy.types.Operator):
                     n_end = n1_co if is_rev else n2_co
 
                     n_verts = edge_to_new_verts[edge.index]
+                    d_vec = p_end - p_start
+                    if d_vec.length > 1e-6:
+                        n_verts.sort(key=lambda vert: (vert.co - p_start).dot(d_vec))
+
                     for i, nv in enumerate(n_verts):
                         t_0 = (i + 1) / (len(n_verts) + 1)
                         if not self.mirrored and self.segments > 1:
@@ -624,29 +663,28 @@ class M8_OT_FastLoop(bpy.types.Operator):
                         if should_apply_curvature:
                             nv.co += calculate_curvature_bulge(p_start, p_end, n_start, n_end, t_final)
 
-            # Connect vertices across quad faces
-            # NOTE: bmesh.ops.connect_verts does NOT accept a 'faces' kwarg.
-            # Passing it causes TypeError → silently swallowed → new_cut_edges stays empty.
-            # We guard duplicate connections with a seen-pair set instead.
+            # Connect vertices across quad faces in corresponding index order
             new_cut_edges = []
             connected_vert_pairs = set()
             for f_orig, e_orig, opp_orig, is_rev, opp_rev in quad_cuts:
                 verts_e = edge_to_new_verts.get(e_orig.index, [])
                 verts_opp = edge_to_new_verts.get(opp_orig.index, [])
-                for va in verts_e:
-                    for vb in verts_opp:
-                        pair_key = (id(va), id(vb)) if id(va) < id(vb) else (id(vb), id(va))
-                        if pair_key in connected_vert_pairs:
-                            continue
-                        shared_faces = [f for f in va.link_faces if f in vb.link_faces and len(f.verts) > 3]
-                        if shared_faces:
-                            try:
-                                res = bmesh.ops.connect_verts(self.bm, verts=[va, vb])
-                                if res and res.get('edges'):
-                                    new_cut_edges.extend(res['edges'])
-                                    connected_vert_pairs.add(pair_key)
-                            except Exception as _ce:
-                                pass
+                num_pairs = min(len(verts_e), len(verts_opp))
+                for i in range(num_pairs):
+                    va = verts_e[i]
+                    vb = verts_opp[i]
+                    pair_key = (id(va), id(vb)) if id(va) < id(vb) else (id(vb), id(va))
+                    if pair_key in connected_vert_pairs:
+                        continue
+                    shared_faces = [f for f in va.link_faces if f in vb.link_faces and len(f.verts) > 3]
+                    if shared_faces:
+                        try:
+                            res = bmesh.ops.connect_verts(self.bm, verts=[va, vb])
+                            if res and res.get('edges'):
+                                new_cut_edges.extend(res['edges'])
+                                connected_vert_pairs.add(pair_key)
+                        except Exception as _ce:
+                            pass
 
             self.bm.verts.ensure_lookup_table()
             self.bm.edges.ensure_lookup_table()
