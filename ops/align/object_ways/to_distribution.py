@@ -37,7 +37,6 @@ class ToDistribution:
 
                 context.view_layer.update()
                 context.scene.objects[item.name].matrix_world = loc @ rot @ sca
-                context.view_layer.update()
 
                 offset += measures.fixed_offset + item.dimensions
         elif self.distribution_mode == "ADJUSTMENT":
@@ -69,7 +68,6 @@ class ToDistribution:
 
                     context.view_layer.update()
                     context.scene.objects[item.name].matrix_world = loc @ rot @ sca
-                    context.view_layer.update()
 
     def __mix_two_loc__(self, a, b):
         x = "X" in self.align_location_axis

@@ -2,8 +2,8 @@ import bpy
 import bmesh
 import math
 import mathutils
+from collections import deque
 from mathutils import Vector, Matrix
-import concurrent.futures
 from ...utils.bmesh_selection import get_edge_loop, get_edge_ring, sort_edge_loop, get_checker_deselect
 from ...utils.i18n import _T
 
@@ -372,11 +372,11 @@ def group_edges_into_loops(edges):
         if edge in visited:
             continue
         current_loop = []
-        edge_queue = [edge]
+        edge_queue = deque([edge])
         visited.add(edge)
-        
+
         while edge_queue:
-            current_edge = edge_queue.pop(0)
+            current_edge = edge_queue.popleft()
             current_loop.append(current_edge)
             for vert in current_edge.verts:
                 for connected_edge in vert.link_edges:
@@ -874,18 +874,6 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
             if abs(edge_length - reference_length) <= tolerance:
                 similar_edges.append(edge)
         
-        # Store vertices and their connected edges before unbeveling for sharp marking
-        vertices_to_edge_groups = {}
-        if self.mark_sharp:
-            for edge in similar_edges:
-                for vert in edge.verts:
-                    if vert not in vertices_to_edge_groups:
-                        vertices_to_edge_groups[vert] = set()
-                    # Store edges that are NOT being unbeveled (the edges we want to mark sharp)
-                    for connected_edge in vert.link_edges:
-                        if connected_edge not in similar_edges:
-                            vertices_to_edge_groups[vert].add(connected_edge.index)
-        
         # Clear selection and select similar edges
         for edge in bm.edges:
             edge.select = False
@@ -914,7 +902,6 @@ class MESH_OT_auto_unbevel_similar(bpy.types.Operator):
         
         # Now run the unbevel operation (hardcoded to completely unbevel)
         unbevel_value = 0.0  # Always completely unbevel
-        degree_90 = 1.5708
         
         # Get selected edges for unbeveling
         b_edges = [edge for edge in bm.edges if edge.select]
@@ -1076,18 +1063,6 @@ class MESH_OT_unbevel_selected(bpy.types.Operator):
             self.report({'WARNING'}, _T("未选中任何边"))
             return {'CANCELLED'}
         
-        # Store vertices and their connected edges before unbeveling for sharp marking
-        vertices_to_edge_groups = {}
-        if self.mark_sharp:
-            for edge in selected_edges:
-                for vert in edge.verts:
-                    if vert not in vertices_to_edge_groups:
-                        vertices_to_edge_groups[vert] = set()
-                    # Store edges that are NOT being unbeveled (the edges we want to mark sharp)
-                    for connected_edge in vert.link_edges:
-                        if connected_edge not in selected_edges:
-                            vertices_to_edge_groups[vert].add(connected_edge.index)
-        
         # Store vertices that will be affected for sharp marking later
         affected_verts = set()
         for edge in selected_edges:
@@ -1096,7 +1071,6 @@ class MESH_OT_unbevel_selected(bpy.types.Operator):
         
         # Unbevel logic (hardcoded to completely unbevel)
         unbevel_value = 0.0
-        degree_90 = 1.5708
         
         b_edges = selected_edges
         b_edges_pos = []
@@ -1159,6 +1133,12 @@ class MESH_OT_flat_loop_cleaner(bpy.types.Operator):
     bl_label = _T("平坦循环边清理")
     bl_description = _T("清理不影响曲率的平坦循环边")
     bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return (context.active_object and
+                context.active_object.type == 'MESH' and
+                context.mode == 'EDIT_MESH')
 
     angle_threshold: bpy.props.FloatProperty(
         name=_T("角度阈值"),
@@ -1285,7 +1265,7 @@ class MESH_OT_flat_loop_cleaner(bpy.types.Operator):
 
     def execute(self, context):
         obj = context.object
-        if obj.mode != 'EDIT':
+        if obj is None or obj.mode != 'EDIT':
             self.report({'WARNING'}, _T("请在编辑模式下执行"))
             return {'CANCELLED'}
 
@@ -1364,6 +1344,12 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
     bl_description = _T("选择与选中边面角度相似的完整循环边")
     bl_options = {'REGISTER', 'UNDO'}
 
+    @classmethod
+    def poll(cls, context):
+        return (context.active_object and
+                context.active_object.type == 'MESH' and
+                context.mode == 'EDIT_MESH')
+
     angle_threshold: bpy.props.FloatProperty(
         name=_T("角度阈值"),
         description=_T("视为相似的面法线之间的最大角度"),
@@ -1385,7 +1371,7 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
 
     def execute(self, context):
         obj = context.object
-        if obj.mode != 'EDIT':
+        if obj is None or obj.mode != 'EDIT':
             self.report({'WARNING'}, _T("请在编辑模式下执行"))
             return {'FINISHED'}
 
@@ -1395,6 +1381,7 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
 
         # Get selected edges to use as reference
         selected_edges = [e for e in bm.edges if e.select]
+        original_selected_edge_indices = [e.index for e in selected_edges]
         if not selected_edges:
             self.report({'WARNING'}, _T("请先选择参考边"))
             return {'FINISHED'}
@@ -1448,19 +1435,12 @@ class MESH_OT_select_similar_loops(bpy.types.Operator):
         loop_edges_set = set()
         for e in similar_edges:
             loop_edges_set.update(get_edge_loop(e))
-            
+
         for e in bm.edges:
             e.select_set(False)
         for e in loop_edges_set:
             e.select_set(True)
-        bmesh.update_edit_mesh(obj.data)
-        
-        loop_edges = list(loop_edges_set)
 
-        # Check minimum loop length if specified (We do this collectively for simplicity, 
-        # or we skip it if it's too complex to group them here. Since they wanted it fast, 
-        # we'll just keep the loops if min_loop_length == 0)
-        
         # Restore original reference edges
         for edge_idx in original_selected_edge_indices:
             if edge_idx < len(bm.edges) and bm.edges[edge_idx].is_valid:
@@ -1478,6 +1458,12 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
     bl_label = _T("打平")
     bl_description = _T("打平选中的边/循环 (类似于 Loop Tools Flatten)")
     bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return (context.active_object and
+                context.active_object.type == 'MESH' and
+                context.mode == 'EDIT_MESH')
 
     influence: bpy.props.FloatProperty(
         name=_T("影响"),
@@ -1554,7 +1540,7 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
 
     def execute(self, context):
         obj = context.object
-        if obj.mode != 'EDIT':
+        if obj is None or obj.mode != 'EDIT':
             self.report({'WARNING'}, _T("请在编辑模式下执行"))
             return {'FINISHED'}
 
@@ -1569,6 +1555,7 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
         # Group edges into separate loops
         edge_loops = []
         processed_edges = set()
+        original_set = set(selected_edges)
 
         for edge in selected_edges:
             if edge in processed_edges:
@@ -1576,15 +1563,9 @@ class MESH_OT_flatten_loops(bpy.types.Operator):
 
             # Get the complete loop using pure BMesh
             loop_edges = get_edge_loop(edge)
-            for e in bm.edges:
-                e.select_set(False)
-            for e in loop_edges:
-                e.select_set(True)
-            bmesh.update_edit_mesh(obj.data)
 
             # Only include if this loop intersects with our originally selected edges
             loop_set = set(loop_edges)
-            original_set = set(selected_edges)
             if loop_set & original_set:  # If there's any intersection
                 # Get vertices from this loop
                 loop_verts = set()

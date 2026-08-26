@@ -404,6 +404,11 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     # --- Fast Loop Properties ---
     activate_fast_loop: bpy.props.BoolProperty(name=_T("启用快速循环切刀"), default=True, update=_on_prefs_update)
+    fast_loop_auto_selection: bpy.props.BoolProperty(
+        name=_T("默认自动感知选区"),
+        description=_T("启动快速循环切刀时，若已有选中的循环边或并列边，自动锁定选区并批量生成垂直切线预览"),
+        default=True
+    )
     fast_loop_segments: bpy.props.IntProperty(name=_T("默认段数 (Cuts)"), default=1, min=1, max=100)
     fast_loop_vertex_mode: bpy.props.BoolProperty(name=_T("默认顶点模式"), default=False)
     fast_loop_guide_mode: bpy.props.BoolProperty(name=_T("默认引导模式"), default=False)
@@ -1201,6 +1206,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             box.label(text=_T("默认启动属性 (Default Launch Settings)"), icon="TOOL_SETTINGS")
             
             flow = box.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=False, align=True)
+            flow.prop(self, "fast_loop_auto_selection")
             flow.prop(self, "fast_loop_segments")
             flow.prop(self, "fast_loop_snap_divisions")
             flow.prop(self, "fast_loop_vertex_mode")

@@ -19,7 +19,7 @@ def __set_v__(self, key, value):
 ENUM_DISTRIBUTION_SORTED_AXIS = [
     ("0", "X", "Sort distribution by X axis"),
     ("1", "Y", "Sort distribution by Y axis"),
-    ("2", "Z", "Sort distribution by X axis"),
+    ("2", "Z", "Sort distribution by Z axis"),
 ]
 ENUM_GROUND_DOWN_MODE = [
     ("ALL", "All Object", ""),

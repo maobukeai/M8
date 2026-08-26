@@ -209,9 +209,7 @@ class AlignObject(
         run_func = getattr(self, f"align_to_{self.align_mode.lower()}", None)
         if run_func:
             context.view_layer.update()
-            context.view_layer.update()
             run_func(context)
-            context.view_layer.update()
             context.view_layer.update()
         else:
             self.report({"ERROR"}, f"{self.align_mode} mode not find")
@@ -223,7 +221,6 @@ class AlignObject(
     def align_to_original(self, context):
         for obj in context.selected_objects:
             mat = get_matrix(self, obj.matrix_world, Matrix())
-            context.view_layer.update()
             obj.matrix_world = mat
             context.view_layer.update()
 
@@ -231,13 +228,11 @@ class AlignObject(
         active = context.selected_objects[0] if (context.active_object is None) else context.active_object
         for obj in context.selected_objects:
             mat = get_matrix(self, obj.matrix_world, active.matrix_world)
-            context.view_layer.update()
             obj.matrix_world = mat
             context.view_layer.update()
 
     def align_to_cursor(self, context):
         for obj in context.selected_objects:
             mat = get_matrix(self, obj.matrix_world, context.scene.cursor.matrix)
-            context.view_layer.update()
             obj.matrix_world = mat
             context.view_layer.update()

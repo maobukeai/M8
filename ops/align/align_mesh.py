@@ -90,12 +90,14 @@ class AlignMesh(
         bm.verts.ensure_lookup_table()
 
         mat = context.object.matrix_world
+        mat_inv = mat.inverted()
+        align_axis = frozenset(self.align_location_axis)
 
         for vi in self.measure.selected_verts_index:
             vert = bm.verts[vi]
             co = mat @ vert.co
-            vert.co = mat.inverted() @ Vector((
-                location[index] if axis in self.align_location_axis else co[index]
+            vert.co = mat_inv @ Vector((
+                location[index] if axis in align_axis else co[index]
                 for index, axis in enumerate(AXIS)
             ))
 

@@ -53,8 +53,6 @@ class MirrorMesh(MeshHub, MeshPreview):
         """
         self.update_matrix(context)
 
-        print("Mirror execute", self.bl_idname, context.mode, self.bisect)
-
         last_mode = context.mode
         if last_mode == "EDIT_MESH" and self.use_modifier is False:
             bpy.ops.object.mode_set("EXEC_DEFAULT", False, mode='OBJECT', toggle=True)
@@ -75,8 +73,8 @@ class MirrorMesh(MeshHub, MeshPreview):
         if last_mode == "EDIT_MESH":
             mirror_list.append(self.create_modifier(context, active, mirror_empty))
         else:
-            for obj in self.get_selected_mesh_objects(context):
-                if self.axis_mode == "ACTIVE" and len(self.get_selected_mesh_objects(context)) != 1:
+            for obj in selected_meshes:
+                if self.axis_mode == "ACTIVE" and len(selected_meshes) != 1:
                     if self.use_mirror_active:
                         if obj == active:
                             mirror_list.append(self.create_modifier(context, obj, None, reverse_parent=True))

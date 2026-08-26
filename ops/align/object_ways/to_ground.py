@@ -34,7 +34,6 @@ class ToGround:
                 z = _get_min_z_(bound_box)  # 物体的最低Z轴
 
                 if self.ground_down_mode == "ALL":
-                    context.view_layer.update()
                     l = location_to_matrix(Vector((0, 0, to_z - z))) @ location_to_matrix(obj.location)
                     r = rotation_to_matrix(obj.rotation_euler)
                     s = scale_to_matrix(obj.scale)
@@ -49,7 +48,6 @@ class ToGround:
                         min_z = z
             if self.ground_down_mode == "MINIMUM" and min_z is not None:
                 for obj in context.selected_objects:
-                    context.view_layer.update()
                     l = location_to_matrix(Vector((0, 0, to_z - min_z))) @ location_to_matrix(obj.location)
                     r = rotation_to_matrix(obj.rotation_euler)
                     s = scale_to_matrix(obj.scale)
@@ -69,7 +67,6 @@ class ToGround:
                     Vector((0, 0, -1))
                 )
                 if result:
-                    context.view_layer.update()
                     loc = location_to_matrix(obj.location)
                     rot = rotation_to_matrix(obj.rotation_euler)
                     sca = scale_to_matrix(obj.scale)
@@ -86,14 +83,11 @@ class ToGround:
                         ot = location_to_matrix(obj.matrix_world.translation)
                         diff = location - Vector((0, 0, (ot.inverted() @ point).z))
 
-                        context.view_layer.update()
                         loc = location_to_matrix(diff)
                         rot = rotation_to_matrix(obj.rotation_euler)
                         sca = scale_to_matrix(obj.scale)
                         obj.matrix_world = loc @ rot @ sca
                         context.view_layer.update()
-
-            context.view_layer.update()
 
     @staticmethod
     def ray_casting_rotation(context, obj, dep):

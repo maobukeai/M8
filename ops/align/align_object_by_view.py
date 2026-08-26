@@ -74,7 +74,7 @@ class AlignObjectByView(bpy.types.Operator):
         layout.operator(
             AlignObjectByView.bl_idname,
             icon_value=get_custom_icon(identifier),
-            text="" if icon_only else identifier.replace("ALign_", "").replace("_", "")
+            text="" if icon_only else identifier.replace("Align_", "").replace("_", "")
         ).align_mode = identifier
 
     def invoke(self, context, event):
@@ -95,7 +95,6 @@ class AlignObjectByView(bpy.types.Operator):
             original_matrix = self.matrix_dict.get(obj.name)
             if original_matrix is not None:
                 obj.matrix_world = original_matrix
-            context.view_layer.update()
         context.view_layer.update()
         bpy.ops.m8.align_object("INVOKE_DEFAULT", **self.get_ops_args(context))
         context.view_layer.update()

@@ -614,6 +614,27 @@ def move_verts(object, bm, mapping, move, lock, influence):
         mirror_vectors.extend(z_mirror_vectors)
         mirror_vectors.append(mathutils.Vector((1, 1, -1)))
 
+    # 坐标哈希表：将“每个镜像向量全量扫描所有顶点”降为 O(1) 查表。
+    # 每次移动顶点时增量维护桶，保持与逐顶点精确比较一致的语义
+    # （包括镜像链和位于镜像平面上的顶点）。
+    co_map = {}
+    if mirror_vectors:
+        for vert in bm.verts:
+            co_map.setdefault(vert.co[:], []).append(vert)
+
+    def _map_move(vert, new_co):
+        old_key = vert.co[:]
+        bucket = co_map.get(old_key)
+        if bucket is not None:
+            try:
+                bucket.remove(vert)
+            except ValueError:
+                pass
+            if not bucket:
+                del co_map[old_key]
+        vert.co = new_co
+        co_map.setdefault(new_co[:], []).append(vert)
+
     for loop in move:
         for index, loc in loop:
             if mapping:
@@ -637,12 +658,16 @@ def move_verts(object, bm, mapping, move, lock, influence):
                 new_loc = loc * (influence / 100) + \
                           bm.verts[index].co * ((100 - influence) / 100)
 
-            for mirror_Vector in mirror_vectors:
-                for vert in bm.verts:
-                    if vert.co == mirror_Vector * bm.verts[index].co:
-                        vert.co = mirror_Vector * new_loc
-
-            bm.verts[index].co = new_loc
+            if co_map:
+                vert = bm.verts[index]
+                for mirror_Vector in mirror_vectors:
+                    bucket = co_map.get((mirror_Vector * vert.co)[:])
+                    if bucket:
+                        for mirror_vert in list(bucket):
+                            _map_move(mirror_vert, mirror_Vector * new_loc)
+                _map_move(vert, new_loc)
+            else:
+                bm.verts[index].co = new_loc
 
     bm.normal_update()
     object.data.update()
@@ -1007,8 +1032,9 @@ class Relax(bpy.types.Operator):
             move = [relax_calculate_verts(bm_mod, self.interpolation,
                                           tknots, knots, tpoints, points, splines)]
             move_verts(obj, bm, mapping, move, False, -1)
-            # 每次迭代后刷新显示，确保下次迭代读到更新后的坐标
-            bmesh.update_edit_mesh(obj.data)
+        # 无镜像修改器时 bm_mod 即 bm，迭代间写入直接可见；
+        # 有镜像时 bm_mod 本就是冻结快照，循环内刷新无意义。结束后刷新一次即可
+        bmesh.update_edit_mesh(obj.data)
 
     def execute(self, context):
         """从 Redo 面板或脚本直接调用时走此路径。"""

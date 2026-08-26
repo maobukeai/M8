@@ -952,3 +952,8 @@ def unregister():
         m8_icons.unregister()
     except Exception as e:
         logger.warning(f"Failed to unregister m8_icons: {e}")
+
+    # Restore the global register_class we wrapped for error tracking,
+    # so the patch does not outlive the addon.
+    if bpy.utils.register_class is _m8_register_class_wrapper:
+        bpy.utils.register_class = _original_register_class

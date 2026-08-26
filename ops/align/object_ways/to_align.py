@@ -31,7 +31,6 @@ class ToAlign:
             context.view_layer.update()
             mat = tran_mat @ to_mat
             context.scene.objects[m.name].matrix_world = mat @ context.scene.objects[m.name].matrix_world
-            context.view_layer.update()
 
     def __mix_mcm_loc__(self, loc_items):
         """混合最大中间最小位置"""

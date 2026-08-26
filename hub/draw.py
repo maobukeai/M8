@@ -416,16 +416,14 @@ class View3DHub(PublicHub):
 
 
 class AreaHub(PublicHub):
-    draw_cache = {}
-
     def __init__(
-            self,
-            identifier: str,
-            color: tuple,
-            offset: int,
-            rounded_corner_size: int,
-            timeout: float = 1,
-            area_restrictions: "list|int|None" = None,
+        self,
+        identifier: str,
+        color: tuple,
+        offset: int,
+        rounded_corner_size: int,
+        timeout: float = 1,
+        area_restrictions: "list|int|None" = None,
     ):
         global area_data
 
@@ -435,13 +433,18 @@ class AreaHub(PublicHub):
             self.color = color
         self.offset = offset
         self.rounded_corner_size = rounded_corner_size
+        # 几何批次按 (area_ptr) 缓存 (key, batch, shader)，支持多 3D 视图独立渲染且不重复重构几何
+        self._batch_cache = {}
 
         super().__init__(identifier, timeout, area_restrictions)
 
     def init_shader(self):
         from ..utils.bmesh import from_bmesh_get_draw_info
         area = bpy.context.area
-        key = (area.height, area.width)
+        if area is None:
+            return
+        area_ptr = area.as_pointer()
+        key = (area.height, area.width, self.offset, self.rounded_corner_size)
 
         color = getattr(self, "color", None)
         if color is not None:
@@ -454,40 +457,44 @@ class AreaHub(PublicHub):
         else:
             color = self.area_color
 
-        self.shaders = {}
-        import bmesh
-        bm = bmesh.new()
-        bm.verts.new((0, 0, 0))
-        bm.verts.new((area.width, 0, 0))
-        bm.verts.new((area.width, area.height, 0))
-        bm.verts.new((0, area.height, 0))
-        bm.verts.ensure_lookup_table()
+        cached = self._batch_cache.get(area_ptr)
+        if cached is None or cached[0] != key:
+            import bmesh
+            bm = bmesh.new()
+            bm.verts.new((0, 0, 0))
+            bm.verts.new((area.width, 0, 0))
+            bm.verts.new((area.width, area.height, 0))
+            bm.verts.new((0, area.height, 0))
+            bm.verts.ensure_lookup_table()
 
-        bm.faces.new(bm.verts)
-        bmesh.ops.bevel(bm, geom=bm.verts, offset=self.rounded_corner_size, segments=8, affect="VERTICES",
-                        profile=0.5,
-                        offset_type="OFFSET")
-        bmesh.ops.inset_region(bm, faces=bm.faces, thickness=self.offset, use_boundary=True)
-        bm.faces.ensure_lookup_table()
-        bmesh.ops.delete(bm, geom=[bm.faces[1]], context="FACES")
-        bmesh.ops.triangulate(bm, faces=bm.faces)
+            bm.faces.new(bm.verts)
+            bmesh.ops.bevel(bm, geom=bm.verts, offset=self.rounded_corner_size, segments=8, affect="VERTICES",
+                            profile=0.5,
+                            offset_type="OFFSET")
+            bmesh.ops.inset_region(bm, faces=bm.faces, thickness=self.offset, use_boundary=True)
+            bm.faces.ensure_lookup_table()
+            bmesh.ops.delete(bm, geom=[bm.faces[1]], context="FACES")
+            bmesh.ops.triangulate(bm, faces=bm.faces)
 
-        info = from_bmesh_get_draw_info(bm)
+            info = from_bmesh_get_draw_info(bm)
 
-        bm.free()
+            bm.free()
 
-        verts, sequences = info["faces"]["verts"], info["faces"]["sequences"]
+            verts, sequences = info["faces"]["verts"], info["faces"]["sequences"]
 
-        shader = gpu.shader.from_builtin("UNIFORM_COLOR")
-        shader.uniform_float("color", color)
+            shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+            batch = batch_for_shader(shader, "TRIS", {"pos": verts}, indices=sequences)
+            cached = (key, batch, shader)
+            self._batch_cache[area_ptr] = cached
+
+        _, batch, shader = cached
         shader.bind()
-        batch = batch_for_shader(shader, "TRIS", {"pos": verts}, indices=sequences)
-        self.shaders[batch] = shader
-        self.draw_cache[key] = key
+        shader.uniform_float("color", color)
+        self.shaders = {batch: shader}
 
     def draw(self):
         if self.is_timeout:
-            area_data.pop(self.identifier)
+            area_data.pop(self.identifier, None)
         elif self.is_draw:
             gpu.state.blend_set("ALPHA")
             self.init_shader()

@@ -91,10 +91,19 @@ class VIEW3D_MT_M8ShadingPie(bpy.types.Menu):
         col = box.column(align=True)
         col.label(text=_T("材质管理"))
         if hasattr(context.view_layer, "material_override"):
-            col.prop(context.view_layer, "material_override", text="")
+            col.prop(context.view_layer, "material_override", text=_T("覆盖材质"))
             if context.view_layer.material_override:
-                op = col.operator("wm.context_set_value", text=_T("清除覆盖"), icon="X")
+                op = col.operator("wm.context_set_id", text=_T("清除覆盖"), icon="X")
                 op.data_path = "view_layer.material_override"
-                op.value = "None"
+                op.value = ""
+                if shading and shading.type == "SOLID" and getattr(shading, "color_type", None) != "MATERIAL":
+                    op_color = col.operator("wm.context_set_enum", text=_T("开启实体材质显示"), icon="RESTRICT_VIEW_OFF")
+                    op_color.data_path = "space_data.shading.color_type"
+                    op_color.value = "MATERIAL"
         else:
             col.label(text=_T("无覆盖属性"), icon="ERROR")
+
+        obj = context.active_object
+        if obj and obj.type == "MESH":
+            col.separator()
+            col.prop(obj, "active_material", text=_T("物体材质"))
