@@ -211,67 +211,90 @@ class M8_OT_FastLoop(bpy.types.Operator):
             self.preview_points = []
             self.preview_lines = []
             visited_quad_pairs = set()
+            visited_faces = set()
 
             if self.use_curvature:
                 self.bm.normal_update()
 
-            for edge in selected_edges:
-                is_rev = self.edge_ring_orientations.get(edge.index, False)
-                v1 = edge.verts[1] if is_rev else edge.verts[0]
-                v2 = edge.verts[0] if is_rev else edge.verts[1]
-                p1, p2 = v1.co, v2.co
-                n1, n2 = v1.normal, v2.normal
-                L_edge = (p2 - p1).length
+            factors = []
+            for i in range(self.segments):
+                t_0 = (i + 1) / (self.segments + 1)
+                if self.segments > 1:
+                    d_0 = t_0 - 0.5
+                    t_0 = 0.5 + d_0 * self.scale_factor
+                edge_offset = 2.0 * factor - 1.0
+                t_final = (t_0 + edge_offset * (1.0 - t_0)) if edge_offset >= 0 else (t_0 + edge_offset * t_0)
+                factors.append(max(0.0, min(1.0, t_final)))
 
-                factors = []
-                for i in range(self.segments):
-                    t_0 = (i + 1) / (self.segments + 1)
-                    if self.segments > 1:
-                        d_0 = t_0 - 0.5
-                        t_0 = 0.5 + d_0 * self.scale_factor
-                    edge_offset = 2.0 * factor - 1.0
-                    t_final = (t_0 + edge_offset * (1.0 - t_0)) if edge_offset >= 0 else (t_0 + edge_offset * t_0)
-                    factors.append(max(0.0, min(1.0, t_final)))
+            if self.mirrored:
+                m_factors = []
+                for t in factors:
+                    m_factors.extend([t, 1.0 - t])
+                factors = sorted(list(set(m_factors)))
 
-                if self.mirrored:
-                    m_factors = []
-                    for t in factors:
-                        m_factors.extend([t, 1.0 - t])
-                    factors = sorted(list(set(m_factors)))
+            # Traverse full perpendicular edge rings across all connected quads
+            for start_edge in selected_edges:
+                start_rev = self.edge_ring_orientations.get(start_edge.index, False)
+                for start_face in start_edge.link_faces:
+                    curr_face = start_face
+                    curr_edge = start_edge
+                    curr_rev = start_rev
 
-                for t_val in factors:
-                    p_cut_local = p1 * (1.0 - t_val) + p2 * t_val
-                    if self.use_curvature:
-                        p_cut_local = p_cut_local + calculate_curvature_bulge(p1, p2, n1, n2, t_val)
-                    p_cut_world = mw @ p_cut_local
-                    self.preview_points.append(p_cut_world)
+                    while curr_face and curr_face not in visited_faces and len(curr_face.verts) == 4:
+                        visited_faces.add(curr_face)
+                        opp_edge, opp_rev = self.get_opposite_edge(curr_face, curr_edge, curr_rev)
+                        if not opp_edge:
+                            break
 
-                    for f in edge.link_faces:
-                        if len(f.verts) == 4:
-                            opp_edge, opp_rev = self.get_opposite_edge(f, edge, is_rev)
-                            if opp_edge:
-                                pair_key = (min(edge.index, opp_edge.index), max(edge.index, opp_edge.index), t_val)
-                                if pair_key not in visited_quad_pairs:
-                                    visited_quad_pairs.add(pair_key)
-                                    o_v1 = opp_edge.verts[1] if opp_rev else opp_edge.verts[0]
-                                    o_v2 = opp_edge.verts[0] if opp_rev else opp_edge.verts[1]
-                                    o_n1, o_n2 = o_v1.normal, o_v2.normal
-                                    opp_cut_local = o_v1.co * (1.0 - t_val) + o_v2.co * t_val
-                                    if self.use_curvature:
-                                        opp_cut_local = opp_cut_local + calculate_curvature_bulge(o_v1.co, o_v2.co, o_n1, o_n2, t_val)
-                                    opp_cut_world = mw @ opp_cut_local
-                                    self.preview_lines.append(p_cut_world)
-                                    self.preview_lines.append(opp_cut_world)
-                                    self.preview_points.append(opp_cut_world)
+                        pair_key = (min(curr_edge.index, opp_edge.index), max(curr_edge.index, opp_edge.index))
+                        if pair_key not in visited_quad_pairs:
+                            visited_quad_pairs.add(pair_key)
 
-                if edge.index == start_edge.index and self.segments == 1 and len(factors) == 1:
-                    t_val = factors[0]
-                    mid1_w = mw @ (p1 * (1.0 - t_val * 0.5) + p2 * (t_val * 0.5))
-                    mid2_w = mw @ (p1 * (1.0 - (t_val + (1.0 - t_val) * 0.5)) + p2 * (t_val + (1.0 - t_val) * 0.5))
-                    self.dimension_draws = [
-                        (mid1_w, format_length(context, L_edge * t_val)),
-                        (mid2_w, format_length(context, L_edge * (1.0 - t_val)))
-                    ]
+                            v1 = curr_edge.verts[1] if curr_rev else curr_edge.verts[0]
+                            v2 = curr_edge.verts[0] if curr_rev else curr_edge.verts[1]
+                            o_v1 = opp_edge.verts[1] if opp_rev else opp_edge.verts[0]
+                            o_v2 = opp_edge.verts[0] if opp_rev else opp_edge.verts[1]
+
+                            p1, p2 = v1.co, v2.co
+                            op1, op2 = o_v1.co, o_v2.co
+
+                            for t_val in factors:
+                                p_cut_local = p1 * (1.0 - t_val) + p2 * t_val
+                                opp_cut_local = op1 * (1.0 - t_val) + op2 * t_val
+                                if self.use_curvature:
+                                    p_cut_local = p_cut_local + calculate_curvature_bulge(p1, p2, v1.normal, v2.normal, t_val)
+                                    opp_cut_local = opp_cut_local + calculate_curvature_bulge(op1, op2, o_v1.normal, o_v2.normal, t_val)
+
+                                p_cut_world = mw @ p_cut_local
+                                opp_cut_world = mw @ opp_cut_local
+                                self.preview_lines.append(p_cut_world)
+                                self.preview_lines.append(opp_cut_world)
+                                self.preview_points.append(p_cut_world)
+                                self.preview_points.append(opp_cut_world)
+
+                        next_faces = [
+                            face for face in opp_edge.link_faces
+                            if face != curr_face and len(face.verts) == 4
+                        ]
+                        if len(next_faces) != 1:
+                            break
+                        curr_face = next_faces[0]
+                        curr_edge = opp_edge
+                        curr_rev = opp_rev
+
+            if self.segments == 1 and len(factors) == 1 and selected_edges:
+                ref_e = selected_edges[0]
+                is_r = self.edge_ring_orientations.get(ref_e.index, False)
+                rv1 = ref_e.verts[1] if is_r else ref_e.verts[0]
+                rv2 = ref_e.verts[0] if is_r else ref_e.verts[1]
+                t_val = factors[0]
+                mid1_w = mw @ (rv1.co * (1.0 - t_val * 0.5) + rv2.co * (t_val * 0.5))
+                mid2_w = mw @ (rv1.co * (1.0 - (t_val + (1.0 - t_val) * 0.5)) + rv2.co * (t_val + (1.0 - t_val) * 0.5))
+                L_ref = (rv2.co - rv1.co).length
+                self.dimension_draws = [
+                    (mid1_w, format_length(context, L_ref * t_val)),
+                    (mid2_w, format_length(context, L_ref * (1.0 - t_val)))
+                ]
             return
 
         # -------------------------------------------------------------
@@ -509,17 +532,38 @@ class M8_OT_FastLoop(bpy.types.Operator):
             for edge in self.bm.edges:
                 edge[selected_edge_layer] = int(edge.select)
 
+            # Traverse full perpendicular edge rings across all connected quads
             all_edges_to_cut = set(selected_edges)
             quad_cuts = []
+            visited_faces = set()
+            edge_orientations = {e.index: loop_orientations.get(e.index, False) for e in selected_edges}
 
-            for edge in selected_edges:
-                is_rev = loop_orientations.get(edge.index, False)
-                for f in edge.link_faces:
-                    if len(f.verts) == 4:
-                        opp_edge, opp_rev = self.get_opposite_edge(f, edge, is_rev)
-                        if opp_edge:
-                            all_edges_to_cut.add(opp_edge)
-                            quad_cuts.append((f, edge, opp_edge, is_rev, opp_rev))
+            for start_edge in selected_edges:
+                start_rev = loop_orientations.get(start_edge.index, False)
+                for start_face in start_edge.link_faces:
+                    curr_face = start_face
+                    curr_edge = start_edge
+                    curr_rev = start_rev
+
+                    while curr_face and curr_face not in visited_faces and len(curr_face.verts) == 4:
+                        visited_faces.add(curr_face)
+                        opp_edge, opp_rev = self.get_opposite_edge(curr_face, curr_edge, curr_rev)
+                        if not opp_edge:
+                            break
+
+                        all_edges_to_cut.add(opp_edge)
+                        edge_orientations[opp_edge.index] = opp_rev
+                        quad_cuts.append((curr_face, curr_edge, opp_edge, curr_rev, opp_rev))
+
+                        next_faces = [
+                            face for face in opp_edge.link_faces
+                            if face != curr_face and len(face.verts) == 4
+                        ]
+                        if len(next_faces) != 1:
+                            break
+                        curr_face = next_faces[0]
+                        curr_edge = opp_edge
+                        curr_rev = opp_rev
 
             self.bm.normal_update()
             edge_info = {}
@@ -558,7 +602,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
             # Reposition new vertices with exact curvature sagitta
             should_apply_curvature = run_edge_flow or self.use_curvature
             for edge in all_edges_to_cut:
-                is_rev = loop_orientations.get(edge.index, False)
+                is_rev = edge_orientations.get(edge.index, False)
                 if edge.index in edge_info and edge.index in edge_to_new_verts:
                     v1_i, v2_i, p1_co, p2_co, n1_co, n2_co = edge_info[edge.index]
                     p_start = p2_co if is_rev else p1_co
@@ -575,7 +619,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
                         edge_offset = 2.0 * factor - 1.0
                         t_final = (t_0 + edge_offset * (1.0 - t_0)) if edge_offset >= 0 else (t_0 + edge_offset * t_0)
                         t_final = max(0.0, min(1.0, t_final))
-                        
+
                         nv.co = p_start * (1.0 - t_final) + p_end * t_final
                         if should_apply_curvature:
                             nv.co += calculate_curvature_bulge(p_start, p_end, n_start, n_end, t_final)
