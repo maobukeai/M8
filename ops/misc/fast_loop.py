@@ -1100,7 +1100,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
             self.enable_edge_flow = getattr(prefs, "fast_loop_enable_edge_flow", False)
             self.keep_selection = getattr(prefs, "fast_loop_keep_selection", False)
 
-        auto_sel = getattr(prefs, "fast_loop_auto_selection", True) if prefs else True
+        auto_sel = getattr(prefs, "fast_loop_auto_selection", False) if prefs else False
         if auto_sel:
             self.bm.edges.ensure_lookup_table()
             selected_edges = [e for e in self.bm.edges if e.select and not e.hide]
@@ -1471,6 +1471,34 @@ class M8_OT_FastLoop(bpy.types.Operator):
             if prefs:
                 prefs.fast_loop_keep_selection = self.keep_selection
             self.trigger_update(context, event)
+        elif event.type == 'Q' and event.value == 'PRESS':
+            if getattr(self, 'selection_locked', False):
+                self.selection_locked = False
+                self.hovered_edge_idx = -1
+                self.edge_ring_edge_indices = []
+                self.edge_ring_edges = []
+                self.edge_ring_orientations = {}
+                self.last_hit_loc = None
+                self.preview_points = []
+                self.preview_lines = []
+                self.dimension_draws = []
+                self.trigger_update(context, event)
+                self.report({'INFO'}, _T("已切换回普通悬停加线模式"))
+            else:
+                self.bm.edges.ensure_lookup_table()
+                selected_edges = [e for e in self.bm.edges if e.select and not e.hide]
+                if selected_edges:
+                    self.selection_locked = True
+                    self.edge_ring_edges = selected_edges
+                    self.edge_ring_edge_indices = [edge.index for edge in self.edge_ring_edges]
+                    self.edge_ring_orientations = self.get_oriented_loop_selection(self.bm, selected_edges)
+                    self.hovered_edge_idx = selected_edges[0].index
+                    self.slide_offset = 0.0
+                    self.update_ring_and_preview(context, selected_edges[0].index, None)
+                    self.report({'INFO'}, _T("已激活选区垂直环切模式"))
+                else:
+                    self.report({'WARNING'}, _T("未选择任何边，请在编辑模式先选择循环边"))
+            context.area.tag_redraw()
             return {'RUNNING_MODAL'}
         elif event.type == 'W' and event.value == 'PRESS':
             if self.segments > 1:
@@ -1592,7 +1620,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
         try:
             x = 90
             w = 270
-            h = 230
+            h = 245
             y = context.area.height - h - 80
 
             shader = gpu.shader.from_builtin('UNIFORM_COLOR')
@@ -1615,25 +1643,34 @@ class M8_OT_FastLoop(bpy.types.Operator):
             text_y = y + 10
 
             blf.color(font_id, 0.0, 0.8, 1.0, 1.0)
-            blf.position(font_id, text_x, text_y + line_height * 12 - 5, 0)
+            blf.position(font_id, text_x, text_y + line_height * 13 - 5, 0)
             title_suffix = f" [{_T('选区锁定垂直环切')}]" if getattr(self, 'selection_locked', False) else ""
             blf.draw(font_id, f"M8 Fast Loop{title_suffix}")
 
             blf.color(font_id, 1.0, 1.0, 1.0, 0.85)
-            
+
             if self.input_mode == 'NUMERIC':
                 blf.color(font_id, 0.0, 0.8, 1.0, 1.0)
-                blf.position(font_id, text_x, text_y + line_height * 11 - 5, 0)
+                blf.position(font_id, text_x, text_y + line_height * 12 - 5, 0)
                 blf.draw(font_id, f"键入定位 (百分比/绝对值): {self.numeric_str}_")
                 blf.color(font_id, 1.0, 1.0, 1.0, 0.85)
             else:
                 mode_str = _T("顶点模式") if self.vertex_mode else _T("切刀模式")
-                blf.position(font_id, text_x, text_y + line_height * 11 - 5, 0)
+                blf.position(font_id, text_x, text_y + line_height * 12 - 5, 0)
                 blf.draw(font_id, f"[V] {_T('当前模式')}: {mode_str} | [Tab] {_T('数值定位')}")
 
-            blf.position(font_id, text_x, text_y + line_height * 10 - 5, 0)
+            blf.position(font_id, text_x, text_y + line_height * 11 - 5, 0)
             blf.draw(font_id, f"[Shift+滚轮/1-9/↑↓] {_T('段数 (Cuts)')}: {self.segments}")
 
+            sel_state_str = _T("已激活") if getattr(self, 'selection_locked', False) else _T("未激活")
+            if getattr(self, 'selection_locked', False):
+                blf.color(font_id, 0.0, 0.9, 1.0, 1.0)
+            else:
+                blf.color(font_id, 1.0, 1.0, 1.0, 0.85)
+            blf.position(font_id, text_x, text_y + line_height * 10 - 5, 0)
+            blf.draw(font_id, f"[Q] {_T('选区环切')}: {sel_state_str}")
+
+            blf.color(font_id, 1.0, 1.0, 1.0, 0.85)
             snap_str = _T("开启") if self.snap_enabled else _T("关闭")
             blf.position(font_id, text_x, text_y + line_height * 9 - 5, 0)
             blf.draw(font_id, f"[Ctrl] {_T('吸附状态')}: {snap_str} ({self.snap_divisions} {_T('等分')})")
@@ -1687,11 +1724,11 @@ class M8_OT_FastLoop(bpy.types.Operator):
             elif getattr(self, 'selection_locked', False):
                 blf.color(font_id, 0.0, 0.9, 1.0, 0.95)
                 blf.position(font_id, text_x, text_y - 5, 0)
-                blf.draw(font_id, f"[L-Click/Enter/Space] {_T('确认选区加线')} | [Shift+L-Click] {_T('曲率加线')} | [Esc] {_T('取消')}")
+                blf.draw(font_id, f"[L-Click/Enter] {_T('确认选区加线')} | [Shift+L-Click] {_T('曲率加线')} | [Q] {_T('退出选区')}")
             else:
                 blf.color(font_id, 1.0, 0.8, 0.0, 0.95)
                 blf.position(font_id, text_x, text_y - 5, 0)
-                blf.draw(font_id, f"[L-Click] {_T('添加/重复加线')} | [Shift+L-Click] Set Flow | [Shift+R-Click] {_T('居中切')} | [Esc] {_T('取消退出')}")
+                blf.draw(font_id, f"[L-Click] {_T('添加/重复加线')} | [Q] {_T('选区加线')} | [Shift+L-Click] Set Flow | [Esc] {_T('取消退出')}")
 
             if not self.is_remove_mode and self.dimension_draws:
                 region = context.region

@@ -405,9 +405,9 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     # --- Fast Loop Properties ---
     activate_fast_loop: bpy.props.BoolProperty(name=_T("启用快速循环切刀"), default=True, update=_on_prefs_update)
     fast_loop_auto_selection: bpy.props.BoolProperty(
-        name=_T("默认自动感知选区"),
-        description=_T("启动快速循环切刀时，若已有选中的循环边或并列边，自动锁定选区并批量生成垂直切线预览"),
-        default=True
+        name=_T("启动时自动进入选区模式"),
+        description=_T("启动快速循环切刀时若已有选中边是否直接激活选区环切模式（默认关闭，可通过快捷键 Q 随时激活）"),
+        default=False
     )
     fast_loop_segments: bpy.props.IntProperty(name=_T("默认段数 (Cuts)"), default=1, min=1, max=100)
     fast_loop_vertex_mode: bpy.props.BoolProperty(name=_T("默认顶点模式"), default=False)
