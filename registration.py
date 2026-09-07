@@ -139,6 +139,7 @@ from .ops.misc.telemetry import (
     M8_OT_InstallUpdate,
     M8_OT_TriggerTestError,
     M8_OT_CleanDuplicateAddons,
+    M8_OT_ShowUpdateDialog,
 )
 from .ui.pie.smart_pie import VIEW3D_MT_M8SmartPie
 from .ops.mesh.cleaner import (
@@ -275,6 +276,7 @@ CLASSES = [
     M8_OT_InstallUpdate,
     M8_OT_TriggerTestError,
     M8_OT_CleanDuplicateAddons,
+    M8_OT_ShowUpdateDialog,
     M8_OT_SortMaterials,
     M8_OT_MergeNearbyObjects,
     M8_OT_SplitStamens,

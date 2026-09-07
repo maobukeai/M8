@@ -306,13 +306,34 @@ def _apply_update_results(is_manual):
     m8.update_checked = True
 
     if m8.update_available:
-        # Auto-pop dialog on startup OR on manual check
-        wm.popup_menu(_draw_update_dialog, title=_T("检测到新版本"), icon="INFO")
+        # Auto-pop fixed modal dialog on startup OR on manual check
+        _show_modal_update_dialog()
     elif is_manual:
-        # Manual check shows "already latest" dialog
-        wm.popup_menu(_draw_update_dialog, title=_T("提示"), icon="INFO")
+        # Manual check shows fixed modal dialog with status
+        _show_modal_update_dialog()
 
     return None
+
+def _show_modal_update_dialog():
+    """Safely invoke M8_OT_ShowUpdateDialog modal dialog in the main window context."""
+    wm = getattr(bpy.context, "window_manager", None)
+    if not wm:
+        return
+    win = wm.windows[0] if getattr(wm, "windows", None) else None
+    try:
+        if win:
+            with bpy.context.temp_override(window=win):
+                bpy.ops.m8.show_update_dialog('INVOKE_DEFAULT')
+        else:
+            bpy.ops.m8.show_update_dialog('INVOKE_DEFAULT')
+    except Exception as exc:
+        # Fallback to popup_menu if modal operator cannot be invoked
+        try:
+            m8 = getattr(wm, "m8", None)
+            title = _T("检测到新版本") if (m8 and m8.update_available) else _T("提示")
+            wm.popup_menu(_draw_update_dialog, title=title, icon="INFO")
+        except Exception:
+            pass
 
 def check_for_updates_async(is_manual=False):
     global _update_result

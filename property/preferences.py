@@ -730,9 +730,9 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             if m8.update_status == "checking":
                 status_row.label(text=_T("正在检测更新..."), icon="FILE_REFRESH")
             elif m8.update_status == "available":
-                status_row.label(text=f"{_T('检测到新版本')}: v{m8.update_version}!", icon="ERROR")
-                op_dl = status_row.operator("wm.url_open", text=_T("前往下载"), icon="IMPORT")
-                op_dl.url = m8.update_download_url
+                status_row.label(text=f"{_T('检测到新版本')}: v{m8.update_version}!", icon="INFO")
+                status_row.operator("m8.show_update_dialog", text=_T("查看更新详情"), icon="INFO")
+                status_row.operator("m8.install_update", text=_T("一键更新"), icon="FILE_REFRESH")
             elif m8.update_status == "latest":
                 status_row.label(text=_T("已经是最新版本"), icon="CHECKMARK")
             elif m8.update_status == "error":
@@ -743,8 +743,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         # Links
         row1 = col.row(align=True)
         row1.scale_y = 1.3
-        op = row1.operator("wm.url_open", text=_T("官网社区"), icon="WORLD")
-        op.url = "https://mao.591595.xyz/"
+        op = row1.operator("wm.url_open", text=_T("Release 页面"), icon="WORLD")
+        op.url = "https://github.com/maobukeai/M8/releases"
         
         op = row1.operator("wm.url_open", text=_T("GitHub 链接"), icon="FILE_SCRIPT")
         op.url = "https://github.com/maobukeai/M8"

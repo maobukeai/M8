@@ -74,4 +74,76 @@ class M8_OT_CleanDuplicateAddons(bpy.types.Operator):
             self.report({'INFO'}, _T("未发现多余的历史旧版本残留。"))
         return {'FINISHED'}
 
+class M8_OT_ShowUpdateDialog(bpy.types.Operator):
+    bl_idname = "m8.show_update_dialog"
+    bl_label = _T("M8 全能工具箱 - 版本更新")
+    bl_description = _T("查看 M8 全能工具箱最新版本更新详情与升级选项")
+    bl_options = {'INTERNAL'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=500, confirm_text=_T("关闭"))
+
+    def draw(self, context):
+        layout = self.layout
+        wm = context.window_manager
+        m8 = getattr(wm, "m8", None)
+        if not m8:
+            layout.label(text=_T("未找到更新状态数据"), icon="ERROR")
+            return
+
+        from ...utils.network import get_addon_version, version_tuple_to_str
+        cur_ver = version_tuple_to_str(get_addon_version())
+
+        # Header Box
+        header_box = layout.box()
+        h_row = header_box.row(align=True)
+        if m8.update_available:
+            h_row.label(text=_T("🎉 发现新版本可用！"), icon="INFO")
+        else:
+            h_row.label(text=_T("✨ 当前已是最新版本"), icon="CHECKMARK")
+
+        v_row = header_box.row(align=True)
+        v_row.label(text=f"{_T('当前版本')}: v{cur_ver}", icon="DESKTOP")
+        v_row.label(text=f"➔   {_T('最新版本')}: v{m8.update_version or cur_ver}", icon="FILE_REFRESH")
+
+        if m8.update_available:
+            layout.separator(factor=0.5)
+            layout.label(text=_T("更新日志 / 新特性:"), icon="TEXT")
+            
+            box = layout.box()
+            changelog_text = m8.update_changelog or _T("无详细更新日志，请前往 GitHub Release 页面查看。")
+            lines = [l.strip() for l in changelog_text.split("\n") if l.strip()]
+            for line in lines[:10]:
+                box.label(text=line[:80])
+            if len(lines) > 10:
+                box.label(text=_T("...更多详细说明请查看 GitHub Release 页面"))
+
+            layout.separator(factor=0.8)
+
+            if m8.update_status == "updating":
+                update_col = layout.column(align=True)
+                update_col.scale_y = 1.3
+                update_col.label(text=_T("正在下载并覆盖安装，请稍候..."), icon="FILE_REFRESH")
+            else:
+                act_row = layout.row(align=True)
+                act_row.scale_y = 1.3
+                
+                is_zip = bool(m8.update_download_url and (m8.update_download_url.lower().endswith(".zip") or "/download/" in m8.update_download_url))
+                if is_zip:
+                    act_row.operator("m8.install_update", text=_T("立即一键更新"), icon="FILE_REFRESH")
+                
+                op = act_row.operator("wm.url_open", text=_T("浏览器下载") if is_zip else _T("前往 Release 页面"), icon="IMPORT")
+                op.url = m8.update_download_url or "https://github.com/maobukeai/M8/releases/latest"
+        else:
+            layout.separator(factor=0.5)
+            layout.label(text=_T("您当前使用的是最新稳定版，无需更新。"), icon="CHECKMARK")
+            row = layout.row(align=True)
+            row.scale_y = 1.2
+            op = row.operator("wm.url_open", text=_T("前往 GitHub 仓库"), icon="WORLD")
+            op.url = "https://github.com/maobukeai/M8"
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+
 
