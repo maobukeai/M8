@@ -46,6 +46,19 @@ def should_exclude(rel_path: Path):
         return True
     return False
 
+def update_version_json(version, sha256_hash):
+    import json
+    version_json_path = ROOT / "version.json"
+    data = {
+        "version": version,
+        "name": "M8.zip",
+        "download_url": f"https://github.com/maobukeai/M8/releases/download/v{version}/M8.zip",
+        "sha256": sha256_hash,
+        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. 更新系统无服务器化升级 (GitHub Releases & 高速 CDN 容灾)\n2. 根治多版本重复安装问题，主包统一命名为 M8.zip\n3. 修复 M8_OT_ToggleArea 注册问题",
+    }
+    version_json_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[BUILD] Synchronized {version_json_path.name} with v{version}")
+
 def build_zip():
     version = get_manifest_version()
     standard_zip = DIST_DIR / "M8.zip"
@@ -66,10 +79,20 @@ def build_zip():
 
     shutil.copy2(standard_zip, versioned_zip)
 
+    # Compute SHA-256
+    import hashlib
+    h = hashlib.sha256()
+    with open(standard_zip, "rb") as f:
+        while chunk := f.read(1024 * 1024):
+            h.update(chunk)
+    sha256_hash = h.hexdigest()
+
+    update_version_json(version, sha256_hash)
+
     size_mb = standard_zip.stat().st_size / (1024 * 1024)
     print(f"[BUILD] Successfully generated:")
-    print(f"  -> {standard_zip.name} ({size_mb:.2f} MB, {file_count} files) [Standard/Anti-duplicate]")
-    print(f"  -> {versioned_zip.name} ({size_mb:.2f} MB, {file_count} files) [Versioned Archive]")
+    print(f"  -> {standard_zip.name} ({size_mb:.2f} MB, {file_count} files, SHA256: {sha256_hash[:16]}...)")
+    print(f"  -> {versioned_zip.name} ({size_mb:.2f} MB, {file_count} files)")
     return standard_zip, versioned_zip
 
 if __name__ == "__main__":

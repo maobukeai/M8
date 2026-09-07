@@ -27,6 +27,11 @@ ALLOWED_UPDATE_HOSTS = {
     "objects.githubusercontent.com",
     "github-releases.githubusercontent.com",
     "codeload.github.com",
+    "cdn.jsdelivr.net",
+    "fastly.jsdelivr.net",
+    "raw.gitmirror.com",
+    "ghfast.top",
+    "mirror.ghproxy.com",
 }
 MAX_UPDATE_BYTES = 100 * 1024 * 1024
 MAX_ARCHIVE_FILES = 2_000
@@ -114,25 +119,44 @@ def _download_update_archive(url, destination, expected_sha256):
     if use_sha256 and not _is_sha256(expected_sha256):
         raise ValueError("Update server did not provide a valid SHA-256 checksum")
 
-    digest = hashlib.sha256() if use_sha256 else None
-    total = 0
-    request = urllib.request.Request(url, headers=_request_headers())
-    with urllib.request.urlopen(request, timeout=60) as response, open(destination, "wb") as output:
-        if not _is_allowed_https_url(response.geturl()):
-            raise ValueError("Update redirect left the approved HTTPS host")
-        content_length = response.headers.get("Content-Length")
-        if content_length and int(content_length) > MAX_UPDATE_BYTES:
-            raise ValueError("Update download is too large")
-        while chunk := response.read(1024 * 1024):
-            total += len(chunk)
-            if total > MAX_UPDATE_BYTES:
-                raise ValueError("Update download is too large")
-            if use_sha256:
-                digest.update(chunk)
-            output.write(chunk)
+    # Mirror list: try direct URL first, then try domestic acceleration proxy
+    urls_to_try = [url]
+    if "github.com/" in url and not url.startswith("https://ghfast.top/"):
+        urls_to_try.append(f"https://ghfast.top/{url}")
 
-    if use_sha256 and digest.hexdigest().lower() != expected_sha256.lower():
-        raise ValueError("Update checksum verification failed")
+    last_err = None
+    for target_url in urls_to_try:
+        try:
+            digest = hashlib.sha256() if use_sha256 else None
+            total = 0
+            request = urllib.request.Request(target_url, headers=_request_headers())
+            with urllib.request.urlopen(request, timeout=30) as response, open(destination, "wb") as output:
+                if not _is_allowed_https_url(response.geturl()):
+                    raise ValueError("Update redirect left the approved HTTPS host")
+                content_length = response.headers.get("Content-Length")
+                if content_length and int(content_length) > MAX_UPDATE_BYTES:
+                    raise ValueError("Update download is too large")
+                while chunk := response.read(1024 * 1024):
+                    total += len(chunk)
+                    if total > MAX_UPDATE_BYTES:
+                        raise ValueError("Update download is too large")
+                    if use_sha256:
+                        digest.update(chunk)
+                    output.write(chunk)
+
+            if use_sha256 and digest.hexdigest().lower() != expected_sha256.lower():
+                raise ValueError("Update checksum verification failed")
+            return  # Download success
+        except Exception as exc:
+            last_err = exc
+            if os.path.exists(destination):
+                try:
+                    os.remove(destination)
+                except Exception:
+                    pass
+            continue
+
+    raise last_err or RuntimeError("Download failed on all mirrors")
 
 
 def sanitize_error_report(content):
@@ -305,54 +329,74 @@ def check_for_updates_async(is_manual=False):
 
     def run():
         global _update_result
-        try:
-            url = GITHUB_API_LATEST
-            req = urllib.request.Request(url, headers=_request_headers())
-            with urllib.request.urlopen(req, timeout=12) as response:
-                data = json.loads(response.read().decode('utf-8'))
-            
-            tag_name = data.get("tag_name", "").strip()
-            match = re.search(r"(\d+(?:\.\d+)+)", tag_name)
-            latest_version = match.group(1) if match else tag_name.lstrip("v")
-            
-            current_ver = get_addon_version()
-            latest_ver_tuple = version_str_to_tuple(latest_version)
-            is_newer = latest_ver_tuple > current_ver
-            
-            # Find zip release asset: Prioritize standard 'M8.zip' over versioned names
-            assets = data.get("assets", [])
-            download_url = ""
-            sha256 = ""
-            for asset in assets:
-                if asset.get("name", "").lower() == "m8.zip":
-                    download_url = asset.get("browser_download_url", "")
-                    break
-            if not download_url:
-                for asset in assets:
-                    if asset.get("name", "").lower().endswith(".zip"):
-                        download_url = asset.get("browser_download_url", "")
-                        break
-            
-            # Fallback to release page if no direct zip asset
-            if not download_url:
-                download_url = data.get("html_url", GITHUB_RELEASES_URL)
-            
-            body = data.get("body", "") or _T("暂无更新日志")
-            sha_match = re.search(r"(?:sha256|SHA256)[:\s=]+([a-fA-F0-9]{64})", body)
-            if sha_match:
-                sha256 = sha_match.group(1)
-            
-            with _update_lock:
-                _update_result = {
-                    "updateAvailable": is_newer,
-                    "latestVersion": latest_version,
-                    "downloadUrl": download_url,
-                    "sha256": sha256,
-                    "changelog": body,
-                }
-        except Exception as e:
-            with _update_lock:
-                _update_result = {"error": f"{_T('GitHub 连接失败')}: {e}"}
+        current_ver = get_addon_version()
+        
+        # Multi-channel ladder: CDN & Raw bypass GitHub's 60 req/hour rate-limit!
+        channels = [
+            f"https://cdn.jsdelivr.net/gh/{GITHUB_REPO}@main/version.json",
+            f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/version.json",
+            f"https://raw.gitmirror.com/{GITHUB_REPO}/main/version.json",
+            GITHUB_API_LATEST,
+        ]
+        
+        last_error = None
+        for endpoint in channels:
+            try:
+                req = urllib.request.Request(endpoint, headers=_request_headers())
+                with urllib.request.urlopen(req, timeout=6) as response:
+                    data = json.loads(response.read().decode('utf-8'))
+                
+                # Format 1: version.json metadata format
+                if "version" in data and "download_url" in data:
+                    latest_version = str(data["version"]).lstrip("v")
+                    latest_ver_tuple = version_str_to_tuple(latest_version)
+                    is_newer = latest_ver_tuple > current_ver
+                    download_url = data.get("download_url", "")
+                    sha256 = data.get("sha256", "")
+                    body = data.get("changelog", _T("暂无更新日志"))
+                else:
+                    # Format 2: GitHub Releases API format
+                    tag_name = data.get("tag_name", "").strip()
+                    match = re.search(r"(\d+(?:\.\d+)+)", tag_name)
+                    latest_version = match.group(1) if match else tag_name.lstrip("v")
+                    latest_ver_tuple = version_str_to_tuple(latest_version)
+                    is_newer = latest_ver_tuple > current_ver
+
+                    assets = data.get("assets", [])
+                    download_url = ""
+                    sha256 = ""
+                    for asset in assets:
+                        if asset.get("name", "").lower() == "m8.zip":
+                            download_url = asset.get("browser_download_url", "")
+                            break
+                    if not download_url:
+                        for asset in assets:
+                            if asset.get("name", "").lower().endswith(".zip"):
+                                download_url = asset.get("browser_download_url", "")
+                                break
+                    if not download_url:
+                        download_url = data.get("html_url", GITHUB_RELEASES_URL)
+
+                    body = data.get("body", "") or _T("暂无更新日志")
+                    sha_match = re.search(r"(?:sha256|SHA256)[:\s=]+([a-fA-F0-9]{64})", body)
+                    if sha_match:
+                        sha256 = sha_match.group(1)
+
+                with _update_lock:
+                    _update_result = {
+                        "updateAvailable": is_newer,
+                        "latestVersion": latest_version,
+                        "downloadUrl": download_url,
+                        "sha256": sha256,
+                        "changelog": body,
+                    }
+                return  # Success, finished!
+            except Exception as e:
+                last_error = e
+                continue  # Try next endpoint in ladder
+
+        with _update_lock:
+            _update_result = {"error": f"{_T('检测更新失败')}: {last_error}"}
 
     threading.Thread(target=run, daemon=True).start()
 
