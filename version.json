@@ -1,7 +1,7 @@
 {
-  "version": "3.7.8",
+  "version": "3.7.9",
   "name": "M8.zip",
-  "download_url": "https://github.com/maobukeai/M8/releases/download/v3.7.8/M8.zip",
-  "sha256": "6c6c417f46c4d337c081a1241a0be2bc259742b1be868783dffe7847b009899b",
-  "changelog": "M8 全能工具箱 v3.7.8 发布\n\n1. 更新系统无服务器化升级 (GitHub Releases & 高速 CDN 容灾)\n2. 根治多版本重复安装问题，主包统一命名为 M8.zip\n3. 修复 M8_OT_ToggleArea 注册问题"
+  "download_url": "https://github.com/maobukeai/M8/releases/download/v3.7.9/M8.zip",
+  "sha256": "8e1bb08f09f841ef847596fd7c9ec8eb482d20891d389b7a07583cb9603ac91e",
+  "changelog": "M8 全能工具箱 v3.7.9 发布\n\n1. 修复 Fast Loop (Ctrl+Shift+E) 向隐藏面穿透加线与破坏隐藏面拓扑的问题\n2. 优化视口射线智能穿透，自动忽略隐藏面并拾取背后的可见面\n3. 增强选区垂直环切与循环边移除在隐藏边界处的阻断保护"
 }

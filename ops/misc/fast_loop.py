@@ -82,7 +82,9 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
     def get_opposite_edge(self, face, edge, reversed_direction):
         """Return the opposite quad edge and its matching start direction."""
-        if len(face.verts) != 4:
+        if not face or face.hide or len(face.verts) != 4:
+            return None, False
+        if not edge or edge.hide:
             return None, False
 
         for loop in face.loops:
@@ -91,6 +93,9 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
             opposite_loop = loop.link_loop_next.link_loop_next
             opposite = opposite_loop.edge
+            if opposite.hide:
+                return None, False
+
             edge_start = edge.verts[1] if reversed_direction else edge.verts[0]
 
             if edge_start == loop.vert:
@@ -106,17 +111,23 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
     def get_oriented_edge_ring(self, bm, start_edge):
         """Trace a quad edge-ring with topology-derived, stable orientation."""
+        if not start_edge or start_edge.hide:
+            return {}
+        if start_edge.index < 0:
+            bm.edges.index_update()
         ring_map = {start_edge.index: False}
         visited = {start_edge}
 
         def walk(start_face):
+            if not start_face or start_face.hide:
+                return
             curr_face = start_face
             curr_edge = start_edge
             curr_rev = False
 
-            while curr_face:
+            while curr_face and not curr_face.hide:
                 opp_edge, opp_rev = self.get_opposite_edge(curr_face, curr_edge, curr_rev)
-                if opp_edge is None or opp_edge in visited:
+                if opp_edge is None or opp_edge in visited or opp_edge.hide:
                     break
 
                 ring_map[opp_edge.index] = opp_rev
@@ -124,7 +135,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
                 next_faces = [
                     face for face in opp_edge.link_faces
-                    if face != curr_face and len(face.verts) == 4
+                    if face != curr_face and len(face.verts) == 4 and not face.hide
                 ]
                 if len(next_faces) != 1:
                     break
@@ -134,25 +145,31 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 curr_rev = opp_rev
 
         for face in start_edge.link_faces:
-            walk(face)
+            if not face.hide:
+                walk(face)
 
         return ring_map
 
     def get_oriented_loop_selection(self, bm, selected_edges):
         """Derive continuous direction along selected edges chain/loop."""
-        if not selected_edges:
+        valid_edges = [e for e in selected_edges if not e.hide]
+        if not valid_edges:
             return {}
-        start_edge = selected_edges[0]
+        if valid_edges[0].index < 0:
+            bm.edges.index_update()
+        start_edge = valid_edges[0]
         ring_map = {start_edge.index: False}
         visited = {start_edge}
 
-        unvisited = [e for e in selected_edges if e != start_edge]
+        unvisited = [e for e in valid_edges if e != start_edge]
         changed = True
         while changed and unvisited:
             changed = False
             for e in list(unvisited):
                 for v in e.verts:
-                    neighbor = next((ve for ve in v.link_edges if ve in visited and ve in selected_edges), None)
+                    if v.hide:
+                        continue
+                    neighbor = next((ve for ve in v.link_edges if ve in visited and ve in valid_edges and not ve.hide), None)
                     if neighbor:
                         neighbor_rev = ring_map[neighbor.index]
                         neighbor_v_end = neighbor.verts[0] if neighbor_rev else neighbor.verts[1]
@@ -234,16 +251,20 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
             # Traverse full perpendicular edge rings across all connected quads
             for start_edge in selected_edges:
+                if start_edge.hide:
+                    continue
                 start_rev = self.edge_ring_orientations.get(start_edge.index, False)
                 for start_face in start_edge.link_faces:
+                    if start_face.hide:
+                        continue
                     curr_face = start_face
                     curr_edge = start_edge
                     curr_rev = start_rev
 
-                    while curr_face and curr_face not in visited_faces and len(curr_face.verts) == 4:
+                    while curr_face and not curr_face.hide and curr_face not in visited_faces and len(curr_face.verts) == 4:
                         visited_faces.add(curr_face)
                         opp_edge, opp_rev = self.get_opposite_edge(curr_face, curr_edge, curr_rev)
-                        if not opp_edge:
+                        if not opp_edge or opp_edge.hide:
                             break
 
                         pair_key = (min(curr_edge.index, opp_edge.index), max(curr_edge.index, opp_edge.index))
@@ -274,7 +295,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
                         next_faces = [
                             face for face in opp_edge.link_faces
-                            if face != curr_face and len(face.verts) == 4
+                            if face != curr_face and len(face.verts) == 4 and not face.hide
                         ]
                         if len(next_faces) != 1:
                             break
@@ -301,8 +322,8 @@ class M8_OT_FastLoop(bpy.types.Operator):
         # HOVER MODE / GUIDE MODE
         # -------------------------------------------------------------
         if self.guide_mode:
-            selected_edges = [e for e in self.bm.edges if e.select]
-            if start_edge not in selected_edges:
+            selected_edges = [e for e in self.bm.edges if e.select and not e.hide]
+            if start_edge not in selected_edges and not start_edge.hide:
                 selected_edges.append(start_edge)
             self.edge_ring_orientations = self.get_oriented_loop_selection(self.bm, selected_edges)
         else:
@@ -402,10 +423,12 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
         self.preview_lines = []
         if not self.vertex_mode:
-            ring_edge_indices = {e.index for e in self.edge_ring_edges}
+            ring_edge_indices = {e.index for e in self.edge_ring_edges if not e.hide}
             self.bm.faces.ensure_lookup_table()
             for face in self.bm.faces:
-                face_ring_edges = [e for e in face.edges if e.index in ring_edge_indices]
+                if face.hide:
+                    continue
+                face_ring_edges = [e for e in face.edges if e.index in ring_edge_indices and not e.hide]
                 if len(face_ring_edges) == 2:
                     e1_idx = face_ring_edges[0].index
                     e2_idx = face_ring_edges[1].index
@@ -417,13 +440,15 @@ class M8_OT_FastLoop(bpy.types.Operator):
                             self.preview_lines.append(pts2[idx])
 
     def get_edge_loop(self, context, start_edge):
-        if not start_edge or not start_edge.is_valid:
+        if not start_edge or not start_edge.is_valid or start_edge.hide:
             return []
         
         loop_edges = [start_edge]
         visited = {start_edge}
         
         for start_vert in start_edge.verts:
+            if start_vert.hide:
+                continue
             curr_edge = start_edge
             curr_vert = start_vert
             
@@ -432,10 +457,11 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 linked_edges = [e for e in curr_vert.link_edges if not e.hide]
                 
                 if len(linked_edges) == 4:
-                    curr_faces = set(curr_edge.link_faces)
+                    curr_faces = set(f for f in curr_edge.link_faces if not f.hide)
                     for e in linked_edges:
                         if e != curr_edge:
-                            if not set(e.link_faces).intersection(curr_faces):
+                            e_faces = set(f for f in e.link_faces if not f.hide)
+                            if not e_faces.intersection(curr_faces):
                                 next_edge = e
                                 break
                 elif len(linked_edges) == 2:
@@ -444,7 +470,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
                             next_edge = e
                             break
                             
-                if next_edge and next_edge not in visited:
+                if next_edge and next_edge not in visited and not next_edge.hide:
                     visited.add(next_edge)
                     loop_edges.append(next_edge)
                     curr_vert = next_edge.other_vert(curr_vert)
@@ -458,6 +484,8 @@ class M8_OT_FastLoop(bpy.types.Operator):
         if self.hovered_edge_idx < 0:
             return
         start_edge = self.bm.edges[self.hovered_edge_idx]
+        if start_edge.hide:
+            return
         loop_edges = self.get_edge_loop(context, start_edge)
         if not loop_edges:
             return
@@ -518,7 +546,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
         if getattr(self, 'selection_locked', False):
             selected_edges = [
                 self.bm.edges[idx] for idx in self.edge_ring_edge_indices
-                if 0 <= idx < len(self.bm.edges)
+                if 0 <= idx < len(self.bm.edges) and not self.bm.edges[idx].hide
             ]
             if not selected_edges:
                 return
@@ -530,25 +558,29 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 factor = max(0.0, min(1.0, factor))
 
             for edge in self.bm.edges:
-                edge[selected_edge_layer] = int(edge.select)
+                edge[selected_edge_layer] = int(edge.select and not edge.hide)
 
             # Traverse full perpendicular edge rings across all connected quads
-            all_edges_to_cut = set(selected_edges)
+            all_edges_to_cut = set(e for e in selected_edges if not e.hide)
             quad_cuts = []
             visited_faces = set()
             edge_orientations = {e.index: loop_orientations.get(e.index, False) for e in selected_edges}
 
             for start_edge in selected_edges:
+                if start_edge.hide:
+                    continue
                 start_rev = loop_orientations.get(start_edge.index, False)
                 for start_face in start_edge.link_faces:
+                    if start_face.hide:
+                        continue
                     curr_face = start_face
                     curr_edge = start_edge
                     curr_rev = start_rev
 
-                    while curr_face and curr_face not in visited_faces and len(curr_face.verts) == 4:
+                    while curr_face and not curr_face.hide and curr_face not in visited_faces and len(curr_face.verts) == 4:
                         visited_faces.add(curr_face)
                         opp_edge, opp_rev = self.get_opposite_edge(curr_face, curr_edge, curr_rev)
-                        if not opp_edge:
+                        if not opp_edge or opp_edge.hide:
                             break
 
                         all_edges_to_cut.add(opp_edge)
@@ -557,7 +589,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
                         next_faces = [
                             face for face in opp_edge.link_faces
-                            if face != curr_face and len(face.verts) == 4
+                            if face != curr_face and len(face.verts) == 4 and not face.hide
                         ]
                         if len(next_faces) != 1:
                             break
@@ -676,10 +708,10 @@ class M8_OT_FastLoop(bpy.types.Operator):
                     pair_key = (id(va), id(vb)) if id(va) < id(vb) else (id(vb), id(va))
                     if pair_key in connected_vert_pairs:
                         continue
-                    shared_faces = [f for f in va.link_faces if f in vb.link_faces and len(f.verts) > 3]
+                    shared_faces = [f for f in va.link_faces if f in vb.link_faces and len(f.verts) > 3 and not f.hide]
                     if shared_faces:
                         try:
-                            res = bmesh.ops.connect_verts(self.bm, verts=[va, vb])
+                            res = bmesh.ops.connect_verts(self.bm, verts=[va, vb], faces=shared_faces)
                             if res and res.get('edges'):
                                 new_cut_edges.extend(res['edges'])
                                 connected_vert_pairs.add(pair_key)
@@ -754,19 +786,19 @@ class M8_OT_FastLoop(bpy.types.Operator):
         ring_edges = [
             self.bm.edges[index]
             for index in self.edge_ring_edge_indices
-            if 0 <= index < len(self.bm.edges)
+            if 0 <= index < len(self.bm.edges) and not self.bm.edges[index].hide
         ]
         if not ring_edges:
             return
 
-        ref_edge = self.bm.edges[self.hovered_edge_idx] if (0 <= self.hovered_edge_idx < len(self.bm.edges) and self.hovered_edge_idx in self.edge_ring_orientations) else ring_edges[0]
+        ref_edge = self.bm.edges[self.hovered_edge_idx] if (0 <= self.hovered_edge_idx < len(self.bm.edges) and self.hovered_edge_idx in self.edge_ring_orientations and not self.bm.edges[self.hovered_edge_idx].hide) else ring_edges[0]
         is_start_rev = self.edge_ring_orientations.get(ref_edge.index, False)
         v1_ref = (ref_edge.verts[1] if is_start_rev else ref_edge.verts[0]).co.copy()
         v2_ref = (ref_edge.verts[0] if is_start_rev else ref_edge.verts[1]).co.copy()
         L_active = (v2_ref - v1_ref).length
 
         for edge in self.bm.edges:
-            edge[selected_edge_layer] = int(edge.select)
+            edge[selected_edge_layer] = int(edge.select and not edge.hide)
 
         uv_layer = self.bm.loops.layers.uv.active
 
@@ -786,6 +818,8 @@ class M8_OT_FastLoop(bpy.types.Operator):
         orig_uvs = {}
         if uv_layer:
             for f in self.bm.faces:
+                if f.hide:
+                    continue
                 for l in f.loops:
                     orig_uvs[(f.index, l.vert.index)] = l[uv_layer].uv.copy()
 
@@ -801,7 +835,8 @@ class M8_OT_FastLoop(bpy.types.Operator):
         orig_face_idx_layer = self.bm.faces.layers.int.new(orig_face_layer_name)
         source_edge_layer = self.bm.verts.layers.int.new(source_edge_layer_name)
         for f in self.bm.faces:
-            f[orig_face_idx_layer] = f.index
+            if not f.hide:
+                f[orig_face_idx_layer] = f.index
 
         edge_sources = {
             edge_index: (v1_index, v2_index, p1.copy(), p2.copy())
@@ -818,7 +853,9 @@ class M8_OT_FastLoop(bpy.types.Operator):
         ring_edge_set = set(ring_edges)
         ring_face_edges = []
         for f in self.bm.faces:
-            fe = [e for e in f.edges if e in ring_edge_set]
+            if f.hide:
+                continue
+            fe = [e for e in f.edges if e in ring_edge_set and not e.hide]
             if len(fe) == 2:
                 ring_face_edges.append((f, fe[0].index, fe[1].index))
 
@@ -841,7 +878,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
             new_vert_set_pre = set(new_verts_pre)
             if not self.vertex_mode:
                 for f, e1_idx, e2_idx in ring_face_edges:
-                    if f.is_valid:
+                    if f.is_valid and not f.hide:
                         f_new_verts = [v for v in f.verts if v in new_vert_set_pre]
                         if len(f_new_verts) == 2:
                             try:
@@ -926,6 +963,8 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
                 if uv_layer:
                     for l in v.link_loops:
+                        if l.face.hide:
+                            continue
                         orig_face_idx = l.face[orig_face_idx_layer]
                         key1 = (orig_face_idx, v1_idx)
                         key2 = (orig_face_idx, v2_idx)
@@ -963,6 +1002,8 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 factor = max(0.0, min(1.0, distance_1 / total_distance))
 
                 for loop in vert.link_loops:
+                    if loop.face.hide:
+                        continue
                     original_face_index = loop.face[face_layer]
                     uv1 = orig_uvs.get((original_face_index, v1_index))
                     uv2 = orig_uvs.get((original_face_index, v2_index))
@@ -1192,16 +1233,22 @@ class M8_OT_FastLoop(bpy.types.Operator):
             mw = self.target_object.matrix_world
             mw_inv = mw.inverted()
             self.bm.edges.ensure_lookup_table()
-            edge = self.bm.edges[self.hovered_edge_idx]
-            v1_world = mw @ edge.verts[0].co
-            v2_world = mw @ edge.verts[1].co
-            isect = mathutils.geometry.intersect_line_line(ray_origin, ray_origin + ray_vector, v1_world, v2_world)
-            if isect:
-                self.last_hit_loc = mw_inv @ isect[1]
-                self.update_ring_and_preview(context, self.hovered_edge_idx, self.last_hit_loc)
-            return
+            try:
+                edge = self.bm.edges[self.hovered_edge_idx]
+                if edge.hide:
+                    self.freeze_edge = False
+                else:
+                    v1_world = mw @ edge.verts[0].co
+                    v2_world = mw @ edge.verts[1].co
+                    isect = mathutils.geometry.intersect_line_line(ray_origin, ray_origin + ray_vector, v1_world, v2_world)
+                    if isect:
+                        self.last_hit_loc = mw_inv @ isect[1]
+                        self.update_ring_and_preview(context, self.hovered_edge_idx, self.last_hit_loc)
+                    return
+            except IndexError:
+                self.freeze_edge = False
 
-        # Raycast
+        # Raycast with step-through to ignore hidden faces
         best_obj = None
         best_hit = None
         best_dist = float('inf')
@@ -1212,14 +1259,40 @@ class M8_OT_FastLoop(bpy.types.Operator):
             local_origin = mw_inv @ ray_origin
             local_vector = (mw_inv.to_3x3() @ ray_vector).normalized()
             
-            loc, norm, face_idx, dist = self.bvhs[o.name].ray_cast(local_origin, local_vector)
-            if face_idx is not None and face_idx >= 0:
-                world_hit = mw @ loc
+            bvh = self.bvhs.get(o.name)
+            bm = self.bms.get(o.name)
+            if not bvh or not bm:
+                continue
+
+            bm.faces.ensure_lookup_table()
+            curr_origin = local_origin
+            curr_dist_max = 100000.0
+            total_traveled = 0.0
+            obj_hit = None
+
+            for _ in range(10):
+                loc, norm, face_idx, dist = bvh.ray_cast(curr_origin, local_vector, curr_dist_max)
+                if face_idx is None or face_idx < 0:
+                    break
+                try:
+                    hit_face = bm.faces[face_idx]
+                except IndexError:
+                    break
+                if not hit_face.hide:
+                    obj_hit = (loc, norm, face_idx, total_traveled + dist)
+                    break
+                step = dist + 1e-4
+                total_traveled += step
+                curr_origin = curr_origin + local_vector * step
+                curr_dist_max = max(0.0, curr_dist_max - step)
+
+            if obj_hit:
+                world_hit = mw @ obj_hit[0]
                 d = (ray_origin - world_hit).length
                 if d < best_dist:
                     best_dist = d
                     best_obj = o
-                    best_hit = (loc, norm, face_idx, dist)
+                    best_hit = obj_hit
 
         if best_obj:
             self.target_object = best_obj
@@ -1240,16 +1313,19 @@ class M8_OT_FastLoop(bpy.types.Operator):
             if face_idx is not None and face_idx >= 0:
                 self.bm.faces.ensure_lookup_table()
                 face = self.bm.faces[face_idx]
-                min_dist = float('inf')
-                for edge in face.edges:
-                    p1, p2 = edge.verts[0].co, edge.verts[1].co
-                    projected_co, factor = mathutils.geometry.intersect_point_line(loc, p1, p2)
-                    factor = max(0.0, min(1.0, factor))
-                    closest_segment_co = p1 * (1.0 - factor) + p2 * factor
-                    dist = (loc - closest_segment_co).length
-                    if dist < min_dist:
-                        min_dist = dist
-                        closest_edge = edge
+                if not face.hide:
+                    min_dist = float('inf')
+                    for edge in face.edges:
+                        if edge.hide:
+                            continue
+                        p1, p2 = edge.verts[0].co, edge.verts[1].co
+                        projected_co, factor = mathutils.geometry.intersect_point_line(loc, p1, p2)
+                        factor = max(0.0, min(1.0, factor))
+                        closest_segment_co = p1 * (1.0 - factor) + p2 * factor
+                        dist = (loc - closest_segment_co).length
+                        if dist < min_dist:
+                            min_dist = dist
+                            closest_edge = edge
                         
             if closest_edge:
                 self.hovered_edge_idx = closest_edge.index
@@ -1258,8 +1334,9 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 self.preview_points = []
                 self.preview_lines = []
                 for e in loop_edges:
-                    self.preview_lines.append(mw @ e.verts[0].co)
-                    self.preview_lines.append(mw @ e.verts[1].co)
+                    if not e.hide:
+                        self.preview_lines.append(mw @ e.verts[0].co)
+                        self.preview_lines.append(mw @ e.verts[1].co)
             else:
                 self.hovered_edge_idx = -1
                 self.last_hit_loc = None
@@ -1273,20 +1350,25 @@ class M8_OT_FastLoop(bpy.types.Operator):
             self.bm.faces.ensure_lookup_table()
             face = self.bm.faces[face_idx]
             closest_edge = None
-            min_dist = float('inf')
-            for edge in face.edges:
-                p1, p2 = edge.verts[0].co, edge.verts[1].co
-                projected_co, factor = mathutils.geometry.intersect_point_line(loc, p1, p2)
-                factor = max(0.0, min(1.0, factor))
-                closest_segment_co = p1 * (1.0 - factor) + p2 * factor
-                dist = (loc - closest_segment_co).length
-                if dist < min_dist:
-                    min_dist = dist
-                    closest_edge = edge
+            if not face.hide:
+                min_dist = float('inf')
+                for edge in face.edges:
+                    if edge.hide:
+                        continue
+                    p1, p2 = edge.verts[0].co, edge.verts[1].co
+                    projected_co, factor = mathutils.geometry.intersect_point_line(loc, p1, p2)
+                    factor = max(0.0, min(1.0, factor))
+                    closest_segment_co = p1 * (1.0 - factor) + p2 * factor
+                    dist = (loc - closest_segment_co).length
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest_edge = edge
             
             if closest_edge:
                 self.last_hit_loc = loc
                 self.update_ring_and_preview(context, closest_edge.index, loc)
+            else:
+                self.update_ring_and_preview(context, -1, None)
         else:
             self.update_ring_and_preview(context, -1, None)
 

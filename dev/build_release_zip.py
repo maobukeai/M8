@@ -54,7 +54,7 @@ def update_version_json(version, sha256_hash):
         "name": "M8.zip",
         "download_url": f"https://github.com/maobukeai/M8/releases/download/v{version}/M8.zip",
         "sha256": sha256_hash,
-        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. 更新系统无服务器化升级 (GitHub Releases & 高速 CDN 容灾)\n2. 根治多版本重复安装问题，主包统一命名为 M8.zip\n3. 修复 M8_OT_ToggleArea 注册问题",
+        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. 修复 Fast Loop (Ctrl+Shift+E) 向隐藏面穿透加线与破坏隐藏面拓扑的问题\n2. 优化视口射线智能穿透，自动忽略隐藏面并拾取背后的可见面\n3. 增强选区垂直环切与循环边移除在隐藏边界处的阻断保护",
     }
     version_json_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[BUILD] Synchronized {version_json_path.name} with v{version}")
