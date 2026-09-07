@@ -15,11 +15,19 @@ import bpy
 import sys
 from .i18n import _T
 
-PLUGIN_TOKEN  = "plg_362d15e623a7466ab4b1dfd0312df224"
-CHECK_URL     = "https://mao.591595.xyz/api/plugins/client/check-update"
-FEEDBACK_URL  = "https://mao.591595.xyz/api/plugins/client/feedback"
+GITHUB_REPO = "maobukeai/M8"
+GITHUB_API_LATEST = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
+GITHUB_ISSUES_URL = f"https://github.com/{GITHUB_REPO}/issues/new"
 
-ALLOWED_UPDATE_HOSTS = {"mao.591595.xyz"}
+ALLOWED_UPDATE_HOSTS = {
+    "github.com",
+    "api.github.com",
+    "raw.githubusercontent.com",
+    "objects.githubusercontent.com",
+    "github-releases.githubusercontent.com",
+    "codeload.github.com",
+}
 MAX_UPDATE_BYTES = 100 * 1024 * 1024
 MAX_ARCHIVE_FILES = 2_000
 MAX_EXTRACTED_BYTES = 500 * 1024 * 1024
@@ -30,10 +38,10 @@ _reporting_error = False
 
 
 def _request_headers(content_type=None):
-    """Keep the client token out of URLs and request bodies."""
+    """Standard HTTP headers for GitHub API and release downloads."""
     headers = {
         "User-Agent": "Blender-M8-Client",
-        "X-Developer-Token": PLUGIN_TOKEN,
+        "Accept": "application/vnd.github+json",
     }
     if content_type:
         headers["Content-Type"] = content_type
@@ -45,8 +53,12 @@ def _is_allowed_https_url(url):
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != "https":
             return False
-        hostname = parsed.hostname or ""
-        return hostname in ALLOWED_UPDATE_HOSTS or hostname.endswith(".r2.dev")
+        hostname = (parsed.hostname or "").lower()
+        if hostname in ALLOWED_UPDATE_HOSTS:
+            return True
+        if hostname.endswith(".github.com") or hostname.endswith(".githubusercontent.com"):
+            return True
+        return False
     except Exception:
         return False
 
@@ -200,19 +212,22 @@ def _draw_update_dialog(self, context):
         layout.separator()
         layout.label(text=_T("更新日志:"))
         box = layout.box()
-        # Draw changelog line by line
-        lines = m8.update_changelog.split('\n')
-        for line in lines:
-            if line.strip():
-                box.label(text=line)
+        # Draw changelog line by line (capped to avoid overflowing dialog)
+        lines = [line.strip() for line in m8.update_changelog.split('\n') if line.strip()]
+        for line in lines[:10]:
+            box.label(text=line[:90])
+        if len(lines) > 10:
+            box.label(text=_T("...更多内容请查看 GitHub Release 页面"))
         layout.separator()
         
         if m8.update_status == "updating":
             layout.label(text=_T("正在下载并安装更新，请稍候..."), icon="FILE_REFRESH")
         else:
             row = layout.row(align=True)
-            row.operator("m8.install_update", text=_T("一键更新"), icon="FILE_REFRESH")
-            op = row.operator("wm.url_open", text=_T("浏览器下载"), icon="IMPORT")
+            is_zip_asset = m8.update_download_url.lower().endswith(".zip") or "/download/" in m8.update_download_url
+            if is_zip_asset:
+                row.operator("m8.install_update", text=_T("一键更新"), icon="FILE_REFRESH")
+            op = row.operator("wm.url_open", text=_T("浏览器下载") if is_zip_asset else _T("前往 Release 页面"), icon="IMPORT")
             op.url = m8.update_download_url
 
 def _apply_update_results(is_manual):
@@ -291,110 +306,67 @@ def check_for_updates_async(is_manual=False):
     def run():
         global _update_result
         try:
-            ver_str = version_tuple_to_str(get_addon_version())
-            url = f"{CHECK_URL}?{urllib.parse.urlencode({'version': ver_str})}"
+            url = GITHUB_API_LATEST
             req = urllib.request.Request(url, headers=_request_headers())
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=12) as response:
                 data = json.loads(response.read().decode('utf-8'))
+            
+            tag_name = data.get("tag_name", "").strip()
+            match = re.search(r"(\d+(?:\.\d+)+)", tag_name)
+            latest_version = match.group(1) if match else tag_name.lstrip("v")
+            
+            current_ver = get_addon_version()
+            latest_ver_tuple = version_str_to_tuple(latest_version)
+            is_newer = latest_ver_tuple > current_ver
+            
+            # Find zip release asset
+            assets = data.get("assets", [])
+            download_url = ""
+            sha256 = ""
+            for asset in assets:
+                asset_name = asset.get("name", "").lower()
+                if asset_name.endswith(".zip"):
+                    download_url = asset.get("browser_download_url", "")
+                    break
+            
+            # Fallback to release page if no direct zip asset
+            if not download_url:
+                download_url = data.get("html_url", GITHUB_RELEASES_URL)
+            
+            body = data.get("body", "") or _T("暂无更新日志")
+            sha_match = re.search(r"(?:sha256|SHA256)[:\s=]+([a-fA-F0-9]{64})", body)
+            if sha_match:
+                sha256 = sha_match.group(1)
             
             with _update_lock:
                 _update_result = {
-                    "updateAvailable": data.get("updateAvailable", False),
-                    "latestVersion": data.get("latestVersion", ""),
-                    "downloadUrl": data.get("downloadUrl", ""),
-                    "sha256": data.get("sha256", data.get("downloadSha256", "")),
-                    "changelog": data.get("changelog", _T("暂无更新日志")),
+                    "updateAvailable": is_newer,
+                    "latestVersion": latest_version,
+                    "downloadUrl": download_url,
+                    "sha256": sha256,
+                    "changelog": body,
                 }
         except Exception as e:
             with _update_lock:
-                _update_result = {"error": str(e)}
+                _update_result = {"error": f"{_T('GitHub 连接失败')}: {e}"}
 
     threading.Thread(target=run, daemon=True).start()
 
 def send_feedback_async(feedback_type, content, callback=None):
-    feedback_res = None
-    feedback_lock = threading.Lock()
-
-    def apply_feedback():
-        nonlocal feedback_res
-        with feedback_lock:
-            if feedback_res is None:
-                return 0.1
-            success, msg = feedback_res
-        
-        if callback:
-            callback(success, msg)
-        return None
-
+    """Decommissioned: self-hosted feedback server decommissioned in favor of GitHub Issues."""
     if callback:
-        bpy.app.timers.register(apply_feedback)
-
-    def run():
-        nonlocal feedback_res
-        success = False
-        msg = ""
-        try:
-            ver_str = version_tuple_to_str(get_addon_version())
-            payload = {
-                "clientVersion": ver_str,
-                "feedbackType": feedback_type,
-                "content": content
-            }
-            data_bytes = json.dumps(payload).encode('utf-8')
-            req = urllib.request.Request(
-                FEEDBACK_URL,
-                data=data_bytes,
-                headers=_request_headers('application/json'),
-                method='POST'
-            )
-            with urllib.request.urlopen(req, timeout=15) as response:
-                res_data = json.loads(response.read().decode('utf-8'))
-            success = res_data.get("success", False) or "feedback" in res_data
-        except Exception as e:
-            success = False
-            msg = str(e)
-
-        with feedback_lock:
-            feedback_res = (success, msg)
-
-    threading.Thread(target=run, daemon=True).start()
+        def invoke_cb():
+            callback(True, "GitHub Issues")
+            return None
+        bpy.app.timers.register(invoke_cb)
 
 def send_feedback_sync_silent(feedback_type, content):
-    try:
-        ver_str = version_tuple_to_str(get_addon_version())
-        payload = {
-            "clientVersion": ver_str,
-            "feedbackType": feedback_type,
-            "content": content
-        }
-        data_bytes = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(
-            FEEDBACK_URL,
-            data=data_bytes,
-            headers=_request_headers('application/json'),
-            method='POST'
-        )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            response.read()
-    except Exception:
-        pass
+    """No-op: self-hosted telemetry server decommissioned."""
+    pass
 
 def send_error_report_background(content):
-    global _reporting_error
-    if _reporting_error:
-        return
-    
-    def run():
-        global _reporting_error
-        _reporting_error = True
-        try:
-            send_feedback_sync_silent("BUG", sanitize_error_report(content))
-        except Exception:
-            pass
-        finally:
-            _reporting_error = False
-
-    threading.Thread(target=run, daemon=True).start()
+    """No-op: self-hosted telemetry server decommissioned."""
+    pass
 
 _install_result = None
 _install_lock = threading.Lock()

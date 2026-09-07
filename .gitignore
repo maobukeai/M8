@@ -8,3 +8,5 @@ M8_v*.zip
 ops_dump.txt
 output.txt
 .zcode/
+dist/
+
