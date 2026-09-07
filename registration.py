@@ -132,6 +132,7 @@ from .ops.misc.smart_tools import (
     M8_OT_SmartSlideExtend,
     M8_OT_SmartEdgeToggleMode,
 )
+from .ops.misc.toggle_area import M8_OT_ToggleArea
 from .ops.misc.telemetry import (
     M8_OT_CheckUpdate,
     M8_OT_SubmitFeedback,
