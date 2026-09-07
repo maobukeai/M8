@@ -707,6 +707,19 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         cur_ver = version_tuple_to_str(get_addon_version())
         grid.label(text=_T("版本:") + f" {cur_ver}")
         
+        # Check for duplicate/lingering installations and alert user
+        try:
+            from ..utils.network import scan_duplicate_installations
+            dupes = scan_duplicate_installations()
+            if dupes:
+                warn_box = col.box()
+                warn_box.alert = True
+                warn_row = warn_box.row(align=True)
+                warn_row.label(text=f"{_T('检测到')} {len(dupes)} {_T('个旧版本残留（如')} {dupes[0].name}{_T('），可能引起冲突！')}", icon="ERROR")
+                warn_row.operator("m8.clean_duplicate_addons", text=_T("一键清理旧版残留"), icon="TRASH")
+        except Exception:
+            pass
+        
         # Draw dynamic update status if checked or checking
         wm = bpy.context.window_manager
         m8 = getattr(wm, "m8", None)

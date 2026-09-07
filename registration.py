@@ -132,8 +132,13 @@ from .ops.misc.smart_tools import (
     M8_OT_SmartSlideExtend,
     M8_OT_SmartEdgeToggleMode,
 )
-from .ops.misc.toggle_area import M8_OT_ToggleArea
-from .ops.misc.telemetry import M8_OT_CheckUpdate, M8_OT_SubmitFeedback, M8_OT_InstallUpdate, M8_OT_TriggerTestError
+from .ops.misc.telemetry import (
+    M8_OT_CheckUpdate,
+    M8_OT_SubmitFeedback,
+    M8_OT_InstallUpdate,
+    M8_OT_TriggerTestError,
+    M8_OT_CleanDuplicateAddons,
+)
 from .ui.pie.smart_pie import VIEW3D_MT_M8SmartPie
 from .ops.mesh.cleaner import (
     M8_Clean_Props,
@@ -268,6 +273,7 @@ CLASSES = [
     M8_OT_SubmitFeedback,
     M8_OT_InstallUpdate,
     M8_OT_TriggerTestError,
+    M8_OT_CleanDuplicateAddons,
     M8_OT_SortMaterials,
     M8_OT_MergeNearbyObjects,
     M8_OT_SplitStamens,

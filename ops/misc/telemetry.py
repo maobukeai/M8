@@ -47,3 +47,31 @@ class M8_OT_TriggerTestError(bpy.types.Operator):
     def execute(self, context):
         raise ValueError(_T("这是一个测试自动发送错误报告的Bug (M8 Test Bug)"))
 
+class M8_OT_CleanDuplicateAddons(bpy.types.Operator):
+    bl_idname = "m8.clean_duplicate_addons"
+    bl_label = _T("一键清理旧版残留")
+    bl_description = _T("安全扫描并删除可能导致冲突的旧版 M8 文件夹")
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        from ...utils.network import remove_duplicate_installations
+        removed, errors = remove_duplicate_installations()
+        if removed:
+            self.report({'INFO'}, _T("已成功清理历史残留目录: ") + ", ".join(removed))
+            def draw_done(self, ctx):
+                self.layout.label(text=_T("已成功清理以下历史残留版本:"), icon="CHECKMARK")
+                for name in removed:
+                    self.layout.label(text=f"• {name}")
+                if errors:
+                    self.layout.separator()
+                    self.layout.label(text=_T("部分目录清理失败（可能被占用）:"), icon="ERROR")
+                    for err in errors:
+                        self.layout.label(text=f"• {err}")
+            context.window_manager.popup_menu(draw_done, title=_T("清理结果"), icon="CHECKMARK")
+        elif errors:
+            self.report({'ERROR'}, _T("清理失败: ") + "; ".join(errors))
+        else:
+            self.report({'INFO'}, _T("未发现多余的历史旧版本残留。"))
+        return {'FINISHED'}
+
+

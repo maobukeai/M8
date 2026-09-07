@@ -319,15 +319,19 @@ def check_for_updates_async(is_manual=False):
             latest_ver_tuple = version_str_to_tuple(latest_version)
             is_newer = latest_ver_tuple > current_ver
             
-            # Find zip release asset
+            # Find zip release asset: Prioritize standard 'M8.zip' over versioned names
             assets = data.get("assets", [])
             download_url = ""
             sha256 = ""
             for asset in assets:
-                asset_name = asset.get("name", "").lower()
-                if asset_name.endswith(".zip"):
+                if asset.get("name", "").lower() == "m8.zip":
                     download_url = asset.get("browser_download_url", "")
                     break
+            if not download_url:
+                for asset in assets:
+                    if asset.get("name", "").lower().endswith(".zip"):
+                        download_url = asset.get("browser_download_url", "")
+                        break
             
             # Fallback to release page if no direct zip asset
             if not download_url:
@@ -454,6 +458,51 @@ def download_and_install_update_async():
 
     threading.Thread(target=run, daemon=True).start()
 
+def scan_duplicate_installations():
+    """Scan for duplicate/lingering M8 installations in extensions and addons folders."""
+    duplicates = []
+    current_dir = Path(__file__).resolve().parents[1]
+    
+    candidate_dirs = [
+        current_dir.parent.resolve(),  # e.g. extensions/user_default
+    ]
+    try:
+        addons_dir = Path(bpy.utils.user_resource('SCRIPTS', path="addons")).resolve()
+        if addons_dir.exists() and addons_dir not in candidate_dirs:
+            candidate_dirs.append(addons_dir)
+    except Exception:
+        pass
+    
+    for pdir in candidate_dirs:
+        if not pdir.exists():
+            continue
+        for item in pdir.iterdir():
+            if not item.is_dir():
+                continue
+            if item.resolve() == current_dir:
+                continue
+            name = item.name.lower()
+            # Matches patterns like M8-v*, M8_v*, M8.v*, M8-3.*, M8_backup_* or duplicate M8 in other directories
+            if re.match(r"^m8(?:[-_.]v?\d+|_backup_)", name) or (item.parent != current_dir.parent and name == "m8"):
+                manifest = item / "blender_manifest.toml"
+                init_py = item / "__init__.py"
+                if manifest.is_file() or init_py.is_file() or "backup" in name:
+                    duplicates.append(item)
+    return duplicates
+
+def remove_duplicate_installations():
+    """Safely remove detected duplicate/backup M8 installations."""
+    dupes = scan_duplicate_installations()
+    removed = []
+    errors = []
+    for p in dupes:
+        try:
+            shutil.rmtree(p)
+            removed.append(p.name)
+        except Exception as exc:
+            errors.append(f"{p.name}: {exc}")
+    return removed, errors
+
 def install_downloaded_zip(zip_path):
     # Method 1: If using Blender 4.2+ Extensions system (highly recommended for user_default/M8)
     if hasattr(bpy.ops, "extensions") and hasattr(bpy.ops.extensions, "user_install"):
@@ -461,6 +510,7 @@ def install_downloaded_zip(zip_path):
             print("[M8] Installing update via Blender Extensions API...")
             bpy.ops.extensions.user_install(filepath=zip_path)
             print("[M8] Update installed successfully via Extensions API.")
+            remove_duplicate_installations()
             return True
         except Exception as e:
             print(f"[M8] Extensions user_install failed: {e}. Falling back to manual extraction.")
@@ -496,6 +546,7 @@ def install_downloaded_zip(zip_path):
             except OSError as cleanup_error:
                 print(f"[M8] Update installed, but backup cleanup failed: {cleanup_error}")
 
+        remove_duplicate_installations()
         print("[M8] Manual update extraction completed successfully.")
         return True
     except Exception as e:

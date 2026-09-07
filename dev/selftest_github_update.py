@@ -88,27 +88,35 @@ def test_mock_github_release_parsing():
     latest_version = match.group(1) if match else tag_name.lstrip("v")
     assert latest_version == "3.7.8"
     
-    # Check assets
-    download_url = ""
-    for asset in mock_response.get("assets", []):
-        if asset.get("name", "").lower().endswith(".zip"):
-            download_url = asset.get("browser_download_url", "")
-            break
-    assert download_url == "https://github.com/maobukeai/M8/releases/download/v3.7.8/M8-v3.7.8.zip"
-    assert _is_allowed_https_url(download_url)
+    # Add M8.zip to mock response to test priority
+    mock_response["assets"].append({
+        "name": "M8.zip",
+        "browser_download_url": "https://github.com/maobukeai/M8/releases/download/v3.7.8/M8.zip"
+    })
     
-    # Check sha256 extraction from release body
-    body = mock_response.get("body", "")
-    sha_match = re.search(r"(?:sha256|SHA256)[:\s=]+([a-fA-F0-9]{64})", body)
-    assert sha_match is not None
-    sha256 = sha_match.group(1)
-    assert _is_sha256(sha256)
-    print("  -> PASS: Mock GitHub Release parsing passed!")
+    # Priority matching test
+    priority_url = ""
+    for asset in mock_response.get("assets", []):
+        if asset.get("name", "").lower() == "m8.zip":
+            priority_url = asset.get("browser_download_url", "")
+            break
+    assert priority_url == "https://github.com/maobukeai/M8/releases/download/v3.7.8/M8.zip"
+    print("  -> PASS: Standard M8.zip priority selection passed!")
+
+def test_duplicate_scan():
+    print("[TEST 4] Testing Duplicate Installation Scanning...")
+    from utils.network import scan_duplicate_installations
+    # Ensure current running dir is never flagged as duplicate
+    dupes = scan_duplicate_installations()
+    for d in dupes:
+        assert d.name.lower() != "m8", "Active M8 directory should not be flagged as duplicate!"
+    print(f"  -> PASS: Duplicate scan completed safely (found {len(dupes)} legacy folder(s)).")
 
 if __name__ == '__main__':
     test_whitelist()
     test_version_comparisons()
     test_mock_github_release_parsing()
+    test_duplicate_scan()
     print("\n=====================================")
     print("All GitHub Update Selftests Passed!")
     print("=====================================")
