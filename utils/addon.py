@@ -56,9 +56,14 @@ def __draw_addon_layout__(context, pie, identifier, url, draw_func, *, draw_head
 @cache
 def check_addon_enabled(addon_name="M8") -> bool:
     """检查插件是否启用"""
+    if addon_name.lower() in ("edgeflow", "edge_flow"):
+        if hasattr(bpy.ops.mesh, "set_edge_flow"):
+            return True
+
+    target = addon_name.lower().replace("_", "").replace("-", "")
     for addon in bpy.context.preferences.addons.keys():
-        name = addon.split(".")[-1]
-        if name == addon_name:
+        name = addon.split(".")[-1].lower().replace("_", "").replace("-", "")
+        if name == target:
             return True
     return False
 
@@ -66,9 +71,14 @@ def check_addon_enabled(addon_name="M8") -> bool:
 @cache
 def check_addon_installed(addon_name="M8") -> bool:
     """检查插件ID是否安装"""
+    if addon_name.lower() in ("edgeflow", "edge_flow"):
+        if hasattr(bpy.ops.mesh, "set_edge_flow"):
+            return True
+
+    target = addon_name.lower().replace("_", "").replace("-", "")
     for addon in addon_keys():
-        name = addon.split(".")[-1]
-        if name == addon_name:
+        name = addon.split(".")[-1].lower().replace("_", "").replace("-", "")
+        if name == target:
             return True
     return False
 
@@ -90,9 +100,10 @@ def find_addon_module_identifier(addon_name="M8") -> str | None:
     M8
     bl_ext.user_default.M8
     """
+    target = addon_name.lower().replace("_", "").replace("-", "")
     for addon in addon_keys():
-        name = addon.split(".")[-1]
-        if name == addon_name:
+        name = addon.split(".")[-1].lower().replace("_", "").replace("-", "")
+        if name == target:
             return addon
     return None
 
@@ -106,8 +117,10 @@ def clear_cache():
 def draw_addon(context, layout: bpy.types.UILayout, identifier: str):
     """输入Id绘制插件"""
     from ..src.requires import REQUIRES_ADDON
+    target = identifier.lower().replace("_", "").replace("-", "")
     for item in REQUIRES_ADDON:
-        if item["identifier"] == identifier:
+        item_id = item["identifier"].lower().replace("_", "").replace("-", "")
+        if item_id == target:
             url = item["url"]
             draw_func = item["draw"]
             header = item.get("draw_header", None)

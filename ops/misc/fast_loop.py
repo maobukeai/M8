@@ -1136,10 +1136,10 @@ class M8_OT_FastLoop(bpy.types.Operator):
             for vert in self.bm.verts:
                 source_edge_index = vert[source_layer] - 1
                 source = edge_sources.get(source_edge_index)
-                if source is None:
+                if not source or len(source) < 4:
                     continue
 
-                v1_index, v2_index, p1_co, p2_co = source
+                v1_index, v2_index, p1_co, p2_co, *_ = source
                 distance_1 = (vert.co - p1_co).length
                 distance_2 = (vert.co - p2_co).length
                 total_distance = distance_1 + distance_2

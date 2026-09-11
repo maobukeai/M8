@@ -41,9 +41,14 @@ class AlignMeshPie(bpy.types.Menu):
             ops.align_location_axis = {axis_upper}
             setattr(ops, f"align_{axis_upper.lower()}_method", value)
 
-        draw_addon(context, pie, "EdgeFlow")
-
+        # 5: North-West (7) - 松弛
         pie.operator(Relax.bl_idname, icon="SEQ_LUMA_WAVEFORM")
 
+        # 6: North-East (9) - 水平 / 垂直 / 拉直 / 等长
         draw_hv_align(AlignMesh, pie.box().column(align=True), horizontal_axis, vertical_axis)
+
+        # 7: South-West (1) - 光标 / 原点 / 活动项 对齐
         draw_other_align(AlignMesh, pie.box().column(align=True), horizontal_axis, vertical_axis)
+
+        # 8: South-East (3) - EdgeFlow 边缘流插件
+        draw_addon(context, pie.box().column(align=True), "EdgeFlow")

@@ -54,7 +54,7 @@ def update_version_json(version, sha256_hash):
         "name": "M8.zip",
         "download_url": f"https://github.com/maobukeai/M8/releases/download/v{version}/M8.zip",
         "sha256": sha256_hash,
-        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. Fast Loop (Ctrl+Shift+E) 升级：内置原生 Hermite 样条导轨流线平滑计算，支持原生曲率设置流（Set Flow），即使未安装外部 Edge Flow 插件亦可实现高质量流线平滑加线\n2. 深度适配外部 Edge Flow 插件：修复 is_invoked 模态阻塞问题，将调用模式优化为 EXEC_DEFAULT 确保加线执行稳定流畅\n3. 加线后自动选中新生成的循环边与顶点，提升连续建模与后续调整效率\n4. 视口操作引导文案与快捷键提示优化",
+        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. 新增【等长边 (Equal Edge Length)】工具：支持将选中的边调整为相同长度，智能兼容独立单边、直线/空间折线开链、闭合环线与分支拓扑，支持保持端点固定与平滑迭代\n2. 对齐工具全面升级：在网格对齐面板与对齐饼菜单 (Align Mesh Pie) 中集成【等长】功能，并优化东南向 EdgeFlow 快捷面板布局\n3. EdgeFlow 插件生态深度适配：增强插件识别与动态加载，支持平滑边缘流、线性拉直与曲线边缘流快捷面板\n4. Fast Loop 鲁棒性提升：强化边源数据解构安全保护与 UV 重新投影稳定性",
     }
     version_json_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[BUILD] Synchronized {version_json_path.name} with v{version}")

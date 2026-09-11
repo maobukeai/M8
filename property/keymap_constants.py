@@ -76,8 +76,8 @@ DOUBLE_CLICK_GROUP_KEYMAP_BINDINGS = (
 )
 
 ALIGN_PIE_KEYMAP_BINDINGS = (
-    ("Object Mode", "VIEW_3D"),
-    ("Mesh", "VIEW_3D"),
+    ("Object Mode", "EMPTY"),
+    ("Mesh", "EMPTY"),
     ("UV Editor", "EMPTY"),
     ("3D View Generic", "VIEW_3D"),
 )

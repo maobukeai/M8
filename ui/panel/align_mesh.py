@@ -2,11 +2,13 @@ import bpy
 from bpy.app.translations import pgettext_iface
 
 from ...utils.icon import get_custom_icon
+from ...utils.i18n import _T
 from ...utils.view import screen_relevant_direction_3d_axis
 
 
 def draw_hv_align(align, layout, horizontal_axis, vertical_axis):
     from ...ops.mesh.straighten import Straighten
+    from ...ops.mesh.equal_edge_length import EqualEdgeLength
     column = layout.column(align=True)
     for text, icon, axis in [
         ("Horizontal", "Align_Center_Y", horizontal_axis),
@@ -24,6 +26,11 @@ def draw_hv_align(align, layout, horizontal_axis, vertical_axis):
     row.label(text="", icon="IPO_LINEAR")
     row.separator()
     row.operator(Straighten.bl_idname)
+
+    row = column.row(align=True)
+    row.label(text="", icon="FIXED_SIZE")
+    row.separator()
+    row.operator(EqualEdgeLength.bl_idname, text=_T("等长"))
 
 
 def get_align_active_icon() -> str:

@@ -257,6 +257,7 @@ from .ops.align.align_mesh import AlignMesh
 from .ops.align.align_uv import AlignUV
 from .ops.mesh.relax import Relax
 from .ops.mesh.straighten import Straighten
+from .ops.mesh.equal_edge_length import EqualEdgeLength
 from .ops.origin.origin_to_bottom import OriginToBottom
 from .ops.origin.origin_to_cursor import OriginToCursor
 from .ops.origin.origin_to_active import OriginToActive
@@ -481,6 +482,7 @@ CLASSES = [
     AlignUV,
     Relax,
     Straighten,
+    EqualEdgeLength,
     OriginToBottom,
     OriginToCursor,
     OriginToActive,
