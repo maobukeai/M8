@@ -54,7 +54,7 @@ def update_version_json(version, sha256_hash):
         "name": "M8.zip",
         "download_url": f"https://github.com/maobukeai/M8/releases/download/v{version}/M8.zip",
         "sha256": sha256_hash,
-        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. 优化更新提示框交互体验：废除随鼠标飘移易灭的临时弹出菜单，升级为屏幕居中固定的模态对话框（常驻停顿、清晰展示更新日志与版本对比，不再因鼠标移动而自动消失）\n2. 偏好设置中点击【检测更新】时，如果发现新版本将自动居中弹出该更新提示框，并提供【查看更新详情】与【立即一键更新】快捷操作\n3. 清理历史过时的私有外部域名，全面强化 GitHub Releases 官方分发与更新链路",
+        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. Fast Loop (Ctrl+Shift+E) 升级：内置原生 Hermite 样条导轨流线平滑计算，支持原生曲率设置流（Set Flow），即使未安装外部 Edge Flow 插件亦可实现高质量流线平滑加线\n2. 深度适配外部 Edge Flow 插件：修复 is_invoked 模态阻塞问题，将调用模式优化为 EXEC_DEFAULT 确保加线执行稳定流畅\n3. 加线后自动选中新生成的循环边与顶点，提升连续建模与后续调整效率\n4. 视口操作引导文案与快捷键提示优化",
     }
     version_json_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[BUILD] Synchronized {version_json_path.name} with v{version}")

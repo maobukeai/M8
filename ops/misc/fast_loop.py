@@ -46,24 +46,130 @@ def format_length(context, value):
             
     return f"{value:.3f}"
 
+def hermite_1d(y0, y1, y2, y3, mu, tension, bias=0.0):
+    mu2 = mu * mu
+    mu3 = mu2 * mu
+    m0 = (y1 - y0) * (1.0 + bias) * (1.0 - tension) * 0.5
+    m0 += (y2 - y1) * (1.0 - bias) * (1.0 - tension) * 0.5
+    m1 = (y2 - y1) * (1.0 + bias) * (1.0 - tension) * 0.5
+    m1 += (y3 - y2) * (1.0 - bias) * (1.0 - tension) * 0.5
+    a0 = 2.0 * mu3 - 3.0 * mu2 + 1.0
+    a1 = mu3 - 2.0 * mu2 + mu
+    a2 = mu3 - mu2
+    a3 = -2.0 * mu3 + 3.0 * mu2
+    return a0 * y1 + a1 * m0 + a2 * m1 + a3 * y2
+
+def hermite_3d(p1, p2, p3, p4, mu, tension=0.0, bias=0.0):
+    return mathutils.Vector((
+        hermite_1d(p1[0], p2[0], p3[0], p4[0], mu, tension, bias),
+        hermite_1d(p1[1], p2[1], p3[1], p4[1], mu, tension, bias),
+        hermite_1d(p1[2], p2[2], p3[2], p4[2], mu, tension, bias)
+    ))
+
+def compute_edge_flow_point(p1, p2, p3, p4, t, tension=1.8):
+    """
+    Interpolate a point along the edge segment p2 -> p3 using a Hermite spline along the rail.
+    p1: predecessor point along rail (or None)
+    p2: start of segment being cut
+    p3: end of segment being cut
+    p4: successor point along rail (or None)
+    t: parameter in [0, 1] along segment p2 -> p3
+    tension: curvature tension (matching EdgeFlow: 180 / 100 = 1.8)
+    """
+    d23 = p3 - p2
+    L = d23.length
+    if L < 1e-6:
+        return p2.copy()
+    
+    half_d = L * 0.5
+    if p1 is None:
+        p1_norm = p2 - d23
+    else:
+        d21 = p1 - p2
+        if d21.length < 1e-6:
+            p1_norm = p2 - d23
+        else:
+            p1_norm = p2 + d21.normalized() * half_d
+
+    if p4 is None:
+        p4_norm = p3 + d23
+    else:
+        d34 = p4 - p3
+        if d34.length < 1e-6:
+            p4_norm = p3 + d23
+        else:
+            p4_norm = p3 + d34.normalized() * half_d
+
+    return hermite_3d(p1_norm, p2, p3, p4_norm, t, tension=-tension)
+
+def find_rail_neighbors(vert_start, vert_end):
+    """
+    Given a directed edge segment (vert_start -> vert_end), find the vertex coordinates
+    that continue the rail backwards (behind vert_start) and forwards (ahead of vert_end).
+    """
+    d = vert_end.co - vert_start.co
+    if d.length < 1e-6:
+        return None, None
+
+    dir_fwd = d.normalized()
+    dir_bwd = -dir_fwd
+
+    best_p_prev = None
+    best_dot_prev = 0.2
+    for e in vert_start.link_edges:
+        if e.hide:
+            continue
+        other = e.other_vert(vert_start)
+        if other == vert_end:
+            continue
+        v_dir = other.co - vert_start.co
+        if v_dir.length < 1e-6:
+            continue
+        dot = v_dir.normalized().dot(dir_bwd)
+        if dot > best_dot_prev:
+            best_dot_prev = dot
+            best_p_prev = other.co.copy()
+
+    best_p_next = None
+    best_dot_next = 0.2
+    for e in vert_end.link_edges:
+        if e.hide:
+            continue
+        other = e.other_vert(vert_end)
+        if other == vert_start:
+            continue
+        v_dir = other.co - vert_end.co
+        if v_dir.length < 1e-6:
+            continue
+        dot = v_dir.normalized().dot(dir_fwd)
+        if dot > best_dot_next:
+            best_dot_next = dot
+            best_p_next = other.co.copy()
+
+    return best_p_prev, best_p_next
+
 def calculate_curvature_bulge(p1, p2, n1, n2, t):
-    """Calculate exact arc sagitta curvature displacement along a chord."""
+    """Fallback planar curvature displacement."""
     d = p2 - p1
     L = d.length
     if L < 1e-6:
         return mathutils.Vector((0, 0, 0))
-    cos_theta = max(-1.0, min(1.0, n1.dot(n2)))
-    theta = math.acos(cos_theta)
-    if theta < 1e-4:
+    T = d / L
+    sin_alpha1 = max(-1.0, min(1.0, -n1.dot(T)))
+    sin_alpha2 = max(-1.0, min(1.0, n2.dot(T)))
+    alpha1 = math.asin(sin_alpha1)
+    alpha2 = math.asin(sin_alpha2)
+    theta_chord = alpha1 + alpha2
+    if abs(theta_chord) < 1e-4:
         return mathutils.Vector((0, 0, 0))
-    sagitta = (L / 2.0) * math.tan(theta / 4.0)
-    profile = 4.0 * t * (1.0 - t)
+    sagitta = (L / 2.0) * math.tan(theta_chord / 4.0)
     n_avg = (n1 * (1.0 - t) + n2 * t)
-    if n_avg.length > 1e-6:
-        n_avg.normalize()
-    else:
-        n_avg = mathutils.Vector((0, 0, 1))
-    return n_avg * (sagitta * profile)
+    n_perp = n_avg - n_avg.dot(T) * T
+    if n_perp.length < 1e-6:
+        return mathutils.Vector((0, 0, 0))
+    n_perp.normalize()
+    profile = 4.0 * t * (1.0 - t)
+    return n_perp * (sagitta * profile)
 
 class M8_OT_FastLoop(bpy.types.Operator):
     bl_idname = "m8.fast_loop"
@@ -279,12 +385,19 @@ class M8_OT_FastLoop(bpy.types.Operator):
                             p1, p2 = v1.co, v2.co
                             op1, op2 = o_v1.co, o_v2.co
 
+                            prefs = get_prefs()
+                            ef_tension = getattr(prefs, 'fast_loop_tension', 180) if prefs else 180
+                            flow_tension = (ef_tension / 100.0) if ef_tension is not None else 1.8
+                            p1_prev, p1_next = find_rail_neighbors(v1, v2)
+                            op1_prev, op1_next = find_rail_neighbors(o_v1, o_v2)
+
                             for t_val in factors:
-                                p_cut_local = p1 * (1.0 - t_val) + p2 * t_val
-                                opp_cut_local = op1 * (1.0 - t_val) + op2 * t_val
-                                if self.use_curvature:
-                                    p_cut_local = p_cut_local + calculate_curvature_bulge(p1, p2, v1.normal, v2.normal, t_val)
-                                    opp_cut_local = opp_cut_local + calculate_curvature_bulge(op1, op2, o_v1.normal, o_v2.normal, t_val)
+                                if self.use_curvature or self.enable_edge_flow:
+                                    p_cut_local = compute_edge_flow_point(p1_prev, p1, p2, p1_next, t_val, tension=flow_tension)
+                                    opp_cut_local = compute_edge_flow_point(op1_prev, op1, op2, op1_next, t_val, tension=flow_tension)
+                                else:
+                                    p_cut_local = p1 * (1.0 - t_val) + p2 * t_val
+                                    opp_cut_local = op1 * (1.0 - t_val) + op2 * t_val
 
                                 p_cut_world = mw @ p_cut_local
                                 opp_cut_world = mw @ opp_cut_local
@@ -399,10 +512,16 @@ class M8_OT_FastLoop(bpy.types.Operator):
                     mirrored_factors.append(1.0 - t)
                 factors_to_calculate = sorted(list(set(mirrored_factors)))
 
+            ev_prev, ev_next = find_rail_neighbors(ev1, ev2)
+            prefs = get_prefs()
+            ef_tension = getattr(prefs, 'fast_loop_tension', 180) if prefs else 180
+            flow_tension = (ef_tension / 100.0) if ef_tension is not None else 1.8
+
             for t_final in factors_to_calculate:
-                local_pt = ep1 * (1.0 - t_final) + ep2 * t_final
-                if self.use_curvature:
-                    local_pt = local_pt + calculate_curvature_bulge(ep1, ep2, ev1.normal, ev2.normal, t_final)
+                if self.use_curvature or self.enable_edge_flow:
+                    local_pt = compute_edge_flow_point(ev_prev, ep1, ep2, ev_next, t_final, tension=flow_tension)
+                else:
+                    local_pt = ep1 * (1.0 - t_final) + ep2 * t_final
                 world_pt = mw @ local_pt
                 points_on_edge.append(world_pt)
                 self.preview_points.append(world_pt)
@@ -604,10 +723,11 @@ class M8_OT_FastLoop(bpy.types.Operator):
             self.bm.normal_update()
             edge_info = {}
             for e in all_edges_to_cut:
+                p_prev, p_next = find_rail_neighbors(e.verts[0], e.verts[1])
                 edge_info[e.index] = (
                     e.verts[0].index, e.verts[1].index,
                     e.verts[0].co.copy(), e.verts[1].co.copy(),
-                    e.verts[0].normal.copy(), e.verts[1].normal.copy()
+                    p_prev, p_next
                 )
 
             cuts_count = self.segments
@@ -666,16 +786,17 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 if matched_edge_idx is not None:
                     edge_to_new_verts[matched_edge_idx].append(v)
 
-            # Reposition new vertices with exact curvature sagitta
-            should_apply_curvature = run_edge_flow or self.use_curvature
+            # Reposition new vertices with smooth edge flow
+            should_apply_flow = run_edge_flow or self.use_curvature
+            flow_tension = (ef_tension / 100.0) if ef_tension is not None else 1.8
             for edge in all_edges_to_cut:
                 is_rev = edge_orientations.get(edge.index, False)
                 if edge.index in edge_info and edge.index in edge_to_new_verts:
-                    v1_i, v2_i, p1_co, p2_co, n1_co, n2_co = edge_info[edge.index]
+                    v1_i, v2_i, p1_co, p2_co, p_prev, p_next = edge_info[edge.index]
                     p_start = p2_co if is_rev else p1_co
                     p_end = p1_co if is_rev else p2_co
-                    n_start = n2_co if is_rev else n1_co
-                    n_end = n1_co if is_rev else n2_co
+                    p_rail_prev = p_next if is_rev else p_prev
+                    p_rail_next = p_prev if is_rev else p_next
 
                     n_verts = edge_to_new_verts[edge.index]
                     d_vec = p_end - p_start
@@ -691,9 +812,13 @@ class M8_OT_FastLoop(bpy.types.Operator):
                         t_final = (t_0 + edge_offset * (1.0 - t_0)) if edge_offset >= 0 else (t_0 + edge_offset * t_0)
                         t_final = max(0.0, min(1.0, t_final))
 
-                        nv.co = p_start * (1.0 - t_final) + p_end * t_final
-                        if should_apply_curvature:
-                            nv.co += calculate_curvature_bulge(p_start, p_end, n_start, n_end, t_final)
+                        if should_apply_flow:
+                            nv.co = compute_edge_flow_point(
+                                p_rail_prev, p_start, p_end, p_rail_next, t_final,
+                                tension=flow_tension
+                            )
+                        else:
+                            nv.co = p_start * (1.0 - t_final) + p_end * t_final
 
             # Connect vertices across quad faces in corresponding index order
             new_cut_edges = []
@@ -708,21 +833,31 @@ class M8_OT_FastLoop(bpy.types.Operator):
                     pair_key = (id(va), id(vb)) if id(va) < id(vb) else (id(vb), id(va))
                     if pair_key in connected_vert_pairs:
                         continue
-                    shared_faces = [f for f in va.link_faces if f in vb.link_faces and len(f.verts) > 3 and not f.hide]
-                    if shared_faces:
-                        try:
-                            res = bmesh.ops.connect_verts(self.bm, verts=[va, vb], faces=shared_faces)
-                            if res and res.get('edges'):
-                                new_cut_edges.extend(res['edges'])
-                                connected_vert_pairs.add(pair_key)
-                        except Exception as _ce:
-                            pass
+                    existing_edge = self.bm.edges.get((va, vb))
+                    if existing_edge:
+                        new_cut_edges.append(existing_edge)
+                        connected_vert_pairs.add(pair_key)
+                    else:
+                        shared_faces = [f for f in va.link_faces if f in vb.link_faces and len(f.verts) > 3 and not f.hide]
+                        if shared_faces:
+                            try:
+                                res = bmesh.ops.connect_verts(self.bm, verts=[va, vb])
+                                if res and res.get('edges'):
+                                    new_cut_edges.extend(res['edges'])
+                                    connected_vert_pairs.add(pair_key)
+                            except Exception as _ce:
+                                pass
 
             self.bm.verts.ensure_lookup_table()
             self.bm.edges.ensure_lookup_table()
             self.bm.faces.ensure_lookup_table()
 
-            # Select new cut edges
+            # Track and select new cut edges
+            new_edge_vert_pairs = [
+                (e.verts[0].index, e.verts[1].index)
+                for e in new_cut_edges if e.is_valid
+            ]
+
             for e in self.bm.edges:
                 e.select = False
             for v in self.bm.verts:
@@ -734,38 +869,44 @@ class M8_OT_FastLoop(bpy.types.Operator):
                     for v in e.verts:
                         v.select = True
 
-            if self.keep_selection:
-                restore_kept_selection(self.bm)
-
             self.bm.select_flush_mode()
             bmesh.update_edit_mesh(self.target_object.data)
 
-            # If Edge Flow addon is available and Shift was pressed, also invoke Edge Flow.
-            # Use EXEC_DEFAULT: EdgeFlow's execute() will call invoke(context, None) internally,
-            # skipping the param-reset branch (which only fires when event is not None).
-            if run_edge_flow:
-                if hasattr(bpy.ops.mesh, "set_edge_flow"):
+            # If Edge Flow addon is available and requested, call it with EXEC_DEFAULT
+            if run_edge_flow and hasattr(bpy.ops.mesh, "set_edge_flow"):
+                ef_cls = getattr(bpy.types, "MESH_OT_set_edge_flow", None)
+                if ef_cls and not hasattr(ef_cls, "is_invoked"):
                     try:
-                        bpy.ops.mesh.set_edge_flow(
-                            'INVOKE_DEFAULT',
-                            tension=ef_tension,
-                            iterations=ef_iterations,
-                            min_angle=ef_min_angle
-                        )
-                    except Exception as _ef_err:
-                        self.report({'WARNING'}, f"Edge Flow 调用失败: {_ef_err}")
-                else:
-                    self.report({'WARNING'}, "未找到 Edge Flow 插件，请先安装并启用 EdgeFlow 扩展")
+                        ef_cls.is_invoked = False
+                    except Exception:
+                        pass
+                try:
+                    bpy.ops.mesh.set_edge_flow(
+                        'EXEC_DEFAULT',
+                        tension=ef_tension,
+                        iterations=ef_iterations,
+                        min_angle=ef_min_angle
+                    )
+                except Exception as _ef_err:
+                    pass
                 self.bm = bmesh.from_edit_mesh(self.target_object.data)
                 self.bms[self.target_object.name] = self.bm
 
-            if not self.keep_selection:
-                for e in self.bm.edges:
-                    e.select = False
-                for v in self.bm.verts:
-                    v.select = False
+            self.bm.verts.ensure_lookup_table()
+            self.bm.edges.ensure_lookup_table()
 
-            restore_kept_selection(self.bm)
+            for v1_idx, v2_idx in new_edge_vert_pairs:
+                if 0 <= v1_idx < len(self.bm.verts) and 0 <= v2_idx < len(self.bm.verts):
+                    v1 = self.bm.verts[v1_idx]
+                    v2 = self.bm.verts[v2_idx]
+                    e = self.bm.edges.get((v1, v2))
+                    if e:
+                        e.select = True
+                        v1.select = True
+                        v2.select = True
+
+            if self.keep_selection:
+                restore_kept_selection(self.bm)
             self.bm.select_flush_mode()
 
             selected_layer = self.bm.edges.layers.int.get(selected_edge_layer_name)
@@ -807,12 +948,15 @@ class M8_OT_FastLoop(bpy.types.Operator):
             is_rev = self.edge_ring_orientations.get(e.index, False)
             v1 = e.verts[1] if is_rev else e.verts[0]
             v2 = e.verts[0] if is_rev else e.verts[1]
+            p_prev, p_next = find_rail_neighbors(v1, v2)
             orig_segments.append((
                 v1.index,
                 v2.index,
                 v1.co.copy(),
                 v2.co.copy(),
-                e.index
+                e.index,
+                p_prev,
+                p_next
             ))
 
         orig_uvs = {}
@@ -839,8 +983,8 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 f[orig_face_idx_layer] = f.index
 
         edge_sources = {
-            edge_index: (v1_index, v2_index, p1.copy(), p2.copy())
-            for v1_index, v2_index, p1, p2, edge_index in orig_segments
+            edge_index: (v1_index, v2_index, p1.copy(), p2.copy(), p_prev, p_next)
+            for v1_index, v2_index, p1, p2, edge_index, p_prev, p_next in orig_segments
         }
 
         old_vert_indices = {v.index for v in self.bm.verts}
@@ -905,7 +1049,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
         edge_to_new_verts = defaultdict(list)
 
         for v in new_verts:
-            for v1_idx, v2_idx, p1_co, p2_co, e_idx in orig_segments:
+            for v1_idx, v2_idx, p1_co, p2_co, e_idx, *_ in orig_segments:
                 proj_co, factor_p = mathutils.geometry.intersect_point_line(v.co, p1_co, p2_co)
                 dist = (v.co - proj_co).length
                 if dist < 0.0001:
@@ -916,7 +1060,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
         if self.use_curvature:
             self.bm.normal_update()
         for e_idx, n_verts in edge_to_new_verts.items():
-            _, _, edge_p1, edge_p2 = edge_sources[e_idx]
+            _, _, edge_p1, edge_p2, *_ = edge_sources[e_idx]
             L_edge = (edge_p2 - edge_p1).length
 
             n_verts.sort(key=lambda x: x[1])
@@ -954,12 +1098,14 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 else:
                     t_final = t_0 + edge_offset * t_0
 
-                v.co = p1_co * (1.0 - t_final) + p2_co * t_final
-                
-                if self.use_curvature:
-                    vert1 = self.bm.verts[v1_idx]
-                    vert2 = self.bm.verts[v2_idx]
-                    v.co += calculate_curvature_bulge(p1_co, p2_co, vert1.normal, vert2.normal, t_final)
+                flow_tension = (ef_tension / 100.0) if ef_tension is not None else 1.8
+                if self.use_curvature or run_edge_flow:
+                    source_data = edge_sources.get(e_idx)
+                    p_rail_prev = source_data[4] if (source_data and len(source_data) > 4) else None
+                    p_rail_next = source_data[5] if (source_data and len(source_data) > 5) else None
+                    v.co = compute_edge_flow_point(p_rail_prev, p1_co, p2_co, p_rail_next, t_final, tension=flow_tension)
+                else:
+                    v.co = p1_co * (1.0 - t_final) + p2_co * t_final
 
                 if uv_layer:
                     for l in v.link_loops:
@@ -1012,25 +1158,26 @@ class M8_OT_FastLoop(bpy.types.Operator):
 
         if run_edge_flow:
             if hasattr(bpy.ops.mesh, "set_edge_flow"):
+                ef_cls = getattr(bpy.types, "MESH_OT_set_edge_flow", None)
+                if ef_cls and not hasattr(ef_cls, "is_invoked"):
+                    try:
+                        ef_cls.is_invoked = False
+                    except Exception:
+                        pass
                 loop_layer = self.bm.edges.layers.int.get(new_loop_edge_layer_name)
-                selected_layer = self.bm.edges.layers.int.get(selected_edge_layer_name)
                 for e in self.bm.edges:
-                    e.select = bool(
-                        (loop_layer and e[loop_layer])
-                        or (self.keep_selection and selected_layer and e[selected_layer])
-                    )
+                    e.select = bool(loop_layer and e[loop_layer])
+                self.bm.select_flush_mode()
                 bmesh.update_edit_mesh(self.target_object.data)
                 try:
                     result = bpy.ops.mesh.set_edge_flow(
-                        'INVOKE_DEFAULT',
+                        'EXEC_DEFAULT',
                         tension=ef_tension,
                         iterations=ef_iterations,
                         min_angle=ef_min_angle
                     )
-                    if 'FINISHED' not in result:
-                        self.report({'WARNING'}, "Edge Flow cancelled; the new loop was kept without smoothing")
                 except Exception as ex:
-                    self.report({'ERROR'}, f"Edge Flow failed: {str(ex)}")
+                    pass
 
                 self.bm = bmesh.from_edit_mesh(self.target_object.data)
                 self.bms[self.target_object.name] = self.bm
@@ -1040,7 +1187,6 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 self.bm.select_flush_mode()
                 bmesh.update_edit_mesh(self.target_object.data)
             else:
-                self.report({'WARNING'}, "未找到 Edge Flow 插件，请先安装并启用它。")
                 for e in all_new_edges:
                     if e.is_valid:
                         e.select = False
@@ -1806,11 +1952,11 @@ class M8_OT_FastLoop(bpy.types.Operator):
             elif getattr(self, 'selection_locked', False):
                 blf.color(font_id, 0.0, 0.9, 1.0, 0.95)
                 blf.position(font_id, text_x, text_y - 5, 0)
-                blf.draw(font_id, f"[L-Click/Enter] {_T('确认选区加线')} | [Shift+L-Click] {_T('曲率加线')} | [Q] {_T('退出选区')}")
+                blf.draw(font_id, f"[L-Click/Enter] {_T('确认选区加线')} | [Shift+L-Click] {_T('设置流 (Set Flow)')} | [Q] {_T('退出选区')}")
             else:
                 blf.color(font_id, 1.0, 0.8, 0.0, 0.95)
                 blf.position(font_id, text_x, text_y - 5, 0)
-                blf.draw(font_id, f"[L-Click] {_T('添加/重复加线')} | [Q] {_T('选区加线')} | [Shift+L-Click] Set Flow | [Esc] {_T('取消退出')}")
+                blf.draw(font_id, f"[L-Click] {_T('添加/重复加线')} | [Q] {_T('选区加线')} | [Shift+L-Click] {_T('设置流 (Set Flow)')} | [Esc] {_T('取消退出')}")
 
             if not self.is_remove_mode and self.dimension_draws:
                 region = context.region
