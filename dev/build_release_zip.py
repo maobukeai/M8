@@ -54,7 +54,7 @@ def update_version_json(version, sha256_hash):
         "name": "M8.zip",
         "download_url": f"https://github.com/maobukeai/M8/releases/download/v{version}/M8.zip",
         "sha256": sha256_hash,
-        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. 新增【等长边 (Equal Edge Length)】工具：支持将选中的边调整为相同长度，智能兼容独立单边、直线/空间折线开链、闭合环线与分支拓扑，支持保持端点固定与平滑迭代\n2. 对齐工具全面升级：在网格对齐面板与对齐饼菜单 (Align Mesh Pie) 中集成【等长】功能，并优化东南向 EdgeFlow 快捷面板布局\n3. EdgeFlow 插件生态深度适配：增强插件识别与动态加载，支持平滑边缘流、线性拉直与曲线边缘流快捷面板\n4. Fast Loop 鲁棒性提升：强化边源数据解构安全保护与 UV 重新投影稳定性",
+        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. 新增【全局 UV 棋盘格显示 (UV Checker)】：在 Z 键着色饼菜单顶部集成一键切换视口 UV 棋盘格材质覆盖，内置经典 UV 网格、彩色网格与高对比黑白棋盘 3 种图案，支持实时无缝密度缩放\n2. Z 键着色饼菜单【材质管理】深度重构：新增快速新建材质（自动赋给所选面）、独立材质副本（多用户共享数可视化与一键单用户化）、材质批量赋予至选中物体\n3. 模式联动核心操作：编辑模式支持【指定到所选面】与【选同面】；物体模式支持【选择同材质】与【一键清理空材质槽】\n4. 支持检测并一键清理外部场景全局覆盖材质",
     }
     version_json_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[BUILD] Synchronized {version_json_path.name} with v{version}")

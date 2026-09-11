@@ -2,6 +2,7 @@ import bpy
 from ..ops.mesh.cleaner import M8_Clean_Props
 from ..ops.misc.custom_tools import M8_CustomTools_Props
 from ..ops.file.image_save_preset import M8_ImageSavePresetProps
+from ..ops.mesh.uv_checker import update_uv_checker_material
 from ..utils.i18n import _T
 
 class M8_BakeRenamer_Props(bpy.types.PropertyGroup):
@@ -64,6 +65,27 @@ class M8_SceneState(bpy.types.PropertyGroup):
     custom_tools: bpy.props.PointerProperty(type=M8_CustomTools_Props)
     image_save_preset: bpy.props.PointerProperty(type=M8_ImageSavePresetProps)
     bake_renamer: bpy.props.PointerProperty(type=M8_BakeRenamer_Props)
+
+    uv_checker_scale: bpy.props.FloatProperty(
+        name=_T("缩放"),
+        description=_T("UV 棋盘格密度缩放"),
+        default=2.0,
+        min=0.1,
+        max=100.0,
+        step=10,
+        update=update_uv_checker_material,
+    )
+    uv_checker_type: bpy.props.EnumProperty(
+        name=_T("网格类型"),
+        description=_T("UV 棋盘格显示图案类型"),
+        items=[
+            ('UV_GRID', _T("UV网格"), _T("经典带坐标与十字准星的 UV 网格")),
+            ('COLOR_GRID', _T("彩色网格"), _T("带字母与色彩分区的彩色网格")),
+            ('CHECKER', _T("纯棋盘"), _T("高对比度黑白方块棋盘格")),
+        ],
+        default='UV_GRID',
+        update=update_uv_checker_material,
+    )
 
 class M8_WMState(bpy.types.PropertyGroup):
     """Encapsulated state for M8 WindowManager-level properties"""

@@ -258,6 +258,14 @@ from .ops.align.align_uv import AlignUV
 from .ops.mesh.relax import Relax
 from .ops.mesh.straighten import Straighten
 from .ops.mesh.equal_edge_length import EqualEdgeLength
+from .ops.mesh.uv_checker import M8_OT_ToggleUVChecker
+from .ops.material.material_ops import (
+    M8_OT_MaterialNew,
+    M8_OT_MaterialMakeSingleUser,
+    M8_OT_MaterialLinkToSelected,
+    M8_OT_SelectSameMaterial,
+    M8_OT_MaterialCleanSlots,
+)
 from .ops.origin.origin_to_bottom import OriginToBottom
 from .ops.origin.origin_to_cursor import OriginToCursor
 from .ops.origin.origin_to_active import OriginToActive
@@ -271,6 +279,11 @@ from .ui.panel.scene_audit import VIEW3D_PT_M8_SceneAudit
 from .ui import icons as m8_icons
 
 CLASSES = [
+    M8_OT_MaterialNew,
+    M8_OT_MaterialMakeSingleUser,
+    M8_OT_MaterialLinkToSelected,
+    M8_OT_SelectSameMaterial,
+    M8_OT_MaterialCleanSlots,
     M8_OT_Dummy,
     M8_OT_CheckUpdate,
     M8_OT_SubmitFeedback,
@@ -483,6 +496,7 @@ CLASSES = [
     Relax,
     Straighten,
     EqualEdgeLength,
+    M8_OT_ToggleUVChecker,
     OriginToBottom,
     OriginToCursor,
     OriginToActive,
