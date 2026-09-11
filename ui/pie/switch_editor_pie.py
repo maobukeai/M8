@@ -131,8 +131,8 @@ class VIEW3D_MT_M8SwitchEditorPie(bpy.types.Menu):
 
     def draw(self, context):
         pie = self.layout.menu_pie()
-        prefs = _get_addon_prefs()
-        lang = getattr(prefs, "addon_language", "ZH") if prefs else "ZH"
+        from ...utils.i18n import get_addon_language
+        lang = get_addon_language()
         default_map = {
             "left": "ShaderNodeTree",
             "right": "RENDER",

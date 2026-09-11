@@ -108,9 +108,8 @@ def register():
     unregister()
 
     try:
-        root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
-        prefs = bpy.context.preferences.addons[root_pkg].preferences
-        addon_lang = getattr(prefs, "addon_language", "ZH")
+        from ...utils.i18n import get_addon_language
+        addon_lang = get_addon_language()
     except Exception:
         addon_lang = "ZH"
 

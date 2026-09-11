@@ -35,10 +35,8 @@ def _build_zh_to_en_translations():
 def _get_addon_language():
     """Get the addon language preference. Returns 'EN' or 'ZH'."""
     try:
-        import bpy
-        root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
-        prefs = bpy.context.preferences.addons[root_pkg].preferences
-        return getattr(prefs, "addon_language", "ZH")
+        from .utils.i18n import get_addon_language
+        return get_addon_language()
     except Exception:
         return "ZH"
 
@@ -46,7 +44,8 @@ def _get_addon_language():
 def _get_blender_locale():
     """Get Blender's current interface locale."""
     try:
-        return bpy.app.translations.locale
+        from .utils.i18n import get_blender_locale
+        return get_blender_locale()
     except Exception:
         return "en_US"
 

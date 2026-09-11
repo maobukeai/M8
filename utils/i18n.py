@@ -2481,10 +2481,216 @@ ZH_TO_EN = {
     "保存当前文件后再切换": "Save the current file, then switch",
     "放弃修改直接切换": "Discard changes and switch directly",
     "取消切换": "Cancel the switch",
+
+    # --- Auto-appended UI translations ---
+    "...更多内容请查看 GitHub Release 页面": "... For more details, please visit the GitHub Release page",
+    "...更多详细说明请查看 GitHub Release 页面": "... For more detailed instructions, please visit the GitHub Release page",
+    "EdgeFlow 参数 (Shift+左键 / EdgeFlow 开启时生效)": "EdgeFlow Parameters (Shift+LMB / Active when EdgeFlow is enabled)",
+    "EdgeFlow 后重投影 UV": "Reproject UVs after EdgeFlow",
+    "EdgeFlow 平滑迭代次数": "EdgeFlow Smooth Iterations",
+    "EdgeFlow 张力。默认 180，正值越大越贴近曲面，负值将弄到反面。": "EdgeFlow Tension. Default 180; larger positive values conform closer to surface, negative values invert.",
+    "EdgeFlow 最小转角阈値（度），小于此角度的边不平滑": "EdgeFlow Min Angle Threshold (deg), edges below this angle are not smoothed",
+    "M8 全能工具箱 - 版本更新": "M8 Toolbox - Version Update",
+    "Release 页面": "Release Page",
+    "✨ 当前已是最新版本": "✨ You are running the latest version",
+    "一键清理旧版残留": "Clean Legacy Versions",
+    "个旧版本残留（如": " legacy version residual(s) found (e.g. ",
+    "个物体关闭自动平滑": " objects disabled Auto Smooth",
+    "个物体到地面": " objects to ground",
+    "个物体原点到活动项": " objects origin to active",
+    "个物体应用自动平滑（": " objects applied Auto Smooth (",
+    "个物体的原点": " objects origin",
+    "个物体的原点设到边界": " objects origin set to bounds",
+    "个物体的变换": " objects transforms",
+    "个物体的名称": " objects names",
+    "个物体的细分级别为": " objects subdivision level set to",
+    "个物体（源物体已保留）": " objects (source objects preserved)",
+    "个重叠物体": " overlapping objects",
+    "个问题物体": " problematic objects",
+    "中未找到 M8 场景审计备份": " No M8 scene audit backup found in",
+    "从历史快照栈中删除指定条目": "Remove specified entry from snapshot history stack",
+    "以下对象无法修改：": "The following objects cannot be modified:",
+    "使用所有选中边的平均长度作为目标": "Use average length of all selected edges as target",
+    "使用最后选中的活动边长度作为目标": "Use length of last selected active edge as target",
+    "使用选中边中最短的边长作为目标": "Use shortest length among selected edges as target",
+    "使用选中边中最长的边长作为目标": "Use longest length among selected edges as target",
+    "保存历史快照": "Save Snapshot",
+    "保存调节盒尺寸快照的历史记录（JSON格式，最多5条）": "Save bounding box size snapshot history (JSON format, up to 5 entries)",
+    "修改了隐藏修改器": "Modified hidden modifiers",
+    "修改某一轴时，以该轴的变化比例自动缩放其他两轴": "When modifying one axis, proportionally scale other two axes based on that axis's ratio",
+    "刀）": " Cuts)",
+    "切换:": "Switch:",
+    "删除快照": "Delete Snapshot",
+    "前往 GitHub Issues 提交您的意见、建议或反馈 BUG": "Visit GitHub Issues to submit feedback, suggestions, or report bugs",
+    "前往 GitHub 仓库": "Go to GitHub Repository",
+    "前往 Release 页面": "Go to Release Page",
+    "原共享数:": "Previous users:",
+    "发现": "Found",
+    "取消退出": "Cancel & Exit",
+    "合并判定的阈值": "Merge detection threshold",
+    "合并完成，共进行了 0 组合并。": "Merge completed, 0 groups merged.",
+    "启动后自动连接更新服务器检查新版本": "Automatically connect to update server to check for new versions on startup",
+    "启动工具时默认开启 EdgeFlow 模式（左键点击直接平滑切线）": "Enable EdgeFlow mode by default when tool launches (LMB directly smooth cuts)",
+    "启用快速循环切刀": "Enable Fast Loop Cut",
+    "吸附等分数": "Snapping Divisions",
+    "在": "in",
+    "在编辑模式下按空间距离聚类拆分选中的面片为独立物体": "Cluster and split selected faces into separate objects by spatial distance in Edit Mode",
+    "安全扫描并删除可能导致冲突的旧版 M8 文件夹": "Safely scan and delete legacy M8 folders that may cause conflicts",
+    "完成！已处理": "Done! Processed",
+    "对。": " pairs.",
+    "对于连续边链，保持两端顶点位置不变，仅均匀分布中间顶点": "For open edge chains, keep endpoint positions fixed and evenly distribute interior vertices",
+    "将当前调节盒尺寸保存到历史快照栈（最多保留 5 条）": "Save current adjustment box dimensions to snapshot stack (up to 5 entries)",
+    "将调节盒尺寸还原为指定历史快照": "Restore adjustment box dimensions from specified snapshot",
+    "已保存快照：": "Saved snapshot: ",
+    "已冻结": "Frozen",
+    "已删除快照：": "Deleted snapshot: ",
+    "已在浏览器打开 GitHub Issues 页面，欢迎提交建议或反馈！": "GitHub Issues page opened in browser. Feedback and suggestions are welcome!",
+    "已对齐": "Aligned",
+    "已成功清理以下历史残留版本:": "Successfully cleaned up following legacy versions:",
+    "已成功清理历史残留目录:": "Successfully cleaned up legacy directory:",
+    "已按视图对齐": "Aligned to View",
+    "已新建材质:": "Created new material: ",
+    "已设置完全停止（阻尼": "Set to complete stop (Damping",
+    "已还原快照：": "Restored snapshot: ",
+    "帧）": " frames)",
+    "并排": "Side by Side",
+    "当前没有激活的网格对象": "No active mesh object currently",
+    "当前版本": "Current Version",
+    "当前版本:": "Current Version:",
+    "当前选中面数": "Current Selected Faces",
+    "快照": "Snapshot",
+    "快照历史": "Snapshot History",
+    "快照历史栈": "Snapshot History Stack",
+    "快照索引无效": "Invalid snapshot index",
+    "快速循环切刀 (Ctrl+Shift+E)": "Fast Loop Cut (Ctrl+Shift+E)",
+    "您当前使用的是最新稳定版，无需更新。": "You are currently using the latest stable release; no update needed.",
+    "成功拆分": "Successfully split",
+    "手动指定具体数值长度": "Manually specify exact length value",
+    "执行 Set Flow 时，把切割前已选中的边和新循环边一起参与计算。此选项会被记忆。": "When executing Set Flow, include pre-cut selected edges along with new loop edges in calculation. This setting is remembered.",
+    "执行拆分": "Execute Split",
+    "拆分花蕊": "Split Cluster",
+    "拆分距离比例": "Split Distance Ratio",
+    "按 EdgeFlow 后的新环线长度重新插值 UV，并保留 UV 缝。关闭可保留旧版 UV 行为。": "Re-interpolate UVs based on new loop lengths after EdgeFlow while preserving UV seams. Disable to keep legacy UV behavior.",
+    "排版模式": "Layout Mode",
+    "文字在上方": "Text Above",
+    "文字在下方": "Text Below",
+    "文字显示在鼠标图标的上方": "Display text above mouse icon",
+    "文字显示在鼠标图标的下方": "Display text below mouse icon",
+    "无详细更新日志，请前往 GitHub Release 页面查看。": "No detailed changelog provided; please visit GitHub Release page.",
+    "显示快捷键详情(Fast Loop)": "Show Keymap Details (Fast Loop)",
+    "智能相近拆分 (花蕊/面片)": "Smart Proximity Split (Clusters/Faces)",
+    "暂无快照，点击「保存」记录当前尺寸": "No snapshots yet. Click 'Save' to record current dimensions",
+    "更新日志 / 新特性:": "Changelog / New Features:",
+    "最新版本": "Latest Version",
+    "最新版本:": "Latest Version:",
+    "未发现多余的历史旧版本残留。": "No legacy duplicate installations found.",
+    "未找到快速循环切刀绑定": "Fast Loop Cut keymap binding not found",
+    "未找到更新状态数据": "Update status data not found",
+    "未检测到多个独立簇（阈值=": "No multiple independent clusters detected (Threshold=",
+    "未选择任何贴图文件": "No texture file selected",
+    "材质已独立化:": "Material made single-user: ",
+    "条边 (长度:": " edges (Length: ",
+    "查看 M8 全能工具箱最新版本更新详情与升级选项": "View latest M8 Toolbox update details and upgrade options",
+    "查看更新详情": "View Update Details",
+    "检测 M8 全能工具箱在 GitHub 的最新 Release 版本": "Check latest M8 Toolbox Release on GitHub",
+    "检测到": "Detected ",
+    "检测更新失败": "Failed to check for updates",
+    "次迭代）": " iterations)",
+    "正在下载并覆盖安装，请稍候...": "Downloading and overwriting installation, please wait...",
+    "正在连接 GitHub 检测更新，请稍候...": "Connecting to GitHub to check for updates, please wait...",
+    "没有可修改的细分修改器": "No modifiable Subdivision modifiers found",
+    "清理失败:": "Cleanup failed:",
+    "清理结果": "Cleanup Results",
+    "物体合并与拆分": "Object Merge & Split",
+    "目标边长度": "Target Edge Length",
+    "立即一键更新": "Update Now",
+    "簇": " clusters",
+    "经典匹配已更新": "Classic match updated",
+    "编辑模式下 Ctrl+Shift+E 交互式添加循环边或顶点，支持吸附、等距、对称、法向等高级控制": "In Edit Mode, press Ctrl+Shift+E to interactively add edge loops or vertices with snapping, even spacing, symmetry, and normal controls",
+    "聚类敏感度（相对于选中面总范围的比值），0.01=1%。数值越小簇越多": "Clustering sensitivity (ratio of selection bounding range), 0.01=1%. Smaller values create more clusters",
+    "聚类敏感度（相对于选中面总范围的比值），数值越小拆分簇越多": "Clustering sensitivity (ratio of selection bounding range); smaller values create more split clusters",
+    "聚类阈值": "Cluster Threshold",
+    "聚类阈值 (比值)": "Cluster Threshold (Ratio)",
+    "自动检查更新": "Auto Check Updates",
+    "计算目标边长的方式": "Method to calculate target edge length",
+    "设置流 (Set Flow)": "Set Flow",
+    "请先选中一个网格物体并进入编辑模式": "Please select a mesh object and enter Edit Mode first",
+    "请先选择至少一条边": "Please select at least one edge first",
+    "请在编辑模式运行短边选择": "Please run Short Edge Selection in Edit Mode",
+    "请在编辑模式选择要反倒角的边后运行": "Please select edges to un-bevel in Edit Mode before running",
+    "请至少选中 2 个面": "Please select at least 2 faces",
+    "请至少选择两个网格物体": "Please select at least two mesh objects",
+    "还原失败：": "Restore failed: ",
+    "还原快照": "Restore Snapshot",
+    "选中对象没有细分修改器，无需清零": "Selected objects have no Subdivision modifier; nothing to reset",
+    "选区锁定垂直环切": "Selection Locked Perpendicular Ring Cut",
+    "部分目录清理失败（可能被占用）:": "Some directories failed to clean up (may be in use):",
+    "锁定比例": "Lock Proportions",
+    "长度": "Length",
+    "闭合环线和分支网络的松弛迭代次数": "Relaxation iterations for closed loops and branching networks",
+    "预计拆分": "Estimated Split",
+    "默认反转方向": "Default Invert Direction",
+    "默认启动属性 (Default Launch Settings)": "Default Launch Settings",
+    "默认对称镜像": "Default Mirror Symmetry",
+    "默认引导模式": "Default Guide Mode",
+    "默认段数 (Cuts)": "Default Cuts",
+    "默认法向投影": "Default Normal Projection",
+    "默认等距模式": "Default Even Spacing Mode",
+    "默认顶点模式": "Default Vertex Mode",
+    "鼠标在左侧，文字在右侧": "Mouse on Left, Text on Right",
+    "（持续": " (Duration ",
+    "（速度": " (Speed ",
+    "），可能引起冲突！": "), which may cause conflicts!",
+    "），请降低阈值": "), please decrease threshold",
+    "，共": ", total ",
+    "🎉 发现新版本可用！": "🎉 New version available!",
+    "自动 (跟随Blender)": "Auto (Follow Blender)",
+    "根据Blender当前界面语言自动切换": "Automatically switch based on Blender's interface language",
+    "简体中文": "Chinese",
+    "始终显示中文": "Always display in Chinese",
+    "始终显示英文": "Always display in English",
 }
 
 
 _in_T = False
+
+
+def get_blender_locale() -> str:
+    """Get Blender's current interface locale."""
+    try:
+        pref_view = getattr(bpy.context.preferences, "view", None) if bpy.context and bpy.context.preferences else None
+        lang = getattr(pref_view, "language", None)
+        if not lang or lang == "DEFAULT":
+            lang = getattr(bpy.app.translations, "locale", "en_US")
+        return lang or "en_US"
+    except Exception:
+        return "en_US"
+
+
+def get_addon_language() -> str:
+    """Get effective addon language: 'ZH' or 'EN'.
+
+    If addon_language is 'AUTO', detect Blender's interface locale:
+    - Chinese (zh_CN, zh_HANS, zh_TW, zh_HK, etc.) -> 'ZH'
+    - Others (en_US, DEFAULT, etc.) -> 'EN'
+    """
+    try:
+        root_pkg = ".".join(__package__.split(".")[:3]) if __package__ and __package__.startswith("bl_ext") else (__package__.split(".")[0] if __package__ else "M8")
+        addon = bpy.context.preferences.addons.get(root_pkg) if bpy.context and bpy.context.preferences else None
+        pref_obj = addon.preferences if addon else None
+        addon_lang = getattr(pref_obj, "addon_language", "AUTO") if pref_obj else "AUTO"
+    except Exception:
+        addon_lang = "AUTO"
+
+    if addon_lang == "EN":
+        return "EN"
+    elif addon_lang == "ZH":
+        return "ZH"
+    else:  # "AUTO"
+        locale = get_blender_locale().lower()
+        if locale.startswith("zh") or "chinese" in locale:
+            return "ZH"
+        return "EN"
 
 
 def _T(text):
@@ -2492,11 +2698,8 @@ def _T(text):
     if _in_T:
         return text
     _in_T = True
-    # Try to get the addon preferences
     try:
-        root_pkg = ".".join(__package__.split(".")[:3]) if __package__ and __package__.startswith("bl_ext") else (__package__.split(".")[0] if __package__ else "M8")
-        prefs = bpy.context.preferences.addons[root_pkg].preferences
-        if getattr(prefs, "addon_language", "ZH") == "EN":
+        if get_addon_language() == "EN":
             res = ZH_TO_EN.get(text, text)
             _in_T = False
             return res

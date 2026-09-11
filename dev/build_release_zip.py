@@ -54,7 +54,7 @@ def update_version_json(version, sha256_hash):
         "name": "M8.zip",
         "download_url": f"https://github.com/maobukeai/M8/releases/download/v{version}/M8.zip",
         "sha256": sha256_hash,
-        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. 新增【全局 UV 棋盘格显示 (UV Checker)】：在 Z 键着色饼菜单顶部集成一键切换视口 UV 棋盘格材质覆盖，内置经典 UV 网格、彩色网格与高对比黑白棋盘 3 种图案，支持实时无缝密度缩放\n2. Z 键着色饼菜单【材质管理】深度重构：新增快速新建材质（自动赋给所选面）、独立材质副本（多用户共享数可视化与一键单用户化）、材质批量赋予至选中物体\n3. 模式联动核心操作：编辑模式支持【指定到所选面】与【选同面】；物体模式支持【选择同材质】与【一键清理空材质槽】\n4. 支持检测并一键清理外部场景全局覆盖材质",
+        "changelog": f"M8 全能工具箱 v{version} 发布\n\n1. 全面升级多语言国际化架构 (i18n)：首选项新增【自动 (跟随Blender)】模式，智能自适应 Blender 界面语言环境，英文环境下全界面无缝切换为流畅英文\n2. 翻译词条 100% 全覆盖：补充 200+ 核心词条，全面覆盖 Fast Loop、材质管理、烘焙重命名、更新弹窗、等长边及聚类拆分等全模块\n3. 修复语言首选项注册兼容性：解决 EnumProperty 动态项注册异常，确保首选项在中英文环境下零报错加载\n4. 深度消除代码内硬编码中文字符串，统一遵循 _T(...) 国际化标准",
     }
     version_json_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[BUILD] Synchronized {version_json_path.name} with v{version}")

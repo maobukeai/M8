@@ -688,6 +688,10 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         row.alignment = 'CENTER'
         row.label(text=_T("界面语言"), icon=_ICON("WORLD"))
         row.prop(self, "addon_language", expand=True)
+        if self.addon_language == "AUTO":
+            from ..utils.i18n import get_addon_language
+            detected_lang = _T("中文") if get_addon_language() == "ZH" else "English"
+            row.label(text=f"({detected_lang})")
         
         row_telemetry = box.row(align=True)
         row_telemetry.alignment = 'CENTER'
@@ -1232,7 +1236,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             # EdgeFlow params sub-box
             ef_box = box.box()
             ef_col = ef_box.column(align=True)
-            ef_col.label(text="EdgeFlow 参数 (Shift+左键 / EdgeFlow 开启时生效)", icon="MOD_SMOOTH")
+            ef_col.label(text=_T("EdgeFlow 参数 (Shift+左键 / EdgeFlow 开启时生效)"), icon="MOD_SMOOTH")
             ef_row = ef_col.row(align=True)
             ef_row.prop(self, "fast_loop_tension")
             ef_row.prop(self, "fast_loop_iterations")

@@ -163,8 +163,9 @@ class VIEW3D_MT_M8ShadingPie(bpy.types.Menu):
             # 3. 辅助管理工具
             row_tools = col.row(align=True)
             if not is_edit:
-                op_sel = row_tools.operator("m8.select_same_material", text=_T("选择同材质"), icon="RESTRICT_SELECT_OFF")
-                op_sel.enabled = bool(act_mat)
+                sub_sel = row_tools.row(align=True)
+                sub_sel.enabled = bool(act_mat)
+                sub_sel.operator("m8.select_same_material", text=_T("选择同材质"), icon="RESTRICT_SELECT_OFF")
             row_tools.operator("m8.material_clean_slots", text=_T("清理空槽"), icon="BRUSH_DATA")
             if act_mat:
                 row_tools.operator("object.material_slot_remove", text="", icon="TRASH")

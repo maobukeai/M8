@@ -295,12 +295,14 @@ def _screencast_mouse_display_items(self, context):
 
 def _addon_language_items(self, context):
     return [
-        ("ZH", "中文", ""),
-        ("EN", "English", ""),
+        ("AUTO", _T("自动 (跟随Blender)"), _T("根据Blender当前界面语言自动切换")),
+        ("ZH", _T("简体中文"), _T("始终显示中文")),
+        ("EN", "English", _T("始终显示英文")),
     ]
 
 def _smart_edge_mode_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
+    from ..utils.i18n import get_addon_language
+    if get_addon_language() == "EN":
         return [
             ("SELECT", "Select Region", "Convert a closed edge loop to face selection"),
             ("SHARPS", "Sharps", "Mark or clear sharp edges"),
@@ -315,7 +317,8 @@ def _smart_edge_mode_items(self, context):
     ]
 
 def _group_tool_empty_type_items(self, context):
-    if getattr(self, "addon_language", "ZH") == "EN":
+    from ..utils.i18n import get_addon_language
+    if get_addon_language() == "EN":
         return [
             ("PLAIN_AXES", "Plain Axes", ""),
             ("ARROWS", "Arrows", ""),

@@ -46,11 +46,9 @@ TRANSLATIONS = {
 
 def T(context, key):
     """根据当前场景语言设置返回对应文本"""
-    # 优先检查插件全局语言设置
     try:
-        root_pkg = ".".join(__package__.split(".")[:3]) if __package__ and __package__.startswith("bl_ext") else (__package__.split(".")[0] if __package__ else "M8")
-        prefs = bpy.context.preferences.addons[root_pkg].preferences
-        if getattr(prefs, "addon_language", "ZH") == "EN":
+        from ...utils.i18n import get_addon_language
+        if get_addon_language() == "EN":
             return TRANSLATIONS.get(key, {}).get("EN", key)
     except Exception:
         pass
