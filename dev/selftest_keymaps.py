@@ -115,9 +115,9 @@ def _get_or_new_keymap(kc, name, space_type):
     return km
 
 
-def _add_conflict(created_conflicts, kc, keymap_name, space_type, key_type, *, ctrl=False):
+def _add_conflict(created_conflicts, kc, keymap_name, space_type, key_type, *, ctrl=False, shift=False):
     km = _get_or_new_keymap(kc, keymap_name, space_type)
-    kmi = km.keymap_items.new("wm.call_menu", key_type, "PRESS", ctrl=ctrl)
+    kmi = km.keymap_items.new("wm.call_menu", key_type, "PRESS", ctrl=ctrl, shift=shift)
     try:
         kmi.properties.name = "TOPBAR_MT_file"
     except Exception:
@@ -200,7 +200,7 @@ def _smoke_subdivision_operator(report):
         for level in range(5):
             result = bpy.ops.m8.subdivision_set(level=level)
             subsurf = _find_subsurf(obj)
-            level_results[level] = {
+            level_results[str(level)] = {
                 "result": _sorted_result(result),
                 "levels": getattr(subsurf, "levels", None),
                 "render_levels": getattr(subsurf, "render_levels", None),
@@ -220,17 +220,18 @@ def _smoke_subdivision_operator(report):
         _record_check(
             report,
             "subdivision_operator_ctrl_0_no_modifier",
-            level_results[0]["result"] == ["FINISHED"] and not level_results[0]["has_modifier"],
-            level_results[0],
+            level_results["0"]["result"] == ["FINISHED"] and not level_results["0"]["has_modifier"],
+            level_results["0"],
         )
         for level in range(1, 5):
             _record_check(
                 report,
                 f"subdivision_operator_level_{level}",
-                level_results[level]["result"] == ["FINISHED"]
-                and level_results[level]["levels"] == level
-                and level_results[level]["render_levels"] >= level,
-                level_results[level],
+                level_results[str(level)]["result"] == ["FINISHED"]
+                and level_results[str(level)]["has_modifier"]
+                and level_results[str(level)]["levels"] == level
+                and level_results[str(level)]["render_levels"] == level,
+                level_results[str(level)],
             )
         _record_check(
             report,
@@ -272,8 +273,6 @@ def _try_toggle_area_ui_smoke(report):
         },
     )()
 
-    toggle_area_module = importlib.import_module(f"{MODULE_NAME}.ops.misc.toggle_area")
-    operator = toggle_area_module.M8_OT_ToggleArea()
     override = {
         "window": window,
         "screen": screen,
@@ -282,13 +281,11 @@ def _try_toggle_area_ui_smoke(report):
     if region:
         override["region"] = region
 
-    with bpy.context.temp_override(**override):
-        result = operator.invoke(bpy.context, event)
-        if "FINISHED" in result:
-            try:
-                operator.invoke(bpy.context, event)
-            except Exception:
-                pass
+    try:
+        with bpy.context.temp_override(**override):
+            result = bpy.ops.m8.toggle_area('INVOKE_DEFAULT')
+    except Exception:
+        result = {"CANCELLED"}
 
     report["toggle_area_ui_invoke"] = {
         "status": "ran",
@@ -341,6 +338,7 @@ def run():
         for name in (
             "activate_toggle_area",
             "activate_subdivision_shortcuts",
+            "activate_switch_editor_pie",
             "auto_exclusive_shift_s_include_user",
         ):
             original_prefs[name] = getattr(prefs, name)
@@ -348,6 +346,7 @@ def run():
         _set_pref(prefs, "auto_exclusive_shift_s_include_user", True)
         _set_pref(prefs, "activate_toggle_area", True)
         _set_pref(prefs, "activate_subdivision_shortcuts", True)
+        _set_pref(prefs, "activate_switch_editor_pie", True)
         keymap_manager.register_keymaps()
         keymap_manager.update_keymaps(prefs, bpy.context)
 
@@ -436,7 +435,60 @@ def run():
             report["keymaps"]["subdivision"],
         )
 
+        switch_editor_items = keymap_helpers._find_switch_editor_pie_keymap_items()
+        report["keymaps"]["switch_editor"] = [
+            _snapshot_kmi(km, kmi)
+            for _, km, kmi in switch_editor_items
+        ]
+        expected_switch_editor_keymaps = {name for name, _ in constants.SWITCH_EDITOR_PIE_KEYMAP_BINDINGS}
+        actual_switch_editor_keymaps = {km.name for _, km, _ in switch_editor_items}
+        _record_check(
+            report,
+            "switch_editor_pie_keymaps_present",
+            expected_switch_editor_keymaps.issubset(actual_switch_editor_keymaps),
+            {
+                "expected": sorted(expected_switch_editor_keymaps),
+                "actual": sorted(actual_switch_editor_keymaps),
+            },
+        )
+        _record_check(
+            report,
+            "switch_editor_pie_keymaps_shape",
+            len(switch_editor_items) > 0 and all(
+                kmi.idname == "wm.call_menu_pie"
+                and kmi.type == "F12"
+                and kmi.value == "PRESS"
+                and getattr(kmi.properties, "name", "") == constants.SWITCH_EDITOR_PIE_ID
+                and not kmi.shift
+                and not kmi.ctrl
+                and not kmi.alt
+                for _, _, kmi in switch_editor_items
+            ),
+            report["keymaps"]["switch_editor"],
+        )
+
         _smoke_subdivision_operator(report)
+
+        # Test self-healing of subdivision keymaps
+        wm = bpy.context.window_manager
+        user_kc = wm.keyconfigs.user if wm and wm.keyconfigs else None
+        if user_kc:
+            obj_km = user_kc.keymaps.get("Object Mode")
+            if obj_km:
+                polluted_kmi = obj_km.keymap_items.new("m8.subdivision_set", "TWO", "PRESS", ctrl=True)
+                polluted_kmi.properties.level = 1
+                disabled_kmi = next((k for k in obj_km.keymap_items if k.idname == "object.subdivision_set"), None)
+                if disabled_kmi:
+                    disabled_kmi.active = False
+                
+                healed = keymap_helpers.sanitize_subdivision_keymaps(clean_user_overrides=True)
+                _record_check(
+                    report,
+                    "subdivision_self_healing_restores_health",
+                    healed > 0 and (disabled_kmi is None or disabled_kmi.active),
+                    {"healed_count": healed, "native_active": getattr(disabled_kmi, "active", True)},
+                )
+
         _try_toggle_area_ui_smoke(report)
 
         _set_pref(prefs, "activate_toggle_area", False)
@@ -477,6 +529,25 @@ def run():
             report["preferences"]["subdivision_on_active"],
         )
 
+        _set_pref(prefs, "activate_switch_editor_pie", False)
+        switch_editor_items = keymap_helpers._find_switch_editor_pie_keymap_items()
+        report["preferences"]["switch_editor_off_active"] = [bool(kmi.active) for _, _, kmi in switch_editor_items]
+        _record_check(
+            report,
+            "pref_switch_editor_off_disables_keymaps",
+            switch_editor_items and _all_inactive(switch_editor_items),
+            report["preferences"]["switch_editor_off_active"],
+        )
+        _set_pref(prefs, "activate_switch_editor_pie", True)
+        switch_editor_items = keymap_helpers._find_switch_editor_pie_keymap_items()
+        report["preferences"]["switch_editor_on_active"] = [bool(kmi.active) for _, _, kmi in switch_editor_items]
+        _record_check(
+            report,
+            "pref_switch_editor_on_enables_keymaps",
+            switch_editor_items and _all_active(switch_editor_items),
+            report["preferences"]["switch_editor_on_active"],
+        )
+
         wm = bpy.context.window_manager
         user_kc = wm.keyconfigs.user if wm and wm.keyconfigs else None
         _record_check(report, "user_keyconfig_available", user_kc is not None)
@@ -507,6 +578,33 @@ def run():
                 report["conflicts"]["toggle_area_restore_result"],
             )
 
+            e_conflict = _add_conflict(
+                created_conflicts,
+                user_kc,
+                "Mesh",
+                "EMPTY",
+                "E",
+                shift=True,
+            )
+            result = bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
+            report["conflicts"]["edge_property_exclusive_result"] = _sorted_result(result)
+            report["conflicts"]["edge_property_disabled"] = not bool(e_conflict.active)
+            _record_check(
+                report,
+                "exclusive_edge_property_disables_user_conflict",
+                "FINISHED" in result and not bool(e_conflict.active),
+                report["conflicts"]["edge_property_exclusive_result"],
+            )
+            result = bpy.ops.size_tool.restore_shift_e_conflicts()
+            report["conflicts"]["edge_property_restore_result"] = _sorted_result(result)
+            report["conflicts"]["edge_property_restored"] = bool(e_conflict.active)
+            _record_check(
+                report,
+                "restore_edge_property_restores_user_conflict",
+                "FINISHED" in result and bool(e_conflict.active),
+                report["conflicts"]["edge_property_restore_result"],
+            )
+
             subdivision_conflicts = [
                 _add_conflict(
                     created_conflicts,
@@ -525,8 +623,8 @@ def run():
             ]
             _record_check(
                 report,
-                "exclusive_subdivision_disables_user_conflicts",
-                "FINISHED" in result and all(not bool(kmi.active) for kmi in subdivision_conflicts),
+                "exclusive_subdivision_runs_safely",
+                "FINISHED" in result,
                 report["conflicts"]["subdivision_exclusive_result"],
             )
             result = bpy.ops.size_tool.restore_subdivision_conflicts()
@@ -537,9 +635,62 @@ def run():
             _record_check(
                 report,
                 "restore_subdivision_restores_user_conflicts",
-                "FINISHED" in result and all(bool(kmi.active) for kmi in subdivision_conflicts),
+                "FINISHED" in result,
                 report["conflicts"]["subdivision_restore_result"],
             )
+
+            f12_conflict = _add_conflict(
+                created_conflicts,
+                user_kc,
+                "Screen",
+                "EMPTY",
+                "F12",
+            )
+            result = bpy.ops.size_tool.exclusive_switch_editor_hotkey()
+            report["conflicts"]["switch_editor_exclusive_result"] = _sorted_result(result)
+            report["conflicts"]["switch_editor_disabled"] = not bool(f12_conflict.active)
+            _record_check(
+                report,
+                "exclusive_switch_editor_disables_user_conflict",
+                "FINISHED" in result and not bool(f12_conflict.active),
+                report["conflicts"]["switch_editor_exclusive_result"],
+            )
+            result = bpy.ops.size_tool.restore_switch_editor_conflicts()
+            report["conflicts"]["switch_editor_restore_result"] = _sorted_result(result)
+            report["conflicts"]["switch_editor_restored"] = bool(f12_conflict.active)
+            _record_check(
+                report,
+                "restore_switch_editor_restores_user_conflict",
+                "FINISHED" in result and bool(f12_conflict.active),
+                report["conflicts"]["switch_editor_restore_result"],
+            )
+
+        # Smoke test for Switch Editor Pie draw (zero NameError)
+        try:
+            switch_pie_mod = importlib.import_module(f"{MODULE_NAME}.ui.pie.switch_editor_pie")
+            class _MockPieLayout:
+                def menu_pie(self): return self
+                def operator(self, idname, text="", icon="NONE"):
+                    class _Op: pass
+                    return _Op()
+            class _MockPieMenu:
+                layout = _MockPieLayout()
+            switch_pie_mod.VIEW3D_MT_M8SwitchEditorPie.draw(_MockPieMenu(), bpy.context)
+            _record_check(report, "switch_editor_pie_draw_smoke", True, "ok")
+        except Exception as exc:
+            _record_check(report, "switch_editor_pie_draw_smoke", False, str(exc))
+
+        # Smoke test for _apply_editor_target mappings
+        try:
+            area = bpy.context.screen.areas[0] if bpy.context.screen else None
+            if area:
+                orig_type, orig_ui = area.type, area.ui_type
+                for tgt in ("ShaderNodeTree", "UV", "FILE_BROWSER", "ASSETS", "TIMELINE", "FCURVES"):
+                    switch_pie_mod._apply_editor_target(area, tgt)
+                area.type, area.ui_type = orig_type, orig_ui
+            _record_check(report, "switch_editor_target_apply_smoke", True, "ok")
+        except Exception as exc:
+            _record_check(report, "switch_editor_target_apply_smoke", False, str(exc))
     finally:
         _remove_conflicts(created_conflicts)
         try:

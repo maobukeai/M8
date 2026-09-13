@@ -276,7 +276,7 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
         # For SET mode, new_name is crucial.
         if self.mode == 'SET':
             col = layout.column(align=True)
-            col.prop(self, "new_name")
+            col.prop(self, "new_name", text=_T("新名称"))
             
             # Check for invalid characters in filename
             invalid_chars = r'[\\/:*?"<>|]'
@@ -298,12 +298,12 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
             row.prop(self, "target", expand=True)
         
         # Advanced Options (Collapsible)
-        box.prop(self, "ui_show_advanced", icon="TRIA_DOWN" if self.ui_show_advanced else "TRIA_RIGHT")
+        box.prop(self, "ui_show_advanced", text=_T("高级选项"), icon="TRIA_DOWN" if self.ui_show_advanced else "TRIA_RIGHT")
         if self.ui_show_advanced:
             col = box.column(align=True)
-            col.prop(self, "rename_data")
-            col.prop(self, "rename_material")
-            col.prop(self, "filter_visible_only")
+            col.prop(self, "rename_data", text=_T("同步重命名数据"))
+            col.prop(self, "rename_material", text=_T("同步重命名材质"))
+            col.prop(self, "filter_visible_only", text=_T("仅限可见对象"))
         
         box.separator()
 
@@ -311,27 +311,27 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
             # Sort Options (Only relevant for multi-selection)
             if self.target == 'SELECTED':
                 row = box.row()
-                row.prop(self, "sort_method")
+                row.prop(self, "sort_method", text=_T("排序方式"))
                 row.prop(self, "sort_reverse", text="", icon="SORT_ASC")
             
             if self.target == 'SELECTED':
                 row = box.row(align=True)
-                row.prop(self, "use_numbering")
+                row.prop(self, "use_numbering", text=_T("添加编号"))
                 if self.use_numbering:
                     row.prop(self, "use_random", text="", icon="RANDOM_TERM")
                     row.prop(self, "smart_numbering", text="", icon="AUTO")
-                    row.prop(self, "start_number")
-                    row.prop(self, "step_number")
-                    row.prop(self, "pad_digits")
+                    row.prop(self, "start_number", text=_T("起始编号"))
+                    row.prop(self, "step_number", text=_T("步长"))
+                    row.prop(self, "pad_digits", text=_T("位数填充"))
         
         elif self.mode == 'REPLACE':
             col = box.column(align=True)
-            col.prop(self, "find_str", icon="VIEWZOOM")
-            col.prop(self, "replace_str", icon="FILE_REFRESH")
+            col.prop(self, "find_str", text=_T("查找"), icon="VIEWZOOM")
+            col.prop(self, "replace_str", text=_T("替换"), icon="FILE_REFRESH")
             
             row = box.row(align=True)
-            row.prop(self, "case_sensitive")
-            row.prop(self, "use_regex")
+            row.prop(self, "case_sensitive", text=_T("区分大小写"))
+            row.prop(self, "use_regex", text=_T("正则表达式"))
             
             # Regex validation check
             if self.use_regex and self.find_str:
@@ -346,20 +346,20 @@ class M8_OT_AdvancedRename(bpy.types.Operator):
 
         elif self.mode == 'ADD':
             col = box.column(align=True)
-            col.prop(self, "prefix")
-            col.prop(self, "suffix")
-            col.prop(self, "add_check_exists")
+            col.prop(self, "prefix", text=_T("前缀"))
+            col.prop(self, "suffix", text=_T("后缀"))
+            col.prop(self, "add_check_exists", text=_T("避免重复"))
 
         elif self.mode == 'STRIP':
             col = box.column(align=True)
-            col.prop(self, "strip_start")
-            col.prop(self, "strip_end")
-            col.prop(self, "strip_ext")
-            col.prop(self, "strip_chars")
+            col.prop(self, "strip_start", text=_T("移除开头数字/空格"))
+            col.prop(self, "strip_end", text=_T("移除结尾数字/空格"))
+            col.prop(self, "strip_ext", text=_T("移除后缀/扩展名"))
+            col.prop(self, "strip_chars", text=_T("移除指定字符"))
             
             row = col.row(align=True)
-            row.prop(self, "strip_first_n")
-            row.prop(self, "strip_last_n")
+            row.prop(self, "strip_first_n", text=_T("移除前 N 个字符"))
+            row.prop(self, "strip_last_n", text=_T("移除后 N 个字符"))
 
         elif self.mode == 'CASE':
             box.prop(self, "case_mode", expand=True)

@@ -920,7 +920,7 @@ class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
         if hasattr(context.scene, "m8"):
             props = context.scene.m8.custom_tools
             col.prop(props, "sort_mode", text="")
-            col.prop(props, "remove_unused")
+            col.prop(props, "remove_unused", text=_T("移除未使用材质"))
 
         col.operator("m8.sort_materials", icon='SORTALPHA', text=_T("执行排序"))
 
@@ -934,7 +934,7 @@ class VIEW3D_PT_M8_CustomTools(bpy.types.Panel):
             # Show threshold setting only for distance-based modes (CENTER, VERTEX, AABB)
             if props.merge_mode in {'CENTER', 'VERTEX', 'AABB'}:
                 row = col.row(align=True)
-                row.prop(props, "merge_threshold")
+                row.prop(props, "merge_threshold", text=_T("合并距离"))
                 row.prop(props, "merge_unit", text="")
 
         col.operator("m8.merge_nearby_objects", icon='MOD_BUILD', text=_T("执行合并"))

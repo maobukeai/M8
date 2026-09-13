@@ -221,10 +221,10 @@ class MESH_OT_LeavesToPlanes(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "scope")
-        layout.prop(self, "anchor_to_stem")
-        layout.prop(self, "stem_extension")
-        layout.prop(self, "face_count_threshold")
+        layout.prop(self, "scope", text=_T("范围"))
+        layout.prop(self, "anchor_to_stem", text=_T("锚定到叶柄"))
+        layout.prop(self, "stem_extension", text=_T("茎部延伸"))
+        layout.prop(self, "face_count_threshold", text=_T("面数阈值"))
 
     def execute(self, context):
         obj = context.active_object

@@ -32,7 +32,7 @@ class MirrorMesh(MeshHub, MeshPreview):
         sub.prop(self, "use_mirror_active", text=_T("镜像活动项"))
 
         row = opt_col.row(align=True)
-        row.prop(self, "bisect")
+        row.prop(self, "bisect", text=_T("切分"))
         sub = row.row(align=True)
         sub.enabled = bool(self.bisect)
         sub.prop(self, "is_negative_axis", text=_T("反向"))
@@ -40,7 +40,7 @@ class MirrorMesh(MeshHub, MeshPreview):
         adv = main.box()
         adv.use_property_split = True
         adv.use_property_decorate = False
-        adv.prop(self, "threshold")
+        adv.prop(self, "threshold", text=_T("合并距离"))
 
         axes = main.box()
         axes_col = axes.column(align=True)

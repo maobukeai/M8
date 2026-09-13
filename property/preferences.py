@@ -84,6 +84,13 @@ def _on_switch_mode_update(self, context):
 def _on_quick_delete_update(self, context):
     self.navigation_tab = "DELETE"
     _on_prefs_update(self, context)
+    try:
+        if getattr(self, "activate_quick_delete", False):
+            bpy.ops.size_tool.exclusive_quick_delete_hotkey()
+        else:
+            bpy.ops.size_tool.restore_quick_delete_conflicts()
+    except Exception:
+        pass
 
 def _on_delete_pie_update(self, context):
     self.navigation_tab = "DELETE"
@@ -112,6 +119,18 @@ def _on_mirror_update(self, context):
 def _on_group_tool_update(self, context):
     self.navigation_tab = "GROUP"
     _on_prefs_update(self, context)
+
+def _on_group_tool_hide_empty_update(self, context):
+    self.navigation_tab = "GROUP"
+    _on_prefs_update(self, context)
+    try:
+        from ..ops.object.group_tool import is_m8_group, set_object_empty_visibility
+        hide = bool(getattr(self, "group_tool_hide_empty", False))
+        for obj in bpy.data.objects:
+            if is_m8_group(obj):
+                set_object_empty_visibility(obj, hide)
+    except Exception:
+        pass
 
 def _on_smart_pie_update(self, context):
     self.navigation_tab = "SMART_PIE"
@@ -199,7 +218,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     activate_toggle_area: bpy.props.BoolProperty(name=_T("启用区域切换 (T)"), default=True, update=_on_toggle_area_update)
     toggle_area_close_range: bpy.props.FloatProperty(name=_T("关闭范围 (%)"), default=30.0, min=0.0, max=100.0, description=_T("以区域宽/高的百分比表示与边界的接近度"))
     toggle_area_prefer_left_right: bpy.props.BoolProperty(name=_T("首选左/右切换"), default=True, description=_T("在使用 Close Range 确定是否切换另一对之前，首选左/右切换，而不是 下/上"))
-    toggle_area_asset_shelf: bpy.props.BoolProperty(name=_T("切换资产架"), default=True, description=_T("如果可用，则切换“资产工具架”而不是“浏览器”"))
+    toggle_area_asset_shelf: bpy.props.BoolProperty(name=_T("切换资产架"), default=False, description=_T("在支持的模式下优先切换资产工具架"))
     toggle_area_asset_browser_top: bpy.props.BoolProperty(name=_T("切换资产浏览器到顶部"), default=True)
     toggle_area_asset_browser_bottom: bpy.props.BoolProperty(name=_T("切换资产浏览器到底部"), default=True)
     toggle_area_split_factor: bpy.props.FloatProperty(name=_T("分割比例"), default=0.25, min=0.1, max=0.8, description=_T("切换出的资产浏览器占区域高度的比例"))
@@ -236,15 +255,20 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     clean_up_do_delete_loose_edges: bpy.props.BoolProperty(name=_T("删除孤立边"), default=True)
     clean_up_do_delete_loose_verts: bpy.props.BoolProperty(name=_T("删除孤立点"), default=True)
     clean_up_recalc_normals: bpy.props.BoolProperty(name=_T("重算法线"), default=False)
-    has_migrated_clean_up_defaults: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
-    activate_double_click_select_group: bpy.props.BoolProperty(name=_T("双击选择组"), default=False, update=_on_prefs_update)
+    activate_double_click_select_group: bpy.props.BoolProperty(name=_T("双击选择组"), default=True, update=_on_prefs_update)
+    has_migrated_double_click_select_group: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
     group_tool_radius: bpy.props.FloatProperty(name=_T("组半径"), default=1.0, min=0.1, unit='LENGTH')
     group_tool_empty_type: bpy.props.EnumProperty(
         name=_T("空物体类型"),
         items=_group_tool_empty_type_items,
         default=5,
     )
-    group_tool_hide_empty: bpy.props.BoolProperty(name=_T("隐藏组空物体"), default=False, description=_T("创建组时自动隐藏组父物体"))
+    group_tool_hide_empty: bpy.props.BoolProperty(
+        name=_T("隐藏组空物体"),
+        default=False,
+        description=_T("创建组时自动隐藏组父物体，开启后可同时隐藏场景中所有组空物体"),
+        update=_on_group_tool_hide_empty_update,
+    )
     activate_restart_blender: bpy.props.BoolProperty(name=_T("启用重启 Blender 按钮"), default=True)
 
     active_tab: bpy.props.EnumProperty(
@@ -272,6 +296,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             ("SUBDIVISION", _T("细分级别"), "Subdivision Set"),
             ("FAST_LOOP", _T("快速循环切刀"), "Fast Loop Cut"),
             ("SCREENCAST", _T("按键显示"), "Screencast"),
+            ("NPANEL", _T("侧栏管理"), "N-Panel Sub-Tabs Organizer"),
             ("OTHER", _T("其它设置"), "Other Settings"),
             ("ABOUT", _T("关于"), "About"),
         ],
@@ -280,10 +305,18 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     ui_show_all_settings: bpy.props.BoolProperty(name=_T("显示全部"), default=False)
     show_diagnostics_panels: bpy.props.BoolProperty(name=_T("显示诊断/场景审计面板"), default=False)
+    sidebar_width: bpy.props.FloatProperty(
+        name=_T("侧边栏宽度"),
+        description=_T("偏好设置导航侧边栏宽度占比 (默认 0.22)"),
+        default=0.22,
+        min=0.15,
+        max=0.35,
+        subtype='PERCENTAGE',
+    )
 
     fbx_export_unity_preset: bpy.props.BoolProperty(name=_T("FBX 导出使用 Unity 预设"), default=True)
     unity_fbx_use_selection: bpy.props.BoolProperty(name=_T("Unity FBX: 仅导出选择"), default=True)
-    unity_fbx_global_scale: bpy.props.FloatProperty(name=_T("Unity FBX: 全局缩放"), default=100.0, min=0.001, max=1000.0)
+    unity_fbx_global_scale: bpy.props.FloatProperty(name=_T("Unity FBX: 全局缩放"), default=1.0, min=0.001, max=1000.0)
     unity_fbx_apply_unit_scale: bpy.props.BoolProperty(name=_T("Unity FBX: 应用单位"), default=True)
     unity_fbx_apply_scale_options: bpy.props.EnumProperty(
         name="Unity FBX: Apply Scalings",
@@ -435,17 +468,17 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     )
     # EdgeFlow parameters (mirroring the original Fast-Loop set_flow options)
     fast_loop_tension: bpy.props.IntProperty(
-        name=_T("Tension"),
+        name=_T("张力"),
         description=_T("EdgeFlow 张力。默认 180，正值越大越贴近曲面，负值将弄到反面。"),
         default=180, min=-500, max=500
     )
     fast_loop_iterations: bpy.props.IntProperty(
-        name=_T("Iterations"),
+        name=_T("迭代次数"),
         description=_T("EdgeFlow 平滑迭代次数"),
         default=1, min=1, max=32
     )
     fast_loop_min_angle: bpy.props.IntProperty(
-        name=_T("Min Angle"),
+        name=_T("最小角度"),
         description=_T("EdgeFlow 最小转角阈値（度），小于此角度的边不平滑"),
         default=0, min=0, max=180
     )
@@ -471,6 +504,23 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     bpy.ops.m8.internal_screencast('INVOKE_DEFAULT')
         except Exception:
             pass
+
+    def _on_npanel_manager_update(self, context):
+        try:
+            settings = getattr(context.scene, "m8_npanel", None)
+            if settings:
+                settings.enabled = self.activate_npanel_manager
+                from ..ops.npanel import core
+                core.apply_organization(context)
+        except Exception:
+            pass
+
+    activate_npanel_manager: bpy.props.BoolProperty(
+        name=_T("启用侧栏管理器"),
+        default=False,
+        description=_T("开启后将聚合整理 N 侧边栏为二级子标签分类"),
+        update=_on_npanel_manager_update
+    )
 
     screencast_enabled: bpy.props.BoolProperty(
         name=_T("启用 Screencast"),
@@ -560,6 +610,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     delete_pie_bottom_left: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Left", default=8)
     delete_pie_bottom_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Right", default=9)
     has_migrated_delete_pie: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+    has_migrated_unity_scale: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
 
 
     switch_mode_smart_focus: bpy.props.BoolProperty(
@@ -695,7 +746,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         
         row_telemetry = box.row(align=True)
         row_telemetry.alignment = 'CENTER'
-        row_telemetry.prop(self, "auto_check_updates")
+        row_telemetry.prop(self, "auto_check_updates", text=_T("启动时自动检测新版本"))
         
         col.separator()
         
@@ -854,7 +905,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
     def _draw_sidebar_button(self, layout, icon, text, item_value):
         row = layout.row(align=True)
-        row.scale_y = 1.25
+        row.scale_y = 1.12
         
         prop_map = {
             "TRANSFORM": "enable_transform_pie",
@@ -873,19 +924,19 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "FAST_LOOP": "activate_fast_loop",
             "RENAME": "activate_advanced_rename",
             "SCREENCAST": "screencast_enabled",
+            "NPANEL": "activate_npanel_manager",
         }
         
         feature_prop_name = prop_map.get(item_value, None)
         nav_tab = getattr(self, "navigation_tab", "TRANSFORM")
         
         if "navigation_tab" in self.bl_rna.properties:
-            row_split = row.split(factor=0.75, align=True)
             if feature_prop_name and feature_prop_name in self.bl_rna.properties:
+                row_split = row.split(factor=0.82, align=True)
                 row_split.prop_enum(self, "navigation_tab", item_value, text=_T(text))
                 row_split.prop(self, feature_prop_name, text="", icon=_ICON(icon), toggle=True)
             else:
-                row_split.prop_enum(self, "navigation_tab", item_value, text=_T(text))
-                row_split.prop_enum(self, "navigation_tab", item_value, text="", icon=_ICON(icon))
+                row.prop_enum(self, "navigation_tab", item_value, text=_T(text), icon=_ICON(icon))
         else:
             row.label(text=_T(text), icon=_ICON(icon))
 
@@ -908,6 +959,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "FAST_LOOP": (_T("快速循环切刀"), _T("编辑模式下 Ctrl+Shift+E 交互式添加循环边或顶点，支持吸附、等距、对称、法向等高级控制")),
 
             "SCREENCAST": (_T("按键显示"), _T("实时在视口显示键盘鼠标操作，支持自定义外观")),
+            "NPANEL": (_T("侧栏管理"), _T("N 侧边栏分类整理与二级子标签管理器，告别繁多杂乱的插件标签")),
             "OTHER": (_T("系统设置"), _T("包含备份设置、新建物体默认行为等全局选项")),
             "ABOUT": (_T("关于"), _T("关于 M8 工具箱")),
         }
@@ -936,11 +988,13 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "FAST_LOOP": "EDGESEL",
 
             "SCREENCAST": "WINDOW",
+            "NPANEL": "RESTRICT_VIEW_OFF",
             "OTHER": "PREFERENCES",
             "ABOUT": "INFO",
         }
 
-        split = layout.split(factor=0.12)
+        sidebar_factor = getattr(self, "sidebar_width", 0.22)
+        split = layout.split(factor=sidebar_factor)
 
         col = split.column(align=True)
         col.use_property_split = False
@@ -963,12 +1017,13 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         self._draw_sidebar_button(col_nav, "FULLSCREEN_ENTER", _T("区域切换 (T)"), "TOGGLE_AREA")
         self._draw_sidebar_button(col_nav, "WINDOW", _T("切换窗口 (F12)"), "SWITCH_EDITOR")
         self._draw_sidebar_button(col_nav, "MOD_SUBSURF", _T("细分级别 (Ctrl+0..4)"), "SUBDIVISION")
-        self._draw_sidebar_button(col_nav, "EDGESEL", _T("快速循环切刀 (Ctrl+Shift+E)"), "FAST_LOOP")
+        self._draw_sidebar_button(col_nav, "EDGESEL", _T("快速切刀 (Ctrl+Shift+E)"), "FAST_LOOP")
 
         col_nav.separator()
         col_nav.label(text=_T("实用工具"), icon="TOOL_SETTINGS")
         self._draw_sidebar_button(col_nav, "FONT_DATA", _T("重命名 (F2)"), "RENAME")
         self._draw_sidebar_button(col_nav, "WINDOW", _T("按键显示"), "SCREENCAST")
+        self._draw_sidebar_button(col_nav, "RESTRICT_VIEW_OFF", _T("侧栏管理"), "NPANEL")
 
         col_nav.separator()
         col_nav.label(text=_T("设置"), icon="PREFERENCES")
@@ -977,8 +1032,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         col_nav.separator()
         if "ui_show_all_settings" in self.bl_rna.properties:
             row = col_nav.row(align=True)
-            row.scale_y = 1.25
-            row_split = row.split(factor=0.75, align=True)
+            row.scale_y = 1.12
+            row_split = row.split(factor=0.82, align=True)
             row_split.prop(self, "ui_show_all_settings", text=_T("显示全部"), toggle=True)
             row_split.prop(self, "ui_show_all_settings", text="", toggle=True, icon=_ICON("ALIGN_JUSTIFY"))
 
@@ -1026,6 +1081,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 "SUBDIVISION",
                 "FAST_LOOP",
                 "SCREENCAST",
+                "NPANEL",
                 "OTHER",
                 "ABOUT",
             ]
@@ -1066,6 +1122,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     self.draw_fast_loop_settings(sub)
                 elif key == "SCREENCAST":
                     self.draw_screencast_settings(sub)
+                elif key == "NPANEL":
+                    self.draw_npanel_settings(sub)
                 elif key == "OTHER":
                     self.draw_other_settings(sub)
                 elif key == "ABOUT":
@@ -1104,10 +1162,14 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 self.draw_fast_loop_settings(box)
             elif nav_tab == "SCREENCAST":
                 self.draw_screencast_settings(box)
+            elif nav_tab == "NPANEL":
+                self.draw_npanel_settings(box)
             elif nav_tab == "OTHER":
                 self.draw_other_settings(box)
             elif nav_tab == "ABOUT":
                 self.draw_about_settings(box)
+
+
 
     
     def draw_switch_editor_settings(self, layout):
@@ -1124,8 +1186,11 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             if "ui_show_switch_editor_advanced" in self.bl_rna.properties:
                 row.prop(self, "ui_show_switch_editor_advanced", text=_T("映射"), toggle=True, icon="PREFERENCES")
             row.operator("size_tool.force_switch_editor_priority", text=_T("置顶"), icon="SORT_ASC")
+            row.operator("size_tool.exclusive_switch_editor_hotkey", text=_T("独占"), icon="LOCKED")
+            row.operator("wm.call_menu_pie", text=_T("测试呼出"), icon="WINDOW").name = "M8_MT_switch_editor_pie"
             row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
             col.separator()
+            col.label(text=_T("按 F12 呼出切换窗口饼菜单（右侧选项可一键渲染）"), icon="INFO")
             
             if getattr(self, "ui_show_switch_editor_keymap", False):
                 sub_col = col.column()
@@ -1149,21 +1214,21 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 grid = box.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=False, align=True)
                 
                 col1 = grid.column()
-                col1.prop(self, "switch_editor_pie_left")
-                col1.prop(self, "switch_editor_pie_right")
-                col1.prop(self, "switch_editor_pie_bottom")
-                col1.prop(self, "switch_editor_pie_top")
+                col1.prop(self, "switch_editor_pie_left", text=_T("左"))
+                col1.prop(self, "switch_editor_pie_right", text=_T("右"))
+                col1.prop(self, "switch_editor_pie_bottom", text=_T("下"))
+                col1.prop(self, "switch_editor_pie_top", text=_T("上"))
                 
                 col2 = grid.column()
-                col2.prop(self, "switch_editor_pie_top_left")
-                col2.prop(self, "switch_editor_pie_top_right")
-                col2.prop(self, "switch_editor_pie_bottom_left")
-                col2.prop(self, "switch_editor_pie_bottom_right")
+                col2.prop(self, "switch_editor_pie_top_left", text=_T("左上"))
+                col2.prop(self, "switch_editor_pie_top_right", text=_T("右上"))
+                col2.prop(self, "switch_editor_pie_bottom_left", text=_T("左下"))
+                col2.prop(self, "switch_editor_pie_bottom_right", text=_T("右下"))
     
     def draw_subdivision_settings(self, layout):
         col = layout.column()
         if "activate_subdivision_shortcuts" in self.bl_rna.properties:
-            col.prop(self, "activate_subdivision_shortcuts")
+            col.prop(self, "activate_subdivision_shortcuts", text=_T("启用细分快捷键 (Ctrl+0..4)"))
 
         activate_shortcuts = getattr(self, "activate_subdivision_shortcuts", False)
         
@@ -1203,7 +1268,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     def draw_fast_loop_settings(self, layout):
         col = layout.column()
         if "activate_fast_loop" in self.bl_rna.properties:
-            col.prop(self, "activate_fast_loop")
+            col.prop(self, "activate_fast_loop", text=_T("启用快速循环切刀"))
 
         activate_fl = getattr(self, "activate_fast_loop", False)
         
@@ -1220,27 +1285,27 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             box.label(text=_T("默认启动属性 (Default Launch Settings)"), icon="TOOL_SETTINGS")
             
             flow = box.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=False, align=True)
-            flow.prop(self, "fast_loop_auto_selection")
-            flow.prop(self, "fast_loop_segments")
-            flow.prop(self, "fast_loop_snap_divisions")
-            flow.prop(self, "fast_loop_vertex_mode")
-            flow.prop(self, "fast_loop_guide_mode")
-            flow.prop(self, "fast_loop_use_even")
-            flow.prop(self, "fast_loop_flipped")
-            flow.prop(self, "fast_loop_mirrored")
-            flow.prop(self, "fast_loop_perpendicular")
-            flow.prop(self, "fast_loop_use_curvature")
-            flow.prop(self, "fast_loop_enable_edge_flow")
-            flow.prop(self, "fast_loop_reproject_uv_after_edge_flow")
+            flow.prop(self, "fast_loop_auto_selection", text=_T("启动时自动进入选区模式"))
+            flow.prop(self, "fast_loop_segments", text=_T("默认段数 (Cuts)"))
+            flow.prop(self, "fast_loop_snap_divisions", text=_T("吸附等分数"))
+            flow.prop(self, "fast_loop_vertex_mode", text=_T("默认顶点模式"))
+            flow.prop(self, "fast_loop_guide_mode", text=_T("默认引导模式"))
+            flow.prop(self, "fast_loop_use_even", text=_T("默认等距模式"))
+            flow.prop(self, "fast_loop_flipped", text=_T("默认反转方向"))
+            flow.prop(self, "fast_loop_mirrored", text=_T("默认对称镜像"))
+            flow.prop(self, "fast_loop_perpendicular", text=_T("默认法向投影"))
+            flow.prop(self, "fast_loop_use_curvature", text=_T("默认曲率平滑"))
+            flow.prop(self, "fast_loop_enable_edge_flow", text=_T("默认启用 EdgeFlow"))
+            flow.prop(self, "fast_loop_reproject_uv_after_edge_flow", text=_T("EdgeFlow 后重投影 UV"))
 
             # EdgeFlow params sub-box
             ef_box = box.box()
             ef_col = ef_box.column(align=True)
             ef_col.label(text=_T("EdgeFlow 参数 (Shift+左键 / EdgeFlow 开启时生效)"), icon="MOD_SMOOTH")
             ef_row = ef_col.row(align=True)
-            ef_row.prop(self, "fast_loop_tension")
-            ef_row.prop(self, "fast_loop_iterations")
-            ef_row.prop(self, "fast_loop_min_angle")
+            ef_row.prop(self, "fast_loop_tension", text=_T("张力"))
+            ef_row.prop(self, "fast_loop_iterations", text=_T("迭代次数"))
+            ef_row.prop(self, "fast_loop_min_angle", text=_T("最小角度"))
 
             col.separator(factor=0.5)
 
@@ -1248,7 +1313,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             box2 = col.box()
             box2.label(text=_T("持久行为设置 (Persistent Behavior)"), icon="LOCKED")
             row2 = box2.row(align=True)
-            row2.prop(self, "fast_loop_keep_selection", toggle=True, icon="RESTRICT_SELECT_OFF")
+            row2.prop(self, "fast_loop_keep_selection", text=_T("选中边参与 Set Flow (S键)"), toggle=True, icon="RESTRICT_SELECT_OFF")
 
             show_keymap = getattr(self, "ui_show_fast_loop_keymap", False)
             if show_keymap:
@@ -1358,6 +1423,10 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             row.prop(self, "ui_show_delete_mapping", text=_T("映射"), toggle=True, icon="PREFERENCES")
             row.operator("size_tool.force_delete_pie_priority", text=_T("置顶"), icon="SORT_ASC")
             row.operator("m8.reset_prefs_ui", text=_T("恢复默认"), icon="LOOP_BACK")
+            if self.activate_quick_delete:
+                row_sub = col.row(align=True)
+                row_sub.operator("size_tool.exclusive_quick_delete_hotkey", text=_T("独占(禁用冲突)"))
+                row_sub.operator("size_tool.restore_quick_delete_conflicts", text=_T("恢复冲突"))
             col.separator()
             if self.ui_show_delete_keymap:
                 sub_col = col.column()
@@ -1430,7 +1499,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     def draw_align_settings(self, layout):
         col = layout.column()
         if "activate_align_pie" in self.bl_rna.properties:
-            col.prop(self, "activate_align_pie")
+            col.prop(self, "activate_align_pie", text=_T("启用对齐饼菜单 (Alt+A)"))
 
         activate_pie = getattr(self, "activate_align_pie", False)
         
@@ -1478,7 +1547,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     def draw_shading_settings(self, layout):
         col = layout.column()
         if "activate_shading_pie" in self.bl_rna.properties:
-            col.prop(self, "activate_shading_pie")
+            col.prop(self, "activate_shading_pie", text=_T("启用着色饼菜单 (Z)"))
 
         activate_pie = getattr(self, "activate_shading_pie", False)
         
@@ -1726,7 +1795,12 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             box_group.prop(self, "activate_double_click_select_group", text=_T("双击选择组"))
             box_group.prop(self, "group_tool_radius", text=_T("组半径"))
             box_group.prop(self, "group_tool_empty_type", text=_T("空物体类型"))
-            box_group.prop(self, "group_tool_hide_empty", text=_T("隐藏组空物体"))
+            row_hide = box_group.row(align=True)
+            row_hide.prop(self, "group_tool_hide_empty", text=_T("隐藏组空物体"))
+            op_show = row_hide.operator("m8.set_all_group_empties_visibility", text=_T("显示全部"), icon="HIDE_OFF")
+            op_show.action = 'SHOW'
+            op_hide = row_hide.operator("m8.set_all_group_empties_visibility", text=_T("隐藏全部"), icon="HIDE_ON")
+            op_hide.action = 'HIDE'
 
             if getattr(self, "ui_show_group_keymap", False):
                 sub_col = col.column()
@@ -1868,6 +1942,12 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             box.prop(self, "toggle_area_asset_browser_top", text=_T("切换资产浏览器到顶部"))
             box.prop(self, "toggle_area_asset_browser_bottom", text=_T("切换资产浏览器到底部"))
             box.prop(self, "toggle_area_split_factor", text=_T("分割比例"))
+            row_ops = box.row(align=True)
+            op_bot = row_ops.operator("m8.toggle_asset_browser", text=_T("切换底部资产抽屉"), icon="WINDOW")
+            op_bot.position = 'BOTTOM'
+            op_top = row_ops.operator("m8.toggle_asset_browser", text=_T("切换顶部资产抽屉"), icon="WINDOW")
+            op_top.position = 'TOP'
+            box.label(text=_T("提示: 在资产浏览器内部直接按 T 键也可一键收回关闭"), icon="INFO")
 
             if self.ui_show_toggle_area_keymap:
                 try:
@@ -1987,6 +2067,13 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             col_m.label(text=_T("中键按压"))
             col_m.prop(self, "screencast_mouse_img_mmouse", text="")
 
+    def draw_npanel_settings(self, layout, context=None):
+        try:
+            from ..ops.npanel.ui import draw_npanel_prefs_settings
+            draw_npanel_prefs_settings(self, layout, context or bpy.context)
+        except Exception as e:
+            layout.label(text=f"Error drawing npanel settings: {e}", icon="ERROR")
+
     def draw_other_settings(self, layout):
         col = layout.column()
         
@@ -2003,6 +2090,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         if "show_diagnostics_panels" in self.bl_rna.properties:
             col.prop(self, "show_diagnostics_panels", text=_T("显示诊断/场景审计面板"))
         col.separator()
+        col.prop(self, "sidebar_width", text=_T("侧边栏宽度"))
         row = col.row(align=True)
         row.operator("m8.reset_prefs_ui", text=_T("重置界面设置"), icon="FILE_REFRESH")
         
@@ -2198,6 +2286,8 @@ from .keymap_exclusive import (
     SIZE_TOOL_OT_ForceShadingPiePriority,
     SIZE_TOOL_OT_ForceSmartPiePriority,
     SIZE_TOOL_OT_ForceSwitchEditorPriority,
+    SIZE_TOOL_OT_ExclusiveSwitchEditorHotkey,
+    SIZE_TOOL_OT_RestoreSwitchEditorConflicts,
     SIZE_TOOL_OT_ForceToggleAreaPriority,
     SIZE_TOOL_OT_ForceSubdivisionPriority,
     SIZE_TOOL_OT_ExclusiveAllHotkeys,
@@ -2206,6 +2296,8 @@ from .keymap_exclusive import (
     SIZE_TOOL_OT_RestoreSubdivisionConflicts,
     SIZE_TOOL_OT_ExclusiveToggleAreaHotkey,
     SIZE_TOOL_OT_RestoreToggleAreaConflicts,
+    SIZE_TOOL_OT_ExclusiveQuickDeleteHotkey,
+    SIZE_TOOL_OT_RestoreQuickDeleteConflicts,
     M8_OT_ResetSwitchModePrefs,
     M8_OT_ResetPrefsUI,
 )

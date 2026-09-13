@@ -1099,7 +1099,7 @@ class M8_OT_PruneSceneAuditBackups(bpy.types.Operator):
             return {"CANCELLED"}
 
         kept, removed = _prune_old_backups(backups, self.keep_per_source)
-        summary = f"已清理 {len(removed)} 个旧备份，保留 {len(kept)} 个"
+        summary = f"{_T('已清理')} {len(removed)} {_T('个旧备份，保留')} {len(kept)} {_T('个')}"
         report = collect_scene_audit_backup_report(backup_name)
         store_scene_audit_backup_report(context, report)
 

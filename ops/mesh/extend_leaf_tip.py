@@ -44,7 +44,7 @@ class MESH_OT_ExtendLeafTip(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "extension")
+        layout.prop(self, "extension", text=_T("延伸量"))
 
     def execute(self, context):
         obj = context.active_object

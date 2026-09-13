@@ -456,7 +456,15 @@ class M8_OT_OpenPreferences(bpy.types.Operator):
 def _get_m8_addon_prefs():
     root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
     addon = bpy.context.preferences.addons.get(root_pkg)
-    return addon.preferences if addon else None
+    prefs = addon.preferences if addon else None
+    if prefs and not getattr(prefs, "has_migrated_unity_scale", False):
+        try:
+            if getattr(prefs, "unity_fbx_global_scale", 1.0) == 100.0:
+                prefs.unity_fbx_global_scale = 1.0
+            prefs.has_migrated_unity_scale = True
+        except Exception:
+            pass
+    return prefs
 
 
 def _apply_unity_standard_preset(prefs, keep_export_path=True):
@@ -464,7 +472,7 @@ def _apply_unity_standard_preset(prefs, keep_export_path=True):
         return
     try:
         prefs.unity_fbx_use_selection = True
-        prefs.unity_fbx_global_scale = 100.0
+        prefs.unity_fbx_global_scale = 1.0
         prefs.unity_fbx_apply_unit_scale = True
         prefs.unity_fbx_apply_scale_options = "FBX_SCALE_ALL"
         prefs.unity_fbx_use_triangles = True
@@ -609,6 +617,11 @@ class M8_OT_ExportFBX(bpy.types.Operator):
         properties = None
         if use_unity:
             settings = self._get_unity_settings(prefs)
+            if settings["use_selection"]:
+                selected = getattr(context, "selected_objects", None)
+                if not selected:
+                    self.report({'WARNING'}, _T("未选择任何物体，无法导出（已启用仅导出选中项）"))
+                    return {'CANCELLED'}
             target_path = self._resolve_unity_target_path(settings)
             if target_path:
                 props = self._build_unity_export_props(settings, filepath=target_path)

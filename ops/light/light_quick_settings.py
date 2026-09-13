@@ -23,7 +23,7 @@ class M8_OT_LightQuickSettings(bpy.types.Operator):
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        layout.prop(light, "type")
+        layout.prop(light, "type", text=_T("类型"))
         if hasattr(light, "color"):
             layout.prop(light, "color")
         if hasattr(light, "energy"):

@@ -2,7 +2,7 @@ import bpy
 import gpu
 import numpy as np
 from bpy_extras.view3d_utils import region_2d_to_origin_3d, region_2d_to_vector_3d
-from gpu.types import Buffer
+Buffer = getattr(gpu.types, "Buffer", None) if hasattr(gpu, "types") else None
 from mathutils import Vector
 
 

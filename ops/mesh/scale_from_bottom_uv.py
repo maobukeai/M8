@@ -103,8 +103,8 @@ class MESH_OT_ScaleFromBottomUV(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "scale")
-        layout.prop(self, "uniform")
+        layout.prop(self, "scale", text=_T("缩放系数"))
+        layout.prop(self, "uniform", text=_T("均匀"))
 
     def execute(self, context):
         obj = context.active_object

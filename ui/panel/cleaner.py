@@ -30,18 +30,18 @@ class VIEW3D_PT_M8_MeshCleaner(bpy.types.Panel):
         if not (context.active_object and 
                 context.active_object.type == 'MESH' and
                 context.mode == 'EDIT_MESH'):
-            layout.label(text=_T("Please enter Edit Mode"), icon='INFO')
+            layout.label(text=_T("请先进入编辑模式"), icon='INFO')
             layout.enabled = False
         
         # Use our new property group if available, otherwise fallback might be needed but we expect it to be registered
         if hasattr(context.scene, "m8"):
             props = context.scene.m8.clean
         else:
-            layout.label(text=_T("Properties not registered"), icon='ERROR')
+            layout.label(text=_T("属性未注册"), icon='ERROR')
             return
 
         # Toggle Advanced Settings
-        layout.prop(props, "show_advanced", icon='SETTINGS', toggle=True)
+        layout.prop(props, "show_advanced", text=_T("高级选项"), icon='SETTINGS', toggle=True)
         layout.separator()
 
         # -------------------------------------------------------------------
@@ -64,14 +64,14 @@ class VIEW3D_PT_M8_MeshCleaner(bpy.types.Panel):
             # Advanced Filter Settings
             col = box.column(align=True)
             col.label(text=_T("高级过滤设置:"))
-            col.prop(props, "flat_threshold_min", slider=True)
-            col.prop(props, "flat_threshold_max", slider=True)
+            col.prop(props, "flat_threshold_min", text=_T("平坦阈值最小值"), slider=True)
+            col.prop(props, "flat_threshold_max", text=_T("平坦阈值最大值"), slider=True)
             
             # Settings
             col = box.column(align=True)
             col.label(text=_T("通用设置:"))
-            col.prop(props, "use_checker_deselect")
-            col.prop(props, "auto_dissolve")
+            col.prop(props, "use_checker_deselect", text=_T("间隔减选"))
+            col.prop(props, "auto_dissolve", text=_T("自动融并"))
         
         # Tools
         sub_box = box.box()

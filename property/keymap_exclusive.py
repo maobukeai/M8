@@ -12,13 +12,16 @@ from .keymap_helpers import (
     _find_mirror_keymap_items,
     _find_group_tool_keymap_items,
     _find_subdivision_keymap_items,
+    sanitize_subdivision_keymaps,
     _find_delete_pie_keymap_items,
+    _find_quick_delete_keymap_items,
     _find_rename_keymap_items,
     _find_shading_pie_keymap_items,
     _find_smart_pie_keymap_items,
     _find_switch_editor_pie_keymap_items,
     _find_toggle_area_keymap_items,
     _kmi_signature,
+    _match_signature,
     _disable_conflicts_for_signatures,
     _restore_conflicts_for_signatures,
 )
@@ -263,6 +266,11 @@ class SIZE_TOOL_OT_ForceEdgePropertyPiePriority(bpy.types.Operator):
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
+        try:
+            bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
+        except Exception:
+            pass
+        self.report({'INFO'}, _T("已置顶边属性快捷键并处理冲突"))
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ExclusiveEdgePropertyPieHotkey(bpy.types.Operator):
@@ -280,19 +288,21 @@ class SIZE_TOOL_OT_ExclusiveEdgePropertyPieHotkey(bpy.types.Operator):
         include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
 
         signatures = [("E", "PRESS", False, True, False, False, False, 'NONE')]
+        extra_keymap_names = ("Mesh", "3D View", "3D View Generic", "Window", "Screen", "Screen Editing")
 
-        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
+        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures, extra_keymap_names)
+        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures, extra_keymap_names)
         if include_user:
-            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures)
+            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
 
         items = _find_edge_property_pie_keymap_items()
         for kc2, km2, kmi2 in items:
             _ensure_pie_keymap_priority(km2, kmi2)
 
         if disabled:
-            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个插件冲突的 Shift+E 快捷键')}")
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个系统或其它插件冲突的 Shift+E 快捷键')}")
         else:
-            self.report({'INFO'}, _T("未发现插件层面的 Shift+E 冲突快捷键"))
+            self.report({'INFO'}, _T("未发现任何 Shift+E 冲突快捷键"))
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_RestoreShiftEConflicts(bpy.types.Operator):
@@ -310,9 +320,11 @@ class SIZE_TOOL_OT_RestoreShiftEConflicts(bpy.types.Operator):
         include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
 
         signatures = [("E", "PRESS", False, True, False, False, False, 'NONE')]
-        restored = _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures)
+        extra_keymap_names = ("Mesh", "3D View", "3D View Generic", "Window", "Screen", "Screen Editing")
+        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures, extra_keymap_names)
+        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures, extra_keymap_names)
         if include_user:
-            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures)
+            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
 
         self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的 Shift+E 快捷键')}")
         return {'FINISHED'}
@@ -480,20 +492,21 @@ class SIZE_TOOL_OT_ExclusiveSubdivisionHotkey(bpy.types.Operator):
             "Object Mode", "Object Non-modal",
             "Window", "Screen", "Screen Editing", "3D View", "3D View Generic",
         )
+        # Clean user overrides and unlock any disabled native items
+        sanitize_subdivision_keymaps(clean_user_overrides=True)
+
         disabled = _disable_conflicts_for_signatures(
             wm.keyconfigs.active, signatures, keymap_names=subdivision_keymap_names
         )
         disabled += _disable_conflicts_for_signatures(
             wm.keyconfigs.addon, signatures, keymap_names=subdivision_keymap_names
         )
-        if include_user:
-            disabled += _disable_conflicts_for_signatures(
-                wm.keyconfigs.user, signatures, keymap_names=subdivision_keymap_names
-            )
 
         items = _find_subdivision_keymap_items()
         for kc2, km2, kmi2 in items:
             _ensure_pie_keymap_priority(km2, kmi2)
+
+        sanitize_subdivision_keymaps(clean_user_overrides=False)
 
         if disabled:
             self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个插件或系统的细分冲突快捷键')}")
@@ -607,6 +620,7 @@ class SIZE_TOOL_OT_ForceSubdivisionPriority(bpy.types.Operator):
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
+        sanitize_subdivision_keymaps(clean_user_overrides=True)
         items = _find_subdivision_keymap_items()
         if not items:
             self.report({'WARNING'}, _T("未找到细分快捷键映射项"))
@@ -617,21 +631,168 @@ class SIZE_TOOL_OT_ForceSubdivisionPriority(bpy.types.Operator):
             bpy.ops.size_tool.exclusive_subdivision_hotkey()
         except Exception:
             pass
+        sanitize_subdivision_keymaps(clean_user_overrides=False)
         self.report({'INFO'}, f"{_T('已优先处理')} {len(items)} {_T('个细分快捷键绑定')}")
         return {'FINISHED'}
 
-class SIZE_TOOL_OT_ForceDeletePiePriority(bpy.types.Operator):
-    bl_idname = "size_tool.force_delete_pie_priority"
-    bl_label = _T("强制置顶删除饼菜单快捷键")
+class SIZE_TOOL_OT_ExclusiveQuickDeleteHotkey(bpy.types.Operator):
+    bl_idname = "size_tool.exclusive_quick_delete_hotkey"
+    bl_label = _T("独占快速删除快捷键")
+    bl_description = _T("禁用与快速删除冲突的系统或插件 X 键绑定，并优先置顶快速删除")
     bl_options = {'INTERNAL'}
 
     def execute(self, context):
-        items = _find_delete_pie_keymap_items()
-        if not items:
-            self.report({'WARNING'}, _T("未找到删除饼菜单的快捷键项"))
+        wm = bpy.context.window_manager if bpy.context else None
+        if not wm or not getattr(wm, "keyconfigs", None):
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法调整冲突快捷键"))
             return {'CANCELLED'}
+
+        prefs = _get_addon_prefs()
+        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
+
+        # Signatures to disable:
+        # Default Blender has "object.delete" on X (PRESS) without modifiers
+        signatures = [
+            ("X", "PRESS", False, False, False, False, False, 'NONE'),
+        ]
+        target_keymap_names = ("Object Mode", "Object Non-modal")
+
+        disabled = 0
+        if getattr(wm.keyconfigs, "active", None):
+            disabled += _disable_conflicts_for_signatures(
+                wm.keyconfigs.active, signatures, keymap_names=target_keymap_names
+            )
+        if getattr(wm.keyconfigs, "addon", None):
+            disabled += _disable_conflicts_for_signatures(
+                wm.keyconfigs.addon, signatures, keymap_names=target_keymap_names
+            )
+        if include_user and getattr(wm.keyconfigs, "user", None):
+            disabled += _disable_conflicts_for_signatures(
+                wm.keyconfigs.user, signatures, keymap_names=target_keymap_names
+            )
+
+        # Prioritize quick delete items in addon keymaps
+        items = _find_quick_delete_keymap_items(include_user=False)
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
+
+        # In Blender 5.2, if user keymap has is_user_modified=True,
+        # addon keymaps may not be evaluated before user keymap items.
+        # Ensure that m8.quick_delete is also placed at the HEAD of user keymaps if present.
+        if include_user and getattr(wm.keyconfigs, "user", None):
+            kc_user = wm.keyconfigs.user
+            for km_name in target_keymap_names:
+                km_user = kc_user.keymaps.get(km_name)
+                if not km_user:
+                    continue
+                user_quick_items = [k for k in km_user.keymap_items if getattr(k, "idname", "") == 'm8.quick_delete']
+                if not user_quick_items:
+                    try:
+                        kmi_x = km_user.keymap_items.new('m8.quick_delete', 'X', 'PRESS', head=True)
+                        kmi_x.active = True
+                        kmi_del = km_user.keymap_items.new('m8.quick_delete', 'DEL', 'PRESS', head=True)
+                        kmi_del.active = True
+                    except Exception:
+                        pass
+                else:
+                    for k in user_quick_items:
+                        k.active = True
+
+        if disabled:
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个与快速删除冲突的 X 键绑定')}")
+        else:
+            self.report({'INFO'}, _T("未发现快速删除冲突快捷键"))
+        return {'FINISHED'}
+
+
+class SIZE_TOOL_OT_RestoreQuickDeleteConflicts(bpy.types.Operator):
+    bl_idname = "size_tool.restore_quick_delete_conflicts"
+    bl_label = _T("恢复被禁用的快速删除冲突快捷键")
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        wm = bpy.context.window_manager if bpy.context else None
+        if not wm or not getattr(wm, "keyconfigs", None):
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法恢复"))
+            return {'CANCELLED'}
+
+        prefs = _get_addon_prefs()
+        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
+
+        signatures = [
+            ("X", "PRESS", False, False, False, False, False, 'NONE'),
+        ]
+        target_keymap_names = ("Object Mode", "Object Non-modal")
+
+        restored = 0
+        if getattr(wm.keyconfigs, "active", None):
+            restored += _restore_conflicts_for_signatures(
+                wm.keyconfigs.active, signatures, keymap_names=target_keymap_names
+            )
+        if getattr(wm.keyconfigs, "addon", None):
+            restored += _restore_conflicts_for_signatures(
+                wm.keyconfigs.addon, signatures, keymap_names=target_keymap_names
+            )
+        if include_user and getattr(wm.keyconfigs, "user", None):
+            restored += _restore_conflicts_for_signatures(
+                wm.keyconfigs.user, signatures, keymap_names=target_keymap_names
+            )
+            # Safely deactivate any injected m8.quick_delete items from user keymap
+            kc_user = wm.keyconfigs.user
+            for km_name in target_keymap_names:
+                km_user = kc_user.keymaps.get(km_name)
+                if not km_user:
+                    continue
+                for k in km_user.keymap_items:
+                    if getattr(k, "idname", "") == 'm8.quick_delete':
+                        k.active = False
+
+        # Also ensure all disabled object.delete items matching signature are re-enabled
+        kcs_to_restore = [getattr(wm.keyconfigs, "active", None), getattr(wm.keyconfigs, "addon", None)]
+        if include_user and getattr(wm.keyconfigs, "user", None):
+            kcs_to_restore.append(wm.keyconfigs.user)
+        for kc in kcs_to_restore:
+            if not kc:
+                continue
+            for km_name in target_keymap_names:
+                km = kc.keymaps.get(km_name)
+                if not km:
+                    continue
+                for kmi in km.keymap_items:
+                    if not getattr(kmi, "active", True) and getattr(kmi, "idname", "") == 'object.delete':
+                        for sig in signatures:
+                            if _match_signature(kmi, sig):
+                                kmi.active = True
+                                restored += 1
+                                break
+
+        self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的删除快捷键')}")
+        return {'FINISHED'}
+
+
+class SIZE_TOOL_OT_ForceDeletePiePriority(bpy.types.Operator):
+    bl_idname = "size_tool.force_delete_pie_priority"
+    bl_label = _T("强制置顶删除快捷键")
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        pie_items = _find_delete_pie_keymap_items()
+        quick_items = _find_quick_delete_keymap_items(include_user=False)
+        if not pie_items and not quick_items:
+            self.report({'WARNING'}, _T("未找到删除相关快捷键项"))
+            return {'CANCELLED'}
+        count = 0
+        for kc, km, kmi in pie_items:
+            _ensure_pie_keymap_priority(km, kmi)
+            count += 1
+        for kc, km, kmi in quick_items:
+            _ensure_pie_keymap_priority(km, kmi)
+            count += 1
+        try:
+            bpy.ops.size_tool.exclusive_quick_delete_hotkey()
+        except Exception:
+            pass
+        self.report({'INFO'}, f"{_T('已优先置顶')} {count} {_T('个删除快捷键绑定')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceRenamePriority(bpy.types.Operator):
@@ -688,6 +849,71 @@ class SIZE_TOOL_OT_ForceSwitchEditorPriority(bpy.types.Operator):
             return {'CANCELLED'}
         for kc, km, kmi in items:
             _ensure_pie_keymap_priority(km, kmi)
+        try:
+            bpy.ops.size_tool.exclusive_switch_editor_hotkey()
+        except Exception:
+            pass
+        self.report({'INFO'}, _T("已置顶切换窗口快捷键并处理冲突"))
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_ExclusiveSwitchEditorHotkey(bpy.types.Operator):
+    bl_idname = "size_tool.exclusive_switch_editor_hotkey"
+    bl_label = _T("独占切换窗口快捷键")
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        wm = bpy.context.window_manager if bpy.context else None
+        if not wm or not wm.keyconfigs:
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法调整冲突快捷键"))
+            return {'CANCELLED'}
+
+        prefs = _get_addon_prefs()
+        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
+
+        signatures = [
+            ("F12", "PRESS", False, False, False, False, False, 'NONE'),
+        ]
+        extra_keymap_names = ("Screen", "Screen Editing", "Window", "3D View", "3D View Generic")
+
+        disabled = _disable_conflicts_for_signatures(wm.keyconfigs.active, signatures, extra_keymap_names)
+        disabled += _disable_conflicts_for_signatures(wm.keyconfigs.addon, signatures, extra_keymap_names)
+        if include_user:
+            disabled += _disable_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
+
+        items = _find_switch_editor_pie_keymap_items()
+        for kc2, km2, kmi2 in items:
+            _ensure_pie_keymap_priority(km2, kmi2)
+
+        if disabled:
+            self.report({'INFO'}, f"{_T('已禁用')} {disabled} {_T('个系统或其它插件冲突的 F12 快捷键')}")
+        else:
+            self.report({'INFO'}, _T("未发现任何 F12 冲突快捷键"))
+        return {'FINISHED'}
+
+class SIZE_TOOL_OT_RestoreSwitchEditorConflicts(bpy.types.Operator):
+    bl_idname = "size_tool.restore_switch_editor_conflicts"
+    bl_label = _T("恢复被禁用的切换窗口快捷键")
+    bl_options = {'INTERNAL'}
+
+    def execute(self, context):
+        wm = bpy.context.window_manager if bpy.context else None
+        if not wm or not wm.keyconfigs:
+            self.report({'WARNING'}, _T("未找到 KeyConfig，无法恢复"))
+            return {'CANCELLED'}
+
+        prefs = _get_addon_prefs()
+        include_user = bool(getattr(prefs, "auto_exclusive_shift_s_include_user", True)) if prefs else True
+
+        signatures = [
+            ("F12", "PRESS", False, False, False, False, False, 'NONE'),
+        ]
+        extra_keymap_names = ("Screen", "Screen Editing", "Window", "3D View", "3D View Generic")
+        restored = _restore_conflicts_for_signatures(wm.keyconfigs.active, signatures, extra_keymap_names)
+        restored += _restore_conflicts_for_signatures(wm.keyconfigs.addon, signatures, extra_keymap_names)
+        if include_user:
+            restored += _restore_conflicts_for_signatures(wm.keyconfigs.user, signatures, extra_keymap_names)
+
+        self.report({'INFO'}, f"{_T('已恢复')} {restored} {_T('个被禁用的 F12 快捷键')}")
         return {'FINISHED'}
 
 class SIZE_TOOL_OT_ForceToggleAreaPriority(bpy.types.Operator):
@@ -719,6 +945,8 @@ class SIZE_TOOL_OT_ExclusiveAllHotkeys(bpy.types.Operator):
             bpy.ops.size_tool.exclusive_mirror_hotkey()
             bpy.ops.size_tool.exclusive_subdivision_hotkey()
             bpy.ops.size_tool.exclusive_toggle_area_hotkey()
+            bpy.ops.size_tool.exclusive_switch_editor_hotkey()
+            bpy.ops.size_tool.exclusive_quick_delete_hotkey()
             self.report({'INFO'}, _T("已执行所有独占操作"))
         except Exception as e:
             self.report({'WARNING'}, f"{_T('部分操作失败')}: {e}")
@@ -739,6 +967,8 @@ class SIZE_TOOL_OT_RestoreAllConflicts(bpy.types.Operator):
             bpy.ops.size_tool.restore_shift_alt_x_conflicts()
             bpy.ops.size_tool.restore_subdivision_conflicts()
             bpy.ops.size_tool.restore_toggle_area_conflicts()
+            bpy.ops.size_tool.restore_switch_editor_conflicts()
+            bpy.ops.size_tool.restore_quick_delete_conflicts()
             self.report({'INFO'}, _T("已执行所有恢复操作"))
         except Exception as e:
             self.report({'WARNING'}, f"{_T('部分操作失败')}: {e}")
@@ -796,4 +1026,10 @@ class M8_OT_ResetPrefsUI(bpy.types.Operator):
         prefs.ui_show_section_transform_pie = True
         prefs.ui_show_section_delete = True
         prefs.ui_show_section_other = True
+        if hasattr(prefs, "sidebar_width"):
+            prefs.sidebar_width = 0.22
+        try:
+            sanitize_subdivision_keymaps(clean_user_overrides=True)
+        except Exception:
+            pass
         return {'FINISHED'}

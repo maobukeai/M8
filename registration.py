@@ -59,6 +59,7 @@ from .ops.object.quick_delete import M8_OT_QuickDelete
 from .ops.rename.rename import M8_OT_AdvancedRename
 from .ops.object.subdivision_set import M8_OT_SubdivisionSet
 from .ops.rename.baking_renaming import classes as baking_renaming_classes, register as register_baking_renaming, unregister as unregister_baking_renaming
+from .ops.npanel import register as register_npanel, unregister as unregister_npanel
 from .ops.object.switch_mode import OBJECT_OT_SwitchMode, M8_OT_SwitchBoneMode
 from .ops.object.double_click_edit_switch import M8_OT_DoubleClickEditSwitch
 from .ops.object.group_tool import (
@@ -76,6 +77,7 @@ from .ops.object.group_tool import (
     M8_OT_HideGroup,
     M8_OT_IsolateGroup,
     M8_OT_ToggleGroupEmptyVisibility,
+    M8_OT_SetAllGroupEmptiesVisibility,
     M8_OT_ShowAllGroups,
     M8_MT_GroupContextSubMenu,
     draw_group_context_menu,
@@ -132,7 +134,7 @@ from .ops.misc.smart_tools import (
     M8_OT_SmartSlideExtend,
     M8_OT_SmartEdgeToggleMode,
 )
-from .ops.misc.toggle_area import M8_OT_ToggleArea
+from .ops.misc.toggle_area import M8_OT_ToggleArea, M8_OT_ToggleAssetBrowser
 from .ops.misc.telemetry import (
     M8_OT_CheckUpdate,
     M8_OT_SubmitFeedback,
@@ -196,6 +198,8 @@ from .property.preferences import (
     SIZE_TOOL_OT_ForceShadingPiePriority,
     SIZE_TOOL_OT_ForceSmartPiePriority,
     SIZE_TOOL_OT_ForceSwitchEditorPriority,
+    SIZE_TOOL_OT_ExclusiveSwitchEditorHotkey,
+    SIZE_TOOL_OT_RestoreSwitchEditorConflicts,
     SIZE_TOOL_OT_ForceToggleAreaPriority,
     SIZE_TOOL_OT_ForceSubdivisionPriority,
     SIZE_TOOL_OT_ExclusiveAllHotkeys,
@@ -204,6 +208,8 @@ from .property.preferences import (
     SIZE_TOOL_OT_RestoreSubdivisionConflicts,
     SIZE_TOOL_OT_ExclusiveToggleAreaHotkey,
     SIZE_TOOL_OT_RestoreToggleAreaConflicts,
+    SIZE_TOOL_OT_ExclusiveQuickDeleteHotkey,
+    SIZE_TOOL_OT_RestoreQuickDeleteConflicts,
     M8_OT_ResetSwitchModePrefs,
 
     M8_OT_ResetPrefsUI,
@@ -326,6 +332,8 @@ CLASSES = [
     SIZE_TOOL_OT_RestoreSubdivisionConflicts,
     SIZE_TOOL_OT_ExclusiveToggleAreaHotkey,
     SIZE_TOOL_OT_RestoreToggleAreaConflicts,
+    SIZE_TOOL_OT_ExclusiveQuickDeleteHotkey,
+    SIZE_TOOL_OT_RestoreQuickDeleteConflicts,
     M8_OT_ResetSwitchModePrefs,
 
     M8_OT_ResetPrefsUI,
@@ -335,6 +343,8 @@ CLASSES = [
     SIZE_TOOL_OT_ForceShadingPiePriority,
     SIZE_TOOL_OT_ForceSmartPiePriority,
     SIZE_TOOL_OT_ForceSwitchEditorPriority,
+    SIZE_TOOL_OT_ExclusiveSwitchEditorHotkey,
+    SIZE_TOOL_OT_RestoreSwitchEditorConflicts,
     SIZE_TOOL_OT_ForceToggleAreaPriority,
     SIZE_TOOL_OT_ForceSubdivisionPriority,
     MESH_OT_SelectRandomIslands,
@@ -380,6 +390,7 @@ CLASSES = [
     M8_OT_HideGroup,
     M8_OT_IsolateGroup,
     M8_OT_ToggleGroupEmptyVisibility,
+    M8_OT_SetAllGroupEmptiesVisibility,
     M8_OT_ShowAllGroups,
     M8_MT_GroupContextSubMenu,
     OBJECT_OT_SwitchImageMode,
@@ -516,6 +527,7 @@ CLASSES = [
     M8_OT_SmartSlideExtend,
     M8_OT_SmartEdgeToggleMode,
     M8_OT_ToggleArea,
+    M8_OT_ToggleAssetBrowser,
     VIEW3D_MT_M8SmartPie,
     M8_Clean_Props,
     MESH_OT_smart_edge_loop_cleaner,
@@ -659,6 +671,33 @@ def _startup_apply():
             except Exception:
                 exclusive_ok = False
 
+        # Proactively run exclusive overrides for Quick Delete to ensure it works out of the box
+        if getattr(prefs, "activate_quick_delete", False):
+            try:
+                res = bpy.ops.size_tool.exclusive_quick_delete_hotkey()
+                if 'FINISHED' not in res:
+                    exclusive_ok = False
+            except Exception:
+                exclusive_ok = False
+
+        # Proactively run exclusive overrides for Edge Property Pie to ensure Shift+E works out of the box
+        if getattr(prefs, "activate_edge_property_pie", False):
+            try:
+                res = bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
+                if 'FINISHED' not in res:
+                    exclusive_ok = False
+            except Exception:
+                exclusive_ok = False
+
+        # Proactively run exclusive overrides for Switch Editor Pie to ensure F12 works out of the box
+        if getattr(prefs, "activate_switch_editor_pie", False):
+            try:
+                res = bpy.ops.size_tool.exclusive_switch_editor_hotkey()
+                if 'FINISHED' not in res:
+                    exclusive_ok = False
+            except Exception:
+                exclusive_ok = False
+
 
         if getattr(prefs, "auto_new_object_origin_bottom", False):
             register_auto_origin()
@@ -729,7 +768,11 @@ def draw_fast_loop_menu(self, context):
     self.layout.separator()
     self.layout.operator("m8.fast_loop", icon='EDGESEL')
 
-_original_register_class = bpy.utils.register_class
+try:
+    import _bpy
+    _original_register_class = _bpy.register_class
+except Exception:
+    _original_register_class = bpy.utils.register_class
 
 def _m8_register_class_wrapper(cls):
     try:
@@ -823,6 +866,21 @@ def register():
         except Exception as e:
             logger.error(f"Failed to migrate clean up default preferences: {e}", exc_info=True)
 
+    if prefs and not getattr(prefs, "has_migrated_double_click_select_group", False):
+        try:
+            prefs.activate_double_click_select_group = True
+            prefs.has_migrated_double_click_select_group = True
+        except Exception as e:
+            logger.error(f"Failed to migrate double click select group preference: {e}", exc_info=True)
+
+    if prefs and not getattr(prefs, "has_migrated_unity_scale", False):
+        try:
+            if getattr(prefs, "unity_fbx_global_scale", 1.0) == 100.0:
+                prefs.unity_fbx_global_scale = 1.0
+            prefs.has_migrated_unity_scale = True
+        except Exception as e:
+            logger.error(f"Failed to migrate unity fbx scale preference: {e}", exc_info=True)
+
     if prefs and getattr(prefs, "auto_new_object_origin_bottom", False):
         register_auto_origin()
     try:
@@ -847,6 +905,11 @@ def register():
     try:
         if prefs and getattr(prefs, "activate_toggle_area", False):
             bpy.ops.size_tool.exclusive_toggle_area_hotkey()
+    except Exception:
+        pass
+    try:
+        if prefs and getattr(prefs, "activate_edge_property_pie", False):
+            bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
     except Exception:
         pass
     if hasattr(bpy.types, "TOPBAR_MT_editor_menus"):
@@ -898,10 +961,21 @@ def register():
     except Exception:
         pass
 
+    try:
+        register_npanel()
+    except Exception:
+        import traceback
+        traceback.print_exc()
+
 def unregister():
     global _startup_timer_registered
     from .utils.logger import get_logger
     logger = get_logger()
+
+    try:
+        unregister_npanel()
+    except Exception as e:
+        logger.warning(f"Failed to unregister npanel: {e}")
 
     try:
         unregister_cage_tool()

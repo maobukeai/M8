@@ -338,7 +338,7 @@ class M8_OT_SmartEdge(bpy.types.Operator):
         layout.prop(self, "mode", expand=True)
         
         if self.mode == "SELECT":
-            layout.prop(self, "select_bigger")
+            layout.prop(self, "select_bigger", text=_T("反转选择 (Select Bigger)"))
             layout.label(text=_T("选择闭合边环以转换为面"), icon="INFO")
             
         elif self.mode == "SHARPS":
@@ -483,14 +483,14 @@ class M8_OT_SmartFace(bpy.types.Operator):
         layout.prop(self, "face_action", expand=True)
         
         if self.face_action == "EXTRACT":
-            layout.prop(self, "extract_offset")
-            layout.prop(self, "keep_original")
+            layout.prop(self, "extract_offset", text=_T("提取距离"))
+            layout.prop(self, "keep_original", text=_T("保留原始面"))
         elif self.face_action == "DISSOLVE":
-            layout.prop(self, "dissolve_use_verts")
+            layout.prop(self, "dissolve_use_verts", text=_T("溶解顶点"))
         
         box = layout.box()
-        box.prop(self, "focus_mode")
-        box.prop(self, "stay_on_original")
+        box.prop(self, "focus_mode", text=_T("聚焦模式"))
+        box.prop(self, "stay_on_original", text=_T("停留在原始对象"))
 
     def invoke(self, context, event):
         prefs = _get_addon_prefs()
@@ -721,27 +721,27 @@ class M8_OT_CleanUp(bpy.types.Operator):
 
         box = layout.box()
         row = box.row(align=True)
-        row.prop(self, "show_advanced", toggle=True)
+        row.prop(self, "show_advanced", text=_T("高级"), toggle=True)
         if self.show_advanced:
             box.prop(self, "affect", expand=True)
 
             row = box.row(align=True)
-            row.prop(self, "do_dissolve_degenerate")
+            row.prop(self, "do_dissolve_degenerate", text=_T("溶解退化几何"))
             sub = row.row(align=True)
             sub.enabled = bool(self.do_dissolve_degenerate)
             sub.prop(self, "degenerate_dist", text="")
 
             row = box.row(align=True)
-            row.prop(self, "do_make_planar")
+            row.prop(self, "do_make_planar", text=_T("平坦化面"))
             sub = row.row(align=True)
             sub.enabled = bool(self.do_make_planar)
             sub.prop(self, "planar_iterations", text="")
 
-            box.prop(self, "do_delete_interior_faces")
+            box.prop(self, "do_delete_interior_faces", text=_T("删除内部面 (非流形)"))
 
             row = box.row(align=True)
-            row.prop(self, "do_delete_loose_edges")
-            row.prop(self, "do_delete_loose_verts")
+            row.prop(self, "do_delete_loose_edges", text=_T("删除孤立边"))
+            row.prop(self, "do_delete_loose_verts", text=_T("删除孤立点"))
 
             row = box.row(align=True)
             row.label(text=_T("非平面角度"))

@@ -95,7 +95,7 @@ class M8_OT_MaterialLinkToSelected(bpy.types.Operator):
                 self.report({'INFO'}, _T("已将全部材质槽同步至 %d 个物体") % len(targets))
                 return {'FINISHED'}
             except Exception as ex:
-                self.report({'ERROR'}, f"同步失败: {ex}")
+                self.report({'ERROR'}, f"{_T('同步失败')}: {ex}")
                 return {'CANCELLED'}
 
         count = 0
@@ -129,7 +129,7 @@ class M8_OT_SelectSameMaterial(bpy.types.Operator):
                 bpy.ops.mesh.select_material()
                 self.report({'INFO'}, _T("已选中该材质对应的所有面"))
             except Exception as ex:
-                self.report({'WARNING'}, f"选面失败: {ex}")
+                self.report({'WARNING'}, f"{_T('选面失败')}: {ex}")
             return {'FINISHED'}
 
         count = 0

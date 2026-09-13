@@ -55,6 +55,7 @@ SAVE_PIE_KEYMAP_BINDINGS = (
     ("Window", "EMPTY"),
 )
 SWITCH_EDITOR_PIE_KEYMAP_BINDINGS = (
+    ("Screen", "EMPTY"),
     ("Window", "EMPTY"),
 )
 
@@ -88,13 +89,23 @@ SMART_PIE_KEYMAP_BINDINGS = (
 )
 
 TOGGLE_AREA_OP_ID = "m8.toggle_area"
+TOGGLE_ASSET_BROWSER_OP_ID = "m8.toggle_asset_browser"
 TOGGLE_AREA_KEYMAP_BINDINGS = (
     ("3D View", "VIEW_3D"),
     ("Node Editor", "NODE_EDITOR"),
     ("Image", "IMAGE_EDITOR"),
+    ("File Browser", "FILE_BROWSER"),
 )
 
 SUBDIVISION_KEYMAP_BINDINGS = (
     ("Object Mode", "EMPTY"),
     ("Object Non-modal", "EMPTY"),
 )
+
+SUBDIVISION_KEY_TO_LEVEL = {
+    'ZERO': 0,
+    'ONE': 1,
+    'TWO': 2,
+    'THREE': 3,
+    'FOUR': 4,
+}

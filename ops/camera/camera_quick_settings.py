@@ -23,7 +23,7 @@ class M8_OT_CameraQuickSettings(bpy.types.Operator):
         layout.use_property_decorate = False
 
         if hasattr(cam, "type"):
-            layout.prop(cam, "type")
+            layout.prop(cam, "type", text=_T("类型"))
         if hasattr(cam, "lens"):
             layout.prop(cam, "lens")
         if hasattr(cam, "sensor_width"):

@@ -46,7 +46,7 @@ class M8_OT_CurveQuickSettings(bpy.types.Operator):
         if hasattr(data, "bevel_resolution"):
             box.prop(data, "bevel_resolution")
         if hasattr(data, "offset"):
-            box.prop(data, "offset")
+            box.prop(data, "offset", text=_T("偏移"))
 
     def execute(self, context):
         return {"FINISHED"}

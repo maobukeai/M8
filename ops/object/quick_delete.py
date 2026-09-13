@@ -12,10 +12,10 @@ class M8_OT_QuickDelete(bpy.types.Operator):
     def poll(cls, context):
         if getattr(context.area, "type", "") == 'NODE_EDITOR':
             return True
-        return bool(context.mode == "OBJECT" and context.selected_objects)
+        return bool(getattr(context, "mode", "") == "OBJECT" and getattr(context, "selected_objects", None))
 
     def execute(self, context):
-        if context.area.type == 'NODE_EDITOR':
+        if getattr(context.area, "type", "") == 'NODE_EDITOR':
             try:
                 bpy.ops.node.delete()
                 self.report({"INFO"}, _T("已删除节点"))
@@ -24,7 +24,8 @@ class M8_OT_QuickDelete(bpy.types.Operator):
                 self.report({"WARNING"}, _T("删除节点失败"))
                 return {"CANCELLED"}
 
-        count = len(context.selected_objects)
+        selected = getattr(context, "selected_objects", [])
+        count = len(selected)
         try:
             bpy.ops.object.delete(confirm=False)
         except Exception:

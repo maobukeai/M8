@@ -1880,7 +1880,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
             if self.input_mode == 'NUMERIC':
                 blf.color(font_id, 0.0, 0.8, 1.0, 1.0)
                 blf.position(font_id, text_x, text_y + line_height * 12 - 5, 0)
-                blf.draw(font_id, f"键入定位 (百分比/绝对值): {self.numeric_str}_")
+                blf.draw(font_id, f"{_T('键入定位 (百分比/绝对值):')} {self.numeric_str}_")
                 blf.color(font_id, 1.0, 1.0, 1.0, 0.85)
             else:
                 mode_str = _T("顶点模式") if self.vertex_mode else _T("切刀模式")
@@ -1888,7 +1888,7 @@ class M8_OT_FastLoop(bpy.types.Operator):
                 blf.draw(font_id, f"[V] {_T('当前模式')}: {mode_str} | [Tab] {_T('数值定位')}")
 
             blf.position(font_id, text_x, text_y + line_height * 11 - 5, 0)
-            blf.draw(font_id, f"[Shift+滚轮/1-9/↑↓] {_T('段数 (Cuts)')}: {self.segments}")
+            blf.draw(font_id, f"[Shift+{_T('滚轮')}/1-9/↑↓] {_T('段数 (Cuts)')}: {self.segments}")
 
             sel_state_str = _T("已激活") if getattr(self, 'selection_locked', False) else _T("未激活")
             if getattr(self, 'selection_locked', False):

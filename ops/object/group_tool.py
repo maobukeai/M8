@@ -19,7 +19,7 @@ class M8_OT_GroupObjects(bpy.types.Operator):
         root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
         addon = context.preferences.addons.get(root_pkg)
         if addon and addon.preferences:
-            self.hide_empty = getattr(addon.preferences, "group_tool_hide_empty", False)
+            self.hide_empty = bool(getattr(addon.preferences, "group_tool_hide_empty", False))
         return self.execute(context)
 
     def execute(self, context):
@@ -39,11 +39,14 @@ class M8_OT_GroupObjects(bpy.types.Operator):
         
         empty_type = 'SPHERE'
         radius = 1.0
+        hide_empty = self.hide_empty
         
         if addon and addon.preferences:
             prefs = addon.preferences
             radius = getattr(prefs, "group_tool_radius", 1.0)
             empty_type = getattr(prefs, "group_tool_empty_type", 'SPHERE')
+            if not self.properties.is_property_set("hide_empty"):
+                hide_empty = bool(getattr(prefs, "group_tool_hide_empty", False))
 
         # Create Empty
         bpy.ops.object.empty_add(type=empty_type, location=center)
@@ -61,8 +64,8 @@ class M8_OT_GroupObjects(bpy.types.Operator):
         group_empty.empty_display_size = radius
         group_empty["m8_is_group"] = True
         
-        if self.hide_empty:
-            group_empty.hide_viewport = True
+        if hide_empty:
+            set_object_empty_visibility(group_empty, True)
 
         # Parent objects
         for obj in selected_objects:
@@ -74,10 +77,22 @@ class M8_OT_GroupObjects(bpy.types.Operator):
                 # Ensure visual transform is kept (redundant with matrix_parent_inverse but safe)
                 obj.matrix_world = mat
 
-        # Select the group empty
-        bpy.ops.object.select_all(action='DESELECT')
-        group_empty.select_set(True)
-        context.view_layer.objects.active = group_empty
+        if hide_empty:
+            # If group empty is hidden, keep the child objects selected so user doesn't lose selection
+            bpy.ops.object.select_all(action='DESELECT')
+            for obj in selected_objects:
+                if obj != group_empty:
+                    try:
+                        obj.select_set(True)
+                    except Exception:
+                        pass
+            if selected_objects and selected_objects[0] != group_empty:
+                context.view_layer.objects.active = selected_objects[0]
+        else:
+            # Select the group empty
+            bpy.ops.object.select_all(action='DESELECT')
+            group_empty.select_set(True)
+            context.view_layer.objects.active = group_empty
 
         self.report({"INFO"}, f"{_T('已创建组')} '{group_empty.name}'{_T('（含')} {len(selected_objects)} {_T('个物体）')}")
         return {'FINISHED'}
@@ -89,6 +104,23 @@ def is_m8_group(obj):
     # Check for Empty with children (legacy or manual groups)
     if obj.type == 'EMPTY' and len(obj.children) > 0: return True
     return False
+
+def get_m8_group_empty(obj):
+    curr = obj
+    while curr:
+        if is_m8_group(curr):
+            return curr
+        curr = curr.parent
+    return None
+
+def set_object_empty_visibility(obj, hide: bool):
+    if not obj:
+        return
+    obj.hide_viewport = bool(hide)
+    try:
+        obj.hide_set(bool(hide))
+    except Exception:
+        pass
 
 class M8_OT_DissolveGroup(bpy.types.Operator):
     bl_idname = "m8.dissolve_group"
@@ -534,29 +566,85 @@ class M8_OT_ShowAllGroups(bpy.types.Operator):
 class M8_OT_ToggleGroupEmptyVisibility(bpy.types.Operator):
     bl_idname = "m8.toggle_group_empty_visibility"
     bl_label = _T("显示/隐藏组空物体")
-    bl_description = _T("切换组父物体(Empty)的可见性")
+    bl_description = _T("切换当前所选组或场景中组父物体(Empty)的可见性")
     bl_options = {'REGISTER', 'UNDO'}
 
     @classmethod
     def poll(cls, context):
         if context.mode != 'OBJECT': return False
         obj = context.active_object
-        if not obj: return False
-        return is_m8_group(obj) or (obj.parent and is_m8_group(obj.parent))
+        if obj and get_m8_group_empty(obj):
+            return True
+        return any(is_m8_group(o) for o in context.view_layer.objects)
 
     def execute(self, context):
         obj = context.active_object
-        target_group = None
-        if is_m8_group(obj):
-            target_group = obj
-        elif obj.parent and is_m8_group(obj.parent):
-            target_group = obj.parent
-            
-        if not target_group: return {'CANCELLED'}
-        
-        target_group.hide_viewport = not target_group.hide_viewport
-        self.report({"INFO"}, f"{_T('已')}{_T('隐藏') if target_group.hide_viewport else _T('显示')}{_T('组空物体')} '{target_group.name}'")
+        target_group = get_m8_group_empty(obj) if obj else None
+
+        if target_group:
+            new_hide = not target_group.hide_viewport
+            set_object_empty_visibility(target_group, new_hide)
+            self.report({"INFO"}, f"{_T('已')}{_T('隐藏') if new_hide else _T('显示')}{_T('组空物体')} '{target_group.name}'")
+            return {'FINISHED'}
+
+        # Fallback: if no specific group is active, toggle all group empties in view layer
+        groups = [o for o in context.view_layer.objects if is_m8_group(o)]
+        if not groups:
+            self.report({'WARNING'}, _T("场景中未找到任何组空物体"))
+            return {'CANCELLED'}
+
+        any_visible = any(not g.hide_viewport for g in groups)
+        new_hide = any_visible
+        for g in groups:
+            set_object_empty_visibility(g, new_hide)
+
+        self.report({"INFO"}, f"{_T('已')}{_T('隐藏') if new_hide else _T('显示')} {len(groups)} {_T('个组空物体')}")
         return {'FINISHED'}
+
+
+class M8_OT_SetAllGroupEmptiesVisibility(bpy.types.Operator):
+    bl_idname = "m8.set_all_group_empties_visibility"
+    bl_label = _T("切换全部组空物体可见性")
+    bl_description = _T("显示或隐藏场景中的所有组父物体(Empty)")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    action: bpy.props.EnumProperty(
+        name=_T("动作"),
+        items=[
+            ('TOGGLE', _T("切换"), ""),
+            ('SHOW', _T("全部显示"), ""),
+            ('HIDE', _T("全部隐藏"), ""),
+        ],
+        default='TOGGLE'
+    )
+
+    def execute(self, context):
+        groups = [o for o in bpy.data.objects if is_m8_group(o)]
+        if not groups:
+            self.report({'WARNING'}, _T("场景中未找到任何组空物体"))
+            return {'CANCELLED'}
+
+        if self.action == 'SHOW':
+            new_hide = False
+        elif self.action == 'HIDE':
+            new_hide = True
+        else:
+            new_hide = any(not g.hide_viewport for g in groups)
+
+        for g in groups:
+            set_object_empty_visibility(g, new_hide)
+
+        root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
+        addon = context.preferences.addons.get(root_pkg)
+        if addon and addon.preferences:
+            try:
+                setattr(addon.preferences, "group_tool_hide_empty", new_hide)
+            except Exception:
+                pass
+
+        self.report({"INFO"}, f"{_T('已')}{_T('隐藏') if new_hide else _T('显示')} {len(groups)} {_T('个组空物体')}")
+        return {'FINISHED'}
+
 
 class M8_MT_GroupContextSubMenu(bpy.types.Menu):
     bl_label = _T("M8 组工具")
@@ -572,6 +660,8 @@ class M8_MT_GroupContextSubMenu(bpy.types.Menu):
         layout.operator("m8.isolate_group", text=_T("隔离组 (隐藏其他)"))
         layout.operator("m8.hide_group", text=_T("隐藏组"))
         layout.operator("m8.toggle_group_empty_visibility", text=_T("显示/隐藏组空物体"))
+        op_all = layout.operator("m8.set_all_group_empties_visibility", text=_T("切换全部组空物体"))
+        op_all.action = 'TOGGLE'
         layout.operator("m8.show_all_groups", text=_T("显示全部"))
         layout.separator()
         layout.operator("m8.recalculate_group_center", text=_T("重算中心点"))
@@ -646,7 +736,7 @@ class M8_OT_SelectGroup(bpy.types.Operator):
              except Exception:
                  pass
         
-        if not pref or not getattr(pref, "activate_double_click_select_group", False):
+        if not pref or not getattr(pref, "activate_double_click_select_group", True):
             return {'PASS_THROUGH'}
         
         if context.mode != 'OBJECT':

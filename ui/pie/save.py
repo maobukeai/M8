@@ -167,22 +167,19 @@ def draw_top_ui(layout):
         if is_fbx:
             col.separator(factor=0.2)
             row_u = col.row(align=True)
-            row_u.scale_y = 1.2
+            row_u.scale_y = 1.1
             
             prefs = _get_addon_prefs()
             enabled = bool(getattr(prefs, "fbx_export_unity_preset", False)) if prefs else False
             
             sub = row_u.row(align=True)
             sub.scale_x = 1.0
-            if enabled:
-                sub.alert = True
-                
             _safe_operator(
                 sub,
                 M8_OT_ToggleUnityFBXPreset.bl_idname,
-                text=(_T("Unity 预设已开启") if enabled else _T("启用 Unity 预设")),
+                text=(_T("Unity 预设 (开启)") if enabled else _T("Unity 预设 (关闭)")),
                 icon_value=get_icon_id("unity"),
-                icon="EXPORT",       # fallback: 有效的内置图标
+                icon=("CHECKBOX_HL" if enabled else "CHECKBOX_DEHL"),
                 depress=enabled,
             )
 

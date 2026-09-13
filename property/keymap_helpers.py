@@ -52,6 +52,14 @@ def _new_keymap_item_at_head(km, kmi):
     if new_from_item:
         try:
             new_kmi = new_from_item(kmi, head=True)
+            _copy_operator_properties(kmi, new_kmi)
+            if getattr(kmi, "idname", "") == "m8.subdivision_set":
+                expected_lvl = SUBDIVISION_KEY_TO_LEVEL.get(getattr(kmi, "type", ""), None)
+                if expected_lvl is not None and hasattr(new_kmi, "properties") and new_kmi.properties:
+                    try:
+                        new_kmi.properties.level = expected_lvl
+                    except Exception:
+                        pass
             try:
                 new_kmi.active = bool(getattr(kmi, "active", True))
             except Exception:
@@ -89,6 +97,13 @@ def _new_keymap_item_at_head(km, kmi):
                 **attempt,
             )
             _copy_operator_properties(kmi, new_kmi)
+            if getattr(kmi, "idname", "") == "m8.subdivision_set":
+                expected_lvl = SUBDIVISION_KEY_TO_LEVEL.get(getattr(kmi, "type", ""), None)
+                if expected_lvl is not None and hasattr(new_kmi, "properties") and new_kmi.properties:
+                    try:
+                        new_kmi.properties.level = expected_lvl
+                    except Exception:
+                        pass
             try:
                 new_kmi.active = bool(getattr(kmi, "active", True))
             except Exception:
@@ -543,26 +558,90 @@ def _is_our_keymap_item(kmi):
         getattr(kmi, "idname", "") == TOGGLE_AREA_OP_ID
     )
 
+def sanitize_subdivision_keymaps(clean_user_overrides=True):
+    """
+    Self-healing engine for subdivision shortcuts:
+    1. Cleans corrupted/outdated m8.subdivision_set entries from user keyconfig
+       (which would otherwise shadow addon keymaps with level=1 defaults).
+    2. Restores accidentally disabled object.subdivision_set items in user keyconfig
+       (active=False in user keyconfig swallows keystrokes completely).
+    3. Validates and enforces correct level mapping (ZERO->0, ONE->1, TWO->2, THREE->3, FOUR->4)
+       on all addon keymaps.
+    """
+    wm = bpy.context.window_manager if bpy.context else None
+    if not wm or not wm.keyconfigs:
+        return 0
+
+    fixed_count = 0
+    kc_user = wm.keyconfigs.user
+    kc_addon = wm.keyconfigs.addon
+
+    # 1. Clean dirty user keyconfig overrides
+    if clean_user_overrides and kc_user:
+        for km in kc_user.keymaps:
+            for kmi in list(km.keymap_items):
+                if getattr(kmi, "idname", "") == "m8.subdivision_set":
+                    try:
+                        km.keymap_items.remove(kmi)
+                        fixed_count += 1
+                    except Exception:
+                        pass
+                elif getattr(kmi, "idname", "") == "object.subdivision_set" and not getattr(kmi, "active", True):
+                    try:
+                        kmi.active = True
+                        fixed_count += 1
+                    except Exception:
+                        pass
+
+    # 2. Ensure addon keymaps have 100% correct levels and active state
+    if kc_addon:
+        for keymap_name, space_type in SUBDIVISION_KEYMAP_BINDINGS:
+            km = kc_addon.keymaps.get(keymap_name)
+            if not km:
+                continue
+            for kmi in km.keymap_items:
+                if getattr(kmi, "idname", "") == "m8.subdivision_set":
+                    kmi_type = getattr(kmi, "type", "")
+                    expected_level = SUBDIVISION_KEY_TO_LEVEL.get(kmi_type, None)
+                    if expected_level is not None:
+                        props = getattr(kmi, "properties", None)
+                        if props and getattr(props, "level", None) != expected_level:
+                            try:
+                                props.level = expected_level
+                                fixed_count += 1
+                            except Exception:
+                                pass
+    # 3. Synchronize active state from add-on preferences
+    prefs = _get_addon_prefs()
+    if prefs and hasattr(prefs, "activate_subdivision_shortcuts") and kc_addon:
+        active_state = bool(getattr(prefs, "activate_subdivision_shortcuts", True))
+        for keymap_name, space_type in SUBDIVISION_KEYMAP_BINDINGS:
+            km = kc_addon.keymaps.get(keymap_name)
+            if km:
+                for kmi in km.keymap_items:
+                    if getattr(kmi, "idname", "") == "m8.subdivision_set":
+                        kmi.active = active_state
+
+    return fixed_count
+
+
 def _find_subdivision_keymap_items():
     wm = bpy.context.window_manager if bpy.context else None
     if not wm or not wm.keyconfigs:
         return []
 
-    # Older M8 releases could leave a user-keyconfig copy behind.  Include it
-    # in priority repair so it cannot shadow the current add-on keymap.
-    keyconfigs = []
-    for kc in (wm.keyconfigs.addon, wm.keyconfigs.user):
-        if kc and kc not in keyconfigs:
-            keyconfigs.append(kc)
+    # Proactively sanitize keymaps before locating items
+    sanitize_subdivision_keymaps(clean_user_overrides=True)
 
     items = []
-    for kc in keyconfigs:
+    kc_addon = wm.keyconfigs.addon
+    if kc_addon:
         for keymap_name, _ in SUBDIVISION_KEYMAP_BINDINGS:
-            km = kc.keymaps.get(keymap_name)
+            km = kc_addon.keymaps.get(keymap_name)
             if km:
                 for kmi in km.keymap_items:
                     if _is_our_subdivision_item(kmi):
-                        items.append((kc, km, kmi))
+                        items.append((kc_addon, km, kmi))
     return items
 
 def _find_pie_keymap_item():
@@ -590,16 +669,23 @@ def _find_switch_mode_keymap_items():
         pass
     return items
 
-def _find_quick_delete_keymap_items():
+def _find_quick_delete_keymap_items(include_user=False):
     wm = bpy.context.window_manager if bpy.context else None
-    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
-    if not kc: return []
+    if not wm or not getattr(wm, "keyconfigs", None):
+        return []
     items = []
-    for keymap_name, _ in QUICK_DELETE_KEYMAP_BINDINGS:
-        km = kc.keymaps.get(keymap_name)
-        if km:
-            for kmi in km.keymap_items:
-                if _is_our_quick_delete_item(kmi): items.append((kc, km, kmi))
+    target_kcs = [wm.keyconfigs.addon]
+    if include_user and getattr(wm.keyconfigs, "user", None):
+        target_kcs.append(wm.keyconfigs.user)
+    for kc in target_kcs:
+        if not kc:
+            continue
+        for keymap_name, _ in QUICK_DELETE_KEYMAP_BINDINGS:
+            km = kc.keymaps.get(keymap_name)
+            if km:
+                for kmi in km.keymap_items:
+                    if _is_our_quick_delete_item(kmi):
+                        items.append((kc, km, kmi))
     return items
 
 def _find_delete_pie_keymap_items():

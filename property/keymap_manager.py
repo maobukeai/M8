@@ -21,6 +21,7 @@ from .keymap_helpers import (
     _find_smart_pie_keymap_items,
     _find_toggle_area_keymap_items,
     _find_subdivision_keymap_items,
+    sanitize_subdivision_keymaps,
     _is_our_keymap_item,
 )
 
@@ -57,6 +58,10 @@ def register_keymaps(force_default=False):
         return
 
     _remove_untracked_m8_keymaps(kc)
+    try:
+        sanitize_subdivision_keymaps(clean_user_overrides=True)
+    except Exception:
+        pass
     prefs = _get_addon_prefs()
     
     def get_pref(name, default=True):
@@ -193,7 +198,7 @@ def register_keymaps(force_default=False):
         add_keymap_item(km, kmi)
 
     # 12. Double Click Select Group
-    active = get_pref("activate_double_click_select_group", False)
+    active = get_pref("activate_double_click_select_group", True)
     for keymap_name, space_type in DOUBLE_CLICK_GROUP_KEYMAP_BINDINGS:
         km = kc.keymaps.new(name=keymap_name, space_type=space_type)
         kmi = km.keymap_items.new('m8.select_group', 'LEFTMOUSE', 'DOUBLE_CLICK')
@@ -270,11 +275,12 @@ def register_keymaps(force_default=False):
 
     # Switch Editor Pie (F12)
     active = get_pref("activate_switch_editor_pie", True)
-    km = kc.keymaps.new(name="Window", space_type="EMPTY")
-    kmi = km.keymap_items.new('wm.call_menu_pie', 'F12', 'PRESS')
-    kmi.properties.name = SWITCH_EDITOR_PIE_ID
-    kmi.active = active
-    add_keymap_item(km, kmi)
+    for keymap_name, space_type in SWITCH_EDITOR_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
+        kmi = km.keymap_items.new('wm.call_menu_pie', 'F12', 'PRESS')
+        kmi.properties.name = SWITCH_EDITOR_PIE_ID
+        kmi.active = active
+        add_keymap_item(km, kmi)
 
     # 15. Subdivision Level Shortcuts (Ctrl+0..4)
     active = get_pref("activate_subdivision_shortcuts", True)
@@ -310,6 +316,11 @@ def register_keymaps(force_default=False):
         kmi.properties.level = 4
         kmi.active = active
         add_keymap_item(km, kmi)
+
+    try:
+        sanitize_subdivision_keymaps(clean_user_overrides=False)
+    except Exception:
+        pass
 
     # 16. Fast Loop Shortcut (Ctrl + Shift + E)
     active = get_pref("activate_fast_loop", True)
@@ -441,7 +452,7 @@ def update_keymaps(self, context):
     p_edge_property = getattr(self, "activate_edge_property_pie", False)
     p_mirror = getattr(self, "activate_mirror", False)
     p_group_tool = getattr(self, "activate_group_tool", False)
-    p_double_click_select_group = getattr(self, "activate_double_click_select_group", False)
+    p_double_click_select_group = getattr(self, "activate_double_click_select_group", True)
     p_smart_pie = getattr(self, "activate_smart_pie", False)
     p_toggle_area = getattr(self, "activate_toggle_area", False)
     p_switch_editor = getattr(self, "activate_switch_editor_pie", False)
@@ -493,5 +504,29 @@ def update_keymaps(self, context):
     else:
         try:
             bpy.ops.size_tool.restore_toggle_area_conflicts()
+        except Exception:
+            pass
+
+    # Automatically manage edge property hotkey exclusivity when toggled or updated
+    if p_edge_property:
+        try:
+            bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
+        except Exception:
+            pass
+    else:
+        try:
+            bpy.ops.size_tool.restore_shift_e_conflicts()
+        except Exception:
+            pass
+
+    # Automatically manage switch editor hotkey exclusivity when toggled or updated
+    if p_switch_editor:
+        try:
+            bpy.ops.size_tool.exclusive_switch_editor_hotkey()
+        except Exception:
+            pass
+    else:
+        try:
+            bpy.ops.size_tool.restore_switch_editor_conflicts()
         except Exception:
             pass

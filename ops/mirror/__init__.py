@@ -21,10 +21,13 @@ class MirrorOperatorProperty:
         if "axis_mode" in self:
             return self["axis_mode"]
 
-        if bpy.context.mode == "EDIT_MESH":
-            return 0  # "ORIGIN"
-        else:
-            return 3  # "ACTIVE"
+        try:
+            if getattr(bpy.context, "mode", None) == "EDIT_MESH":
+                return 0  # "ORIGIN"
+            else:
+                return 3  # "ACTIVE"
+        except Exception:
+            return 3
 
     def set_axis_mode(self, value):
         self["axis_mode"] = value

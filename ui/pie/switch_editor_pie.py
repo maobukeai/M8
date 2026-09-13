@@ -58,13 +58,21 @@ def _apply_editor_target(area, target):
         area.type = "IMAGE_EDITOR"
         area.ui_type = target
         return
-    if target in {"DOPESHEET", "TIMELINE", "FCURVES", "DRIVERS", "NLA_EDITOR"}:
+    if target in {"DOPESHEET", "TIMELINE"}:
         area.type = "DOPESHEET_EDITOR"
         area.ui_type = target
         return
-    if target in {"FILE_BROWSER", "ASSETS"}:
-        area.type = "FILE_BROWSER"
+    if target in {"FCURVES", "DRIVERS"}:
+        area.type = "GRAPH_EDITOR"
         area.ui_type = target
+        return
+    if target == "FILE_BROWSER":
+        area.type = "FILE_BROWSER"
+        area.ui_type = "FILES"
+        return
+    if target == "ASSETS":
+        area.type = "FILE_BROWSER"
+        area.ui_type = "ASSETS"
         return
     area.type = target
 
@@ -131,6 +139,7 @@ class VIEW3D_MT_M8SwitchEditorPie(bpy.types.Menu):
 
     def draw(self, context):
         pie = self.layout.menu_pie()
+        prefs = _get_addon_prefs()
         from ...utils.i18n import get_addon_language
         lang = get_addon_language()
         default_map = {
