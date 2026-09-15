@@ -60,11 +60,22 @@ class PanelStateManager:
         """清理所有动态生成的置顶子标签面板"""
         for tp in cls._title_panels:
             try:
-                if hasattr(bpy.types, tp.__name__):
+                idname = getattr(tp, "bl_idname", None) or getattr(tp, "__name__", "")
+                if getattr(tp, "is_registered", False) or hasattr(bpy.types, idname) or hasattr(bpy.types, getattr(tp, "__name__", "")):
                     bpy.utils.unregister_class(tp)
             except Exception:
                 pass
         cls._title_panels.clear()
+
+        # 深度防漏：扫描并安全注销所有遗留的 M8 动态置顶标题面板，彻底杜绝重载残留与重叠多排
+        for name in list(dir(bpy.types)):
+            if name.startswith("M8_PT_SubTabs_"):
+                cls_obj = getattr(bpy.types, name, None)
+                if cls_obj:
+                    try:
+                        bpy.utils.unregister_class(cls_obj)
+                    except Exception:
+                        pass
 
     @classmethod
     def restore_all(cls):
@@ -79,47 +90,62 @@ class PanelStateManager:
             # 1. 销毁所有置顶子标签面板
             cls.clear_title_panels()
 
-            # 2. 还原所有面板属性
-            restored_count = 0
+            # 2. 还原所有面板属性（分代排序）
+            panels_to_restore = []
             for panel, snapshot in list(cls._snapshots.items()):
-                try:
-                    if not hasattr(panel, "__name__"):
-                        continue
+                if not hasattr(panel, "__name__"):
+                    continue
+                curr_cat = getattr(panel, "bl_category", "")
+                curr_parent = getattr(panel, "bl_parent_id", None)
+                if curr_cat != snapshot.original_category or curr_parent != snapshot.original_parent_id:
+                    panels_to_restore.append(panel)
 
-                    need_update = False
-                    curr_cat = getattr(panel, "bl_category", None)
-                    curr_parent = getattr(panel, "bl_parent_id", None)
+            if panels_to_restore:
+                # 简单分代：先子面板后父面板注销，先父面板后子面板注册
+                all_names = {getattr(p, "bl_idname", None) or p.__name__ for p in panels_to_restore}
+                roots = [p for p in panels_to_restore if not getattr(p, "bl_parent_id", None) or getattr(p, "bl_parent_id", None) not in all_names]
+                children = [p for p in panels_to_restore if p not in roots]
+                ordered_forward = roots + children
 
-                    if curr_cat != snapshot.original_category:
-                        need_update = True
-                    if curr_parent != snapshot.original_parent_id:
-                        need_update = True
-
-                    if need_update:
-                        is_reg = hasattr(bpy.types, panel.__name__)
-                        if is_reg:
+                # 逆序注销
+                for panel in reversed(ordered_forward):
+                    idname = getattr(panel, "bl_idname", None) or getattr(panel, "__name__", "")
+                    if getattr(panel, "is_registered", False) or hasattr(bpy.types, idname) or hasattr(bpy.types, getattr(panel, "__name__", "")):
+                        try:
                             bpy.utils.unregister_class(panel)
+                        except Exception:
+                            pass
 
-                        # 恢复属性
+                # 恢复属性并顺序注册
+                restored_count = 0
+                for panel in ordered_forward:
+                    snapshot = cls._snapshots[panel]
+                    if snapshot.original_category:
                         panel.bl_category = snapshot.original_category
-                        if snapshot.original_parent_id:
-                            panel.bl_parent_id = snapshot.original_parent_id
-                        elif hasattr(panel, "bl_parent_id"):
-                            try:
-                                delattr(panel, "bl_parent_id")
-                            except Exception:
-                                pass
+                    elif hasattr(panel, "bl_category"):
+                        try:
+                            delattr(panel, "bl_category")
+                        except Exception:
+                            pass
 
-                        panel.bl_order = snapshot.original_order
+                    if snapshot.original_parent_id:
+                        panel.bl_parent_id = snapshot.original_parent_id
+                    elif hasattr(panel, "bl_parent_id"):
+                        try:
+                            delattr(panel, "bl_parent_id")
+                        except Exception:
+                            pass
 
-                        if is_reg:
-                            bpy.utils.register_class(panel)
+                    panel.bl_order = snapshot.original_order
+
+                    try:
+                        bpy.utils.register_class(panel)
                         restored_count += 1
-                except Exception as e:
-                    print(f"[M8 NPanel] Warning restoring panel {panel}: {e}")
+                    except Exception as e:
+                        print(f"[M8 NPanel] Warning registering restored panel {panel.__name__}: {e}")
 
             cls._snapshots.clear()
             cls.is_active = False
-            print(f"[M8 NPanel] Successfully restored {restored_count} panels to default state.")
+            print(f"[M8 NPanel] Successfully restored {restored_count if panels_to_restore else 0} panels to default state.")
         finally:
             cls.is_restoring = False

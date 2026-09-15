@@ -1,6 +1,6 @@
 """
-version 0.0.1
-适配各版本api之间不同的处理
+version 0.0.2
+适配各版本 Blender API 之间不同的处理与安全全局视口重绘
 """
 import bpy
 
@@ -50,3 +50,25 @@ def get_adapter_blender_icon(icon=None):
         icon = "QUESTION"
 
     return icon
+
+
+def tag_redraw_all_areas(area_types=None):
+    """安全地标记重绘所有窗口与屏幕区域，可指定 area_types 进行过滤（例如 {'TEXT_EDITOR', 'VIEW_3D', 'PREFERENCES'}）。
+    在 bpy.app.timers、多线程异步回调或 context 发生漂移时极其安全，杜绝崩溃。
+    """
+    ctx = getattr(bpy, "context", None)
+    if not ctx:
+        return
+    wm = getattr(ctx, "window_manager", None)
+    if not wm:
+        return
+    for window in getattr(wm, "windows", []):
+        screen = getattr(window, "screen", None)
+        if not screen:
+            continue
+        for area in getattr(screen, "areas", []):
+            if area_types is None or area.type in area_types:
+                try:
+                    area.tag_redraw()
+                except Exception:
+                    pass

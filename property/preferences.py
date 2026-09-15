@@ -2,6 +2,7 @@ import bpy
 from ..utils.logger import get_logger
 from ..utils.i18n import _T
 from ..utils.adapter import get_adapter_blender_icon as _ICON
+from .ai_properties import M8_AI_Provider_Item
 
 
 def _on_language_changed():
@@ -152,6 +153,10 @@ def _on_rename_update(self, context):
     self.navigation_tab = "RENAME"
     _on_prefs_update(self, context)
 
+def _on_normal_pie_update(self, context):
+    self.navigation_tab = "NORMAL_PIE"
+    _on_prefs_update(self, context)
+
 class M8_OT_Dummy(bpy.types.Operator):
     bl_idname = "m8.dummy"
     bl_label = _T("未开发")
@@ -199,6 +204,17 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     activate_mirror: bpy.props.BoolProperty(name=_T("启用镜像 (Shift+Alt+X)"), default=True, update=_on_mirror_update)
     activate_group_tool: bpy.props.BoolProperty(name=_T("启用打组 (Ctrl+G)"), default=True, update=_on_group_tool_update)
     activate_smart_pie: bpy.props.BoolProperty(name=_T("启用智能饼菜单 (1)"), default=True, update=_on_smart_pie_update)
+    activate_normal_pie: bpy.props.BoolProperty(name=_T("启用法向饼菜单 (Edit: N)"), default=True, update=_on_normal_pie_update)
+    ui_show_normal_pie_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(法向)"), default=False)
+    activate_ai_assistant: bpy.props.BoolProperty(
+        name=_T("启用 AI 脚本助手"),
+        description=_T("在 Blender 文本编辑器侧边栏启用 M8 AI 编程助手面板"),
+        default=True,
+    )
+    ai_providers: bpy.props.CollectionProperty(type=M8_AI_Provider_Item)
+    ai_providers_active_index: bpy.props.IntProperty(name="Active Provider Index", default=0)
+    active_provider_id: bpy.props.StringProperty(name="活跃厂商ID", default="sensenova")
+    active_model_id: bpy.props.StringProperty(name="活跃模型ID", default="")
 
     activate_switch_editor_pie: bpy.props.BoolProperty(name=_T("启用切换窗口饼菜单 (F12)"), default=True, update=_on_switch_editor_update)
     ui_show_switch_editor_keymap: bpy.props.BoolProperty(name=_T("显示快捷键详情(切换窗口)"), default=False)
@@ -291,12 +307,14 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             ("MIRROR", _T("镜像"), "Mirror Tool"),
             ("GROUP", _T("打组"), "Group Tool"),
             ("SMART_PIE", _T("智能饼菜单"), "Smart Pie (1)"),
+            ("NORMAL_PIE", _T("法向饼菜单"), "Normal Pie (N)"),
             ("TOGGLE_AREA", _T("区域切换"), "Toggle Area (T)"),
             ("SWITCH_EDITOR", _T("切换窗口"), "Switch Editor Pie (F12)"),
             ("SUBDIVISION", _T("细分级别"), "Subdivision Set"),
             ("FAST_LOOP", _T("快速循环切刀"), "Fast Loop Cut"),
             ("SCREENCAST", _T("按键显示"), "Screencast"),
             ("NPANEL", _T("侧栏管理"), "N-Panel Sub-Tabs Organizer"),
+            ("AI_ASSISTANT", _T("AI 脚本助手"), "AI Script Assistant"),
             ("OTHER", _T("其它设置"), "Other Settings"),
             ("ABOUT", _T("关于"), "About"),
         ],
@@ -899,9 +917,13 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 self.draw_general(context)
             else:
                 self.draw_about_settings(layout)
-        except Exception:
+        except Exception as e:
+            from ..utils.logger import get_logger
+            logger = get_logger()
+            logger.error(f"Failed to draw preferences: {e}", exc_info=True)
             box = layout.box()
             box.label(text=_T("偏好设置界面绘制失败，请打开系统控制台查看报错。"), icon=_ICON("ERROR"))
+            box.label(text=str(e), icon=_ICON("INFO"))
 
     def _draw_sidebar_button(self, layout, icon, text, item_value):
         row = layout.row(align=True)
@@ -918,6 +940,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "GROUP": "activate_group_tool",
             "SAVE": "activate_save_pie",
             "SMART_PIE": "activate_smart_pie",
+            "NORMAL_PIE": "activate_normal_pie",
             "TOGGLE_AREA": "activate_toggle_area",
             "SWITCH_EDITOR": "activate_switch_editor_pie",
             "SUBDIVISION": "activate_subdivision_shortcuts",
@@ -925,6 +948,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "RENAME": "activate_advanced_rename",
             "SCREENCAST": "screencast_enabled",
             "NPANEL": "activate_npanel_manager",
+            "AI_ASSISTANT": "activate_ai_assistant",
         }
         
         feature_prop_name = prop_map.get(item_value, None)
@@ -953,6 +977,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "RENAME": (_T("批量命名"), _T("F2 增强，支持变量($N $T)、正则替换、序号生成及预览")),
             "MIRROR": (_T("镜像工具"), _T("Shift+Alt+X，提供直观的轴向滑动选择镜像功能")),
             "SMART_PIE": (_T("智能饼菜单"), _T("编辑模式下 1/2/3 的智能建模操作合集（顶点/边/面/清理/路径等）")),
+            "NORMAL_PIE": (_T("法向工具"), _T("网格编辑模式下 N 键呼出法向修正饼菜单，智能消除硬表面暗斑与极点拉扯")),
             "TOGGLE_AREA": (_T("区域切换"), _T("T 键切换 Toolbar/Sidebar 及 Asset Browser/Shelf")),
             "SWITCH_EDITOR": (_T("切换窗口"), _T("配置 F12 切换窗口饼菜单映射")),
             "SUBDIVISION": (_T("细分级别"), _T("物体模式下 Ctrl+1/2/3/4 设置细分级别，Ctrl+0 清零细分级别")),
@@ -960,6 +985,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
             "SCREENCAST": (_T("按键显示"), _T("实时在视口显示键盘鼠标操作，支持自定义外观")),
             "NPANEL": (_T("侧栏管理"), _T("N 侧边栏分类整理与二级子标签管理器，告别繁多杂乱的插件标签")),
+            "AI_ASSISTANT": (_T("AI 脚本助手"), _T("文本编辑器 AI 脚本生成、多厂商多模型管理、报错自动诊断修复")),
             "OTHER": (_T("系统设置"), _T("包含备份设置、新建物体默认行为等全局选项")),
             "ABOUT": (_T("关于"), _T("关于 M8 工具箱")),
         }
@@ -982,6 +1008,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             "MIRROR": "MOD_MIRROR",
             "GROUP": "EMPTY_AXIS",
             "SMART_PIE": "VIEW3D",
+            "NORMAL_PIE": "MOD_NORMALEDIT",
             "TOGGLE_AREA": "FULLSCREEN_ENTER",
             "SWITCH_EDITOR": "WINDOW",
             "SUBDIVISION": "MOD_SUBSURF",
@@ -989,6 +1016,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
 
             "SCREENCAST": "WINDOW",
             "NPANEL": "RESTRICT_VIEW_OFF",
+            "AI_ASSISTANT": "CONSOLE",
             "OTHER": "PREFERENCES",
             "ABOUT": "INFO",
         }
@@ -1014,6 +1042,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         self._draw_sidebar_button(col_nav, "EMPTY_AXIS", _T("打组 (Ctrl+G)"), "GROUP")
         self._draw_sidebar_button(col_nav, "FILE_TICK", _T("保存 (Ctrl+S)"), "SAVE")
         self._draw_sidebar_button(col_nav, "VIEW3D", _T("智能饼菜单 (1)"), "SMART_PIE")
+        self._draw_sidebar_button(col_nav, "MOD_NORMALEDIT", _T("法向饼菜单 (Edit: N)"), "NORMAL_PIE")
         self._draw_sidebar_button(col_nav, "FULLSCREEN_ENTER", _T("区域切换 (T)"), "TOGGLE_AREA")
         self._draw_sidebar_button(col_nav, "WINDOW", _T("切换窗口 (F12)"), "SWITCH_EDITOR")
         self._draw_sidebar_button(col_nav, "MOD_SUBSURF", _T("细分级别 (Ctrl+0..4)"), "SUBDIVISION")
@@ -1024,6 +1053,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
         self._draw_sidebar_button(col_nav, "FONT_DATA", _T("重命名 (F2)"), "RENAME")
         self._draw_sidebar_button(col_nav, "WINDOW", _T("按键显示"), "SCREENCAST")
         self._draw_sidebar_button(col_nav, "RESTRICT_VIEW_OFF", _T("侧栏管理"), "NPANEL")
+        self._draw_sidebar_button(col_nav, "CONSOLE", _T("AI 助手"), "AI_ASSISTANT")
 
         col_nav.separator()
         col_nav.label(text=_T("设置"), icon="PREFERENCES")
@@ -1076,12 +1106,14 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 "MIRROR",
                 "GROUP",
                 "SMART_PIE",
+                "NORMAL_PIE",
                 "TOGGLE_AREA",
                 "SWITCH_EDITOR",
                 "SUBDIVISION",
                 "FAST_LOOP",
                 "SCREENCAST",
                 "NPANEL",
+                "AI_ASSISTANT",
                 "OTHER",
                 "ABOUT",
             ]
@@ -1112,6 +1144,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     self.draw_group_settings(sub)
                 elif key == "SMART_PIE":
                     self.draw_smart_pie_settings(sub)
+                elif key == "NORMAL_PIE":
+                    self.draw_normal_pie_settings(sub)
                 elif key == "TOGGLE_AREA":
                     self.draw_toggle_area_settings(sub)
                 elif key == "SWITCH_EDITOR":
@@ -1124,6 +1158,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                     self.draw_screencast_settings(sub)
                 elif key == "NPANEL":
                     self.draw_npanel_settings(sub)
+                elif key == "AI_ASSISTANT":
+                    self.draw_ai_assistant_settings(sub)
                 elif key == "OTHER":
                     self.draw_other_settings(sub)
                 elif key == "ABOUT":
@@ -1152,6 +1188,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 self.draw_group_settings(box)
             elif nav_tab == "SMART_PIE":
                 self.draw_smart_pie_settings(box)
+            elif nav_tab == "NORMAL_PIE":
+                self.draw_normal_pie_settings(box)
             elif nav_tab == "TOGGLE_AREA":
                 self.draw_toggle_area_settings(box)
             elif nav_tab == "SWITCH_EDITOR":
@@ -1164,6 +1202,8 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 self.draw_screencast_settings(box)
             elif nav_tab == "NPANEL":
                 self.draw_npanel_settings(box)
+            elif nav_tab == "AI_ASSISTANT":
+                self.draw_ai_assistant_settings(box)
             elif nav_tab == "OTHER":
                 self.draw_other_settings(box)
             elif nav_tab == "ABOUT":
@@ -1909,7 +1949,35 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                         rna_keymap_ui.draw_kmi([], kc, km, kmi, sub, 0)
             except Exception:
                 pass
-        
+
+    def draw_normal_pie_settings(self, layout):
+        col = layout.column()
+        col.prop(self, "activate_normal_pie", text=_T("启用法向饼菜单 (Edit: N)"))
+
+        if self.activate_normal_pie:
+            row = col.row(align=True)
+            row.use_property_split = False
+            row.use_property_decorate = False
+            row.prop(self, "ui_show_normal_pie_keymap", text=_T("快捷键"), toggle=True, icon="KEYINGSET")
+            if getattr(self, "ui_show_normal_pie_keymap", False):
+                sub_col = col.column()
+                try:
+                    import rna_keymap_ui
+                    from .keymap_helpers import _find_normal_pie_keymap_items
+                    items = _find_normal_pie_keymap_items()
+                    if not items:
+                        sub_col.label(text=_T("未找到法向饼菜单快捷键绑定"), icon="INFO")
+                    else:
+                        for kc, km, kmi in items:
+                            rna_keymap_ui.draw_kmi([], kc, km, kmi, sub_col, 0)
+                except Exception:
+                    pass
+
+        col.separator()
+        box = col.box()
+        box.label(text=_T("原生 Alt+N 菜单常驻支持"), icon="CHECKMARK")
+        box.label(text=_T("即使关闭 N 键饼菜单，M8 智能法向修正功能依然会在网格编辑模式 Alt+N 菜单顶部常驻。"))
+
     def draw_toggle_area_settings(self, layout):
         col = layout.column()
         col.prop(self, "activate_toggle_area", text=_T("启用区域切换 (T)"))
@@ -2073,6 +2141,203 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             draw_npanel_prefs_settings(self, layout, context or bpy.context)
         except Exception as e:
             layout.label(text=f"Error drawing npanel settings: {e}", icon="ERROR")
+
+    def draw_ai_assistant_settings(self, layout):
+        col = layout.column()
+
+        # 顶部总开关
+        box_switch = col.box()
+        box_switch.prop(self, "activate_ai_assistant", text=_T("启用文本编辑器 AI 脚本助手 (M8 AI)"))
+
+        if not self.activate_ai_assistant:
+            box_switch.label(text=_T("启用后将在 Blender 文本编辑器 (Text Editor) 侧边栏显示 AI 助手面板"), icon=_ICON("INFO"))
+            return
+
+        col.separator()
+
+        if len(self.ai_providers) == 0:
+            box_empty = col.box()
+            box_empty.label(text=_T("未检测到已配置的 AI 厂商。"), icon=_ICON("INFO"))
+            box_empty.operator("m8.ai_reset_providers", text=_T("一键加载默认官方预设 (SenseNova, 谷歌, DeepSeek 等)"), icon=_ICON("FILE_REFRESH"))
+            return
+
+        main_split = col.split(factor=0.42)
+
+        # -----------------------------
+        # 左栏：AI 厂商与模型列表
+        # -----------------------------
+        left_col = main_split.column()
+        left_box = left_col.box()
+        left_header = left_box.row(align=True)
+        left_header.label(text=_T("AI 厂商列表"), icon=_ICON("CONSOLE"))
+        left_header.operator("m8.ai_add_provider", text="", icon=_ICON("ADD"))
+        left_header.operator("m8.ai_clear_all_provider_models", text="", icon=_ICON("TRASH"))
+        left_header.operator("m8.ai_reset_providers", text="", icon=_ICON("FILE_REFRESH"))
+
+        left_box.template_list(
+            "M8_UL_AI_Provider_List",
+            "",
+            self,
+            "ai_providers",
+            self,
+            "ai_providers_active_index",
+            rows=8
+        )
+
+        ops_row = left_box.row(align=True)
+        op_up = ops_row.operator("m8.ai_move_provider", text="", icon=_ICON("TRIA_UP"))
+        op_up.direction = "UP"
+        op_down = ops_row.operator("m8.ai_move_provider", text="", icon=_ICON("TRIA_DOWN"))
+        op_down.direction = "DOWN"
+        ops_row.separator()
+        if self.ai_providers:
+            del_op = ops_row.operator("m8.ai_remove_provider", text=_T("删除厂商"), icon=_ICON("TRASH"))
+            del_op.index = self.ai_providers_active_index
+
+        # -----------------------------
+        # 右栏：选定厂商详细配置
+        # -----------------------------
+        right_col = main_split.column()
+        right_box = right_col.box()
+
+        cur_p = None
+        if 0 <= self.ai_providers_active_index < len(self.ai_providers):
+            cur_p = self.ai_providers[self.ai_providers_active_index]
+
+        if cur_p:
+            right_header = right_box.row(align=True)
+            right_header.label(text=f"{_T('配置厂商')}: {cur_p.name}", icon=_ICON("PREFERENCES"))
+            right_header.prop(cur_p, "enabled", text=_T("在菜单中显示"))
+
+            detail_col = right_box.column(align=True)
+            detail_col.use_property_split = True
+            detail_col.use_property_decorate = False
+
+            detail_col.prop(cur_p, "name", text=_T("显示名称"))
+            detail_col.prop(cur_p, "id", text=_T("厂商标识"))
+            detail_col.prop(cur_p, "base_url", text=_T("API 端点 (Base URL)"))
+            detail_col.prop(cur_p, "api_key", text=_T("API Key"))
+
+            # --- 模型列表可视化管理 ---
+            right_box.separator()
+            box_models = right_box.box()
+            header_models = box_models.row(align=True)
+            models_list = [m.strip() for m in cur_p.models.split(",") if m.strip()]
+            header_models.label(text=f"{_T('已配置模型')} ({len(models_list)} 个):", icon=_ICON("CONSOLE"))
+
+            if getattr(cur_p, "is_fetching_models", False):
+                header_models.label(text=_T("⏳ 正在拉取模型中..."), icon=_ICON("TIME"))
+            else:
+                op_fetch = header_models.operator("m8.ai_fetch_models", text=_T("🔄 从 API 获取可用模型"), icon=_ICON("FILE_REFRESH"))
+                op_fetch.provider_id = cur_p.id
+                if models_list:
+                    op_clr = header_models.operator("m8.ai_clear_provider_models", text=_T("清空"), icon=_ICON("TRASH"))
+                    op_clr.provider_id = cur_p.id
+
+            # 实时获取模型结果反馈提示条
+            if getattr(cur_p, "fetch_status", "") == "SUCCESS":
+                f_box = box_models.box()
+                f_col = f_box.column(align=True)
+                f_row1 = f_col.row(align=True)
+                f_row1.label(text=f"✅ {cur_p.fetch_message}" + (f" [{cur_p.fetch_time}]" if cur_p.fetch_time else ""), icon=_ICON("CHECKMARK"))
+
+                fetched_items = [m.strip() for m in cur_p.fetched_models.split(",") if m.strip()]
+                missing_items = [m for m in fetched_items if m not in models_list]
+                if missing_items:
+                    f_row2 = f_col.row(align=True)
+                    f_row2.scale_y = 1.15
+                    f_op = f_row2.operator("m8.ai_add_all_fetched_models", text=f"{_T('【一键全部加入列表】')} (+{len(missing_items)} 个)", icon=_ICON("ADD"))
+                    f_op.provider_id = cur_p.id
+            elif getattr(cur_p, "fetch_status", "") == "ERROR":
+                f_box = box_models.box()
+                f_box.alert = True
+                f_box.label(text=f"❌ {cur_p.fetch_message}" + (f" [{cur_p.fetch_time}]" if cur_p.fetch_time else ""), icon=_ICON("ERROR"))
+
+            if models_list:
+                col_m_items = box_models.column(align=True)
+                active_prov = getattr(self, "active_provider_id", "")
+                active_model = getattr(self, "active_model_id", "")
+
+                for m in models_list:
+                    row_item = col_m_items.row(align=True)
+                    is_active = (cur_p.id == active_prov and m == active_model)
+                    if is_active:
+                        row_active = row_item.row(align=True)
+                        row_active.alert = True
+                        row_active.label(text=_T("● 当前使用"), icon=_ICON("CHECKBOX_HLT"))
+                    else:
+                        op_set = row_item.operator("m8.ai_select_model", text=_T("设为当前"), icon=_ICON("CHECKBOX_DEHLT"))
+                        op_set.provider_id = cur_p.id
+                        op_set.model_id = m
+
+                    row_item.label(text=m)
+
+                    op_del = row_item.operator("m8.ai_remove_model_from_provider", text="", icon=_ICON("TRASH"))
+                    op_del.provider_id = cur_p.id
+                    op_del.model_name = m
+            else:
+                box_models.label(text=_T("暂未配置任何模型，请从 API 获取或手动添加。"), icon=_ICON("INFO"))
+
+            col_actions = box_models.column(align=True)
+            fetched_list = [m.strip() for m in cur_p.fetched_models.split(",") if m.strip()]
+            fetched_label = f"{_T('从已获取选择')} ({len(fetched_list)} 个可用) ▼" if fetched_list else _T("从已获取模型选择添加 ▼")
+
+            row_act1 = col_actions.row(align=True)
+            row_act1.scale_y = 1.15
+            row_act1.menu("M8_MT_ai_add_fetched_model_menu", text=fetched_label, icon=_ICON("DOWNARROW_HLT"))
+
+            row_act2 = col_actions.row(align=True)
+            op_prompt = row_act2.operator("m8.ai_prompt_add_model", text=_T("+ 手动添加模型"), icon=_ICON("ADD"))
+            op_prompt.provider_id = cur_p.id
+            row_act2.prop(cur_p, "show_advanced_models_edit", text=_T("文本编辑"), icon=_ICON("TEXT"), toggle=True)
+
+            if getattr(cur_p, "show_advanced_models_edit", False):
+                box_edit = box_models.box()
+                box_edit.label(text=_T("原始模型文本（以逗号分隔，支持批量复制/粘贴）："), icon=_ICON("INFO"))
+                box_edit.prop(cur_p, "models", text="")
+
+            right_box.separator()
+            row_test = right_box.row(align=True)
+            row_test.scale_y = 1.25
+            if getattr(cur_p, "is_testing_connection", False):
+                row_test.enabled = False
+                row_test.operator("m8.ai_test_connection", text=_T("⏳ 正在测试连通性，请稍候..."), icon=_ICON("TIME"))
+            else:
+                op_test = row_test.operator("m8.ai_test_connection", text=_T("测试当前厂商连通性"), icon=_ICON("CHECKMARK"))
+                op_test.provider_id = cur_p.id
+
+            # 连通性测试结果即时反馈面板
+            if getattr(cur_p, "is_testing_connection", False):
+                test_box = right_box.box()
+                test_box.label(text=_T("⏳ 正在向 API 发送 Ping 验证请求并等待响应..."), icon=_ICON("TIME"))
+            elif getattr(cur_p, "test_status", "") == "SUCCESS":
+                test_box = right_box.box()
+                t_col = test_box.column(align=True)
+                t_header = t_col.row(align=True)
+                t_header.label(text=f"✅ {_T('连通性测试通过')}", icon=_ICON("CHECKMARK"))
+                if cur_p.test_time:
+                    t_header.label(text=f"[{cur_p.test_time}]")
+                if cur_p.test_model_used:
+                    t_col.label(text=f"{_T('验证模型')}: {cur_p.test_model_used}")
+                if cur_p.test_message:
+                    t_col.label(text=cur_p.test_message)
+            elif getattr(cur_p, "test_status", "") == "ERROR":
+                test_box = right_box.box()
+                test_box.alert = True
+                t_col = test_box.column(align=True)
+                t_header = t_col.row(align=True)
+                t_header.label(text=f"❌ {_T('连通性测试未通过')}", icon=_ICON("ERROR"))
+                if cur_p.test_time:
+                    t_header.label(text=f"[{cur_p.test_time}]")
+                if cur_p.test_message:
+                    t_col.label(text=cur_p.test_message)
+
+            help_box = right_box.box()
+            help_col = help_box.column(align=True)
+            help_col.label(text=_T("• 填写 Key 后点击【从 API 获取可用模型】拉取模型，或点击【+ 手动添加】。"), icon=_ICON("INFO"))
+            help_col.label(text=_T("• 在文本编辑器侧边栏 (N 键) 可展开二级级联菜单直接切换模型与生成代码。"), icon=_ICON("CONSOLE"))
+        else:
+            right_box.label(text=_T("请选择或添加一个厂商以进行配置"), icon=_ICON("INFO"))
 
     def draw_other_settings(self, layout):
         col = layout.column()

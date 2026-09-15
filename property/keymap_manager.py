@@ -23,6 +23,7 @@ from .keymap_helpers import (
     _find_subdivision_keymap_items,
     sanitize_subdivision_keymaps,
     _is_our_keymap_item,
+    _safe_kmi_prop_name,
 )
 
 
@@ -48,9 +49,20 @@ def register_keymaps(force_default=False):
     """
     global addon_keymaps
     
-    # Avoid duplicate registration
+    # Avoid duplicate registration if keymaps are already active and valid
     if addon_keymaps:
-        return
+        live_keymaps = []
+        for km, kmi in list(addon_keymaps):
+            try:
+                if km and kmi and hasattr(km, "keymap_items"):
+                    live_ptrs = {item.as_pointer() for item in km.keymap_items}
+                    if kmi.as_pointer() in live_ptrs:
+                        live_keymaps.append((km, kmi))
+            except Exception:
+                pass
+        addon_keymaps[:] = live_keymaps
+        if addon_keymaps:
+            return
 
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
@@ -329,15 +341,28 @@ def register_keymaps(force_default=False):
     kmi.active = active
     add_keymap_item(km, kmi)
 
+    # 17. Normal Pie (Mesh Edit: N)
+    active = get_pref("activate_normal_pie", True)
+    for keymap_name, space_type in NORMAL_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.new(name=keymap_name, space_type=space_type)
+        kmi = km.keymap_items.new('wm.call_menu_pie', 'N', 'PRESS')
+        kmi.properties.name = NORMAL_PIE_ID
+        kmi.active = active
+        add_keymap_item(km, kmi)
+
+
 
 def unregister_keymaps():
     global addon_keymaps
     # Collect unique keymap objects we created so we can clean up empty shells
     created_keymaps = []
     seen_ids = set()
-    for km, kmi in addon_keymaps:
+    for km, kmi in list(addon_keymaps):
         try:
-            km.keymap_items.remove(kmi)
+            if km and kmi and hasattr(km, "keymap_items"):
+                live_ptrs = {item.as_pointer() for item in km.keymap_items}
+                if kmi.as_pointer() in live_ptrs:
+                    km.keymap_items.remove(kmi)
         except Exception:
             pass
         if id(km) not in seen_ids:
@@ -370,52 +395,70 @@ def update_keymaps(self, context):
     if not addon_keymaps:
         return
 
+    # Cleanse addon_keymaps of any dead / detached items before accessing them
+    valid_addon_keymaps = []
+    for km, kmi in list(addon_keymaps):
+        try:
+            if not km or not kmi or not hasattr(km, "keymap_items"):
+                continue
+            # Fast verification using RNA pointer address without dereferencing properties
+            live_ptrs = {item.as_pointer() for item in km.keymap_items}
+            if kmi.as_pointer() not in live_ptrs:
+                continue
+            valid_addon_keymaps.append((km, kmi))
+        except Exception:
+            continue
+    addon_keymaps[:] = valid_addon_keymaps
+
+    if not addon_keymaps:
+        return
+
     # Helper to check if a kmi matches a feature
     def is_transform_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == PIE_MENU_ID
+        return getattr(kmi, "idname", "") == 'wm.call_menu_pie' and _safe_kmi_prop_name(kmi) == PIE_MENU_ID
     
     def is_switch_mode(kmi):
-        return kmi.idname == 'object.switch_mode'
+        return getattr(kmi, "idname", "") == 'object.switch_mode'
 
     def is_double_click_edit_switch(kmi):
-        return kmi.idname == 'm8.double_click_edit_switch'
+        return getattr(kmi, "idname", "") == 'm8.double_click_edit_switch'
         
     def is_quick_delete(kmi):
-        return kmi.idname == 'm8.quick_delete'
+        return getattr(kmi, "idname", "") == 'm8.quick_delete'
         
     def is_delete_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == DELETE_PIE_ID
+        return getattr(kmi, "idname", "") == 'wm.call_menu_pie' and _safe_kmi_prop_name(kmi) == DELETE_PIE_ID
         
     def is_align_pie(kmi):
-        if kmi.idname == ALIGN_GENERIC_OP_ID: return True
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") in {ALIGN_OBJECT_PIE_ID, ALIGN_MESH_PIE_ID, ALIGN_UV_PIE_ID}
+        if getattr(kmi, "idname", "") == ALIGN_GENERIC_OP_ID: return True
+        return getattr(kmi, "idname", "") == 'wm.call_menu_pie' and _safe_kmi_prop_name(kmi) in {ALIGN_OBJECT_PIE_ID, ALIGN_MESH_PIE_ID, ALIGN_UV_PIE_ID}
         
     def is_shading_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == SHADING_PIE_ID
+        return getattr(kmi, "idname", "") == 'wm.call_menu_pie' and _safe_kmi_prop_name(kmi) == SHADING_PIE_ID
 
     def is_save_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == SAVE_PIE_ID
+        return getattr(kmi, "idname", "") == 'wm.call_menu_pie' and _safe_kmi_prop_name(kmi) == SAVE_PIE_ID
 
     def is_rename(kmi):
-        return kmi.idname == 'm8.advanced_rename'
+        return getattr(kmi, "idname", "") == 'm8.advanced_rename'
 
     def is_edge_property_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == EDGE_PROPERTY_PIE_ID
+        return getattr(kmi, "idname", "") == 'wm.call_menu_pie' and _safe_kmi_prop_name(kmi) == EDGE_PROPERTY_PIE_ID
 
     def is_mirror(kmi):
-        return kmi.idname == MIRROR_OP_ID
+        return getattr(kmi, "idname", "") == MIRROR_OP_ID
 
     def is_group_tool(kmi):
-        return kmi.idname == 'm8.group_objects'
+        return getattr(kmi, "idname", "") == 'm8.group_objects'
 
     def is_double_click_select_group(kmi):
-        return kmi.idname == 'm8.select_group'
+        return getattr(kmi, "idname", "") == 'm8.select_group'
 
     def is_smart_pie(kmi):
-        return kmi.idname == 'wm.call_menu_pie' and getattr(kmi.properties, "name", "") == SMART_PIE_ID
+        return getattr(kmi, "idname", "") == 'wm.call_menu_pie' and _safe_kmi_prop_name(kmi) == SMART_PIE_ID
     
     def is_smart_tools(kmi):
-        return kmi.idname in {
+        return getattr(kmi, "idname", "") in {
             "m8.smart_merge_center",
             "m8.smart_paths_merge",
             "m8.smart_paths_connect",
@@ -428,16 +471,19 @@ def update_keymaps(self, context):
         }
 
     def is_switch_editor_pie(kmi):
-        return kmi.idname == "wm.call_menu_pie" and getattr(kmi.properties, "name", "") == SWITCH_EDITOR_PIE_ID
+        return getattr(kmi, "idname", "") == "wm.call_menu_pie" and _safe_kmi_prop_name(kmi) == SWITCH_EDITOR_PIE_ID
 
     def is_toggle_area(kmi):
-        return kmi.idname == TOGGLE_AREA_OP_ID
+        return getattr(kmi, "idname", "") == TOGGLE_AREA_OP_ID
 
     def is_subdivision_shortcut(kmi):
-        return kmi.idname == 'm8.subdivision_set'
+        return getattr(kmi, "idname", "") == 'm8.subdivision_set'
 
     def is_fast_loop(kmi):
-        return kmi.idname == 'm8.fast_loop'
+        return getattr(kmi, "idname", "") == 'm8.fast_loop'
+
+    def is_normal_pie(kmi):
+        return getattr(kmi, "idname", "") == 'wm.call_menu_pie' and _safe_kmi_prop_name(kmi) == NORMAL_PIE_ID
 
     # Get pref values
     p_transform = getattr(self, "enable_transform_pie", False)
@@ -458,6 +504,7 @@ def update_keymaps(self, context):
     p_switch_editor = getattr(self, "activate_switch_editor_pie", False)
     p_subdivision = getattr(self, "activate_subdivision_shortcuts", False)
     p_fast_loop = getattr(self, "activate_fast_loop", False)
+    p_normal_pie = getattr(self, "activate_normal_pie", False)
 
     for km, kmi in addon_keymaps:
         try:
@@ -480,6 +527,7 @@ def update_keymaps(self, context):
             elif is_switch_editor_pie(kmi): kmi.active = p_switch_editor
             elif is_subdivision_shortcut(kmi): kmi.active = p_subdivision
             elif is_fast_loop(kmi): kmi.active = p_fast_loop
+            elif is_normal_pie(kmi): kmi.active = p_normal_pie
         except Exception:
             pass
 

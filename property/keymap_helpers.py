@@ -118,9 +118,27 @@ def _new_keymap_item_at_head(km, kmi):
 
 
 def _replace_addon_keymap_reference(km, old_kmi, new_kmi):
-    for index, (stored_km, stored_kmi) in enumerate(addon_keymaps):
-        if stored_km == km and (stored_kmi == old_kmi or stored_kmi is old_kmi):
-            addon_keymaps[index] = (km, new_kmi)
+    try:
+        old_ptr = old_kmi.as_pointer() if hasattr(old_kmi, "as_pointer") else None
+    except Exception:
+        old_ptr = None
+
+    for index, (stored_km, stored_kmi) in enumerate(list(addon_keymaps)):
+        try:
+            if stored_km == km:
+                matched = False
+                if old_ptr is not None and hasattr(stored_kmi, "as_pointer"):
+                    try:
+                        if stored_kmi.as_pointer() == old_ptr:
+                            matched = True
+                    except Exception:
+                        pass
+                if not matched and (stored_kmi == old_kmi or stored_kmi is old_kmi):
+                    matched = True
+                if matched:
+                    addon_keymaps[index] = (km, new_kmi)
+        except Exception:
+            pass
 
 
 # Helper to ensure our keymap is at the top (priority)
@@ -143,6 +161,9 @@ def _ensure_pie_keymap_priority(km, kmi):
         logger.warning(f"Failed to prioritize keymap item {getattr(kmi, 'idname', '<unknown>')} in {getattr(km, 'name', '<unknown>')}")
         return kmi
 
+    # Replace reference in addon_keymaps BEFORE removing old_kmi from Blender C memory!
+    _replace_addon_keymap_reference(km, kmi, new_kmi)
+
     try:
         km.keymap_items.remove(kmi)
     except Exception as exc:
@@ -150,10 +171,10 @@ def _ensure_pie_keymap_priority(km, kmi):
             km.keymap_items.remove(new_kmi)
         except Exception:
             pass
+        _replace_addon_keymap_reference(km, new_kmi, kmi)
         logger.warning(f"Failed to replace keymap item while prioritizing {getattr(kmi, 'idname', '<unknown>')}: {exc}")
         return kmi
 
-    _replace_addon_keymap_reference(km, kmi, new_kmi)
     return new_kmi
 
 def _iter_switch_mode_keymap_bindings(wm):
@@ -466,9 +487,22 @@ def _moving_view_type_items(self, context):
     ]
 
 # Finder functions
+def _safe_kmi_prop_name(kmi):
+    """Safely extracts kmi.properties.name without risking memory violations on stale RNA wrappers."""
+    try:
+        if not kmi or not hasattr(kmi, "idname"):
+            return ""
+        props = getattr(kmi, "properties", None)
+        if props is not None:
+            return getattr(props, "name", "") or ""
+    except Exception:
+        pass
+    return ""
+
+
 def _is_our_pie_keymap_item(kmi):
     if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") in {PIE_MENU_ID, SWITCH_MODE_PIE_ID, EDGE_PROPERTY_PIE_ID, SMART_PIE_ID, SWITCH_EDITOR_PIE_ID}
+    return _safe_kmi_prop_name(kmi) in {PIE_MENU_ID, SWITCH_MODE_PIE_ID, EDGE_PROPERTY_PIE_ID, SMART_PIE_ID, SWITCH_EDITOR_PIE_ID}
 
 def _is_our_switch_mode_item(kmi):
     return getattr(kmi, "idname", "") == 'object.switch_mode'
@@ -478,15 +512,15 @@ def _is_our_quick_delete_item(kmi):
 
 def _is_our_delete_pie_item(kmi):
     if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == DELETE_PIE_ID
+    return _safe_kmi_prop_name(kmi) == DELETE_PIE_ID
 
 def _is_our_edge_property_pie_item(kmi):
     if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == EDGE_PROPERTY_PIE_ID
+    return _safe_kmi_prop_name(kmi) == EDGE_PROPERTY_PIE_ID
 
 def _is_our_smart_pie_item(kmi):
     if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == SMART_PIE_ID
+    return _safe_kmi_prop_name(kmi) == SMART_PIE_ID
 
 def _is_our_smart_tool_item(kmi):
     return getattr(kmi, "idname", "") in {
@@ -502,21 +536,21 @@ def _is_our_smart_tool_item(kmi):
     }
 
 def _is_our_align_pie_item(kmi):
-    if kmi.idname == 'wm.call_menu_pie':
-        return getattr(kmi.properties, "name", "") in {ALIGN_OBJECT_PIE_ID, ALIGN_MESH_PIE_ID, ALIGN_UV_PIE_ID}
-    return kmi.idname == ALIGN_GENERIC_OP_ID
+    if getattr(kmi, "idname", "") == 'wm.call_menu_pie':
+        return _safe_kmi_prop_name(kmi) in {ALIGN_OBJECT_PIE_ID, ALIGN_MESH_PIE_ID, ALIGN_UV_PIE_ID}
+    return getattr(kmi, "idname", "") == ALIGN_GENERIC_OP_ID
 
 def _is_our_shading_pie_item(kmi):
     if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == SHADING_PIE_ID
+    return _safe_kmi_prop_name(kmi) == SHADING_PIE_ID
 
 def _is_our_save_pie_item(kmi):
     if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == SAVE_PIE_ID
+    return _safe_kmi_prop_name(kmi) == SAVE_PIE_ID
 
 def _is_our_switch_editor_pie_item(kmi):
     if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
-    return getattr(kmi.properties, "name", "") == SWITCH_EDITOR_PIE_ID
+    return _safe_kmi_prop_name(kmi) == SWITCH_EDITOR_PIE_ID
 
 def _is_our_rename_item(kmi):
     return getattr(kmi, "idname", "") == 'm8.advanced_rename'
@@ -535,6 +569,10 @@ def _is_our_double_click_edit_switch_item(kmi):
 
 def _is_our_subdivision_item(kmi):
     return getattr(kmi, "idname", "") == 'm8.subdivision_set'
+
+def _is_our_normal_pie_item(kmi):
+    if getattr(kmi, "idname", "") != 'wm.call_menu_pie': return False
+    return _safe_kmi_prop_name(kmi) == NORMAL_PIE_ID
 
 def _is_our_keymap_item(kmi):
     return (
@@ -555,6 +593,7 @@ def _is_our_keymap_item(kmi):
         _is_our_switch_editor_pie_item(kmi) or
         _is_our_edge_property_pie_item(kmi) or
         _is_our_subdivision_item(kmi) or
+        _is_our_normal_pie_item(kmi) or
         getattr(kmi, "idname", "") == TOGGLE_AREA_OP_ID
     )
 
@@ -831,6 +870,19 @@ def _find_toggle_area_keymap_items():
         if not km: continue
         for kmi in km.keymap_items:
             if kmi.idname == TOGGLE_AREA_OP_ID:
+                items.append((kc, km, kmi))
+    return items
+
+def _find_normal_pie_keymap_items():
+    wm = bpy.context.window_manager if bpy.context else None
+    kc = wm.keyconfigs.addon if wm and wm.keyconfigs else None
+    if not kc: return []
+    items = []
+    for keymap_name, _ in NORMAL_PIE_KEYMAP_BINDINGS:
+        km = kc.keymaps.get(keymap_name)
+        if not km: continue
+        for kmi in km.keymap_items:
+            if _is_our_normal_pie_item(kmi):
                 items.append((kc, km, kmi))
     return items
 

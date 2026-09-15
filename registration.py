@@ -119,6 +119,14 @@ from .ui.pie.shading import VIEW3D_MT_M8ShadingPie
 from .ui.pie.delete_pie import VIEW3D_MT_M8DeletePie
 from .ui.pie.save import VIEW3D_MT_M8SavePie
 from .ui.pie.edge_property_pie import VIEW3D_MT_M8EdgePropertyPie
+from .ui.pie.normal_pie import VIEW3D_MT_M8NormalPie
+from .ops.mesh.normal_transfer import (
+    M8_OT_SmartNormalTransfer,
+    M8_OT_ApplyNormalTransfer,
+    M8_OT_ClearNormalTransfer,
+    M8_OT_FlipNormalTransfer,
+    M8_OT_ClearCustomNormals,
+)
 from .ui.pie.switch_editor_pie import VIEW3D_MT_M8SwitchEditorPie, M8_OT_SwitchEditorArea
 from .ui.pie.align_generic import M8_OT_AlignPieContextCall
 from .ops.misc.smart_tools import (
@@ -168,6 +176,14 @@ from .ops.misc.custom_tools import (
     M8_OT_AlignOriginToNormal,
     VIEW3D_PT_M8_CustomTools,
     M8_CustomTools_Props,
+)
+from .property.ai_properties import (
+    M8_AI_Provider_Item,
+    M8_UL_AI_Provider_List,
+    M8_AI_ChatMessage_Item,
+    M8_AI_Scene_Properties,
+    register_scene_properties,
+    unregister_scene_properties,
 )
 from .property.preferences import (
     M8_OT_Dummy,
@@ -272,6 +288,12 @@ from .ops.material.material_ops import (
     M8_OT_SelectSameMaterial,
     M8_OT_MaterialCleanSlots,
 )
+from .ops.material.seamless_material import (
+    M8_OT_MakeMaterialSeamless,
+    M8_OT_RevertMaterialSeamless,
+    NODE_PT_M8_SeamlessMaterial,
+    VIEW3D_PT_M8_SeamlessMaterial,
+)
 from .ops.origin.origin_to_bottom import OriginToBottom
 from .ops.origin.origin_to_cursor import OriginToCursor
 from .ops.origin.origin_to_active import OriginToActive
@@ -290,6 +312,10 @@ CLASSES = [
     M8_OT_MaterialLinkToSelected,
     M8_OT_SelectSameMaterial,
     M8_OT_MaterialCleanSlots,
+    M8_OT_MakeMaterialSeamless,
+    M8_OT_RevertMaterialSeamless,
+    NODE_PT_M8_SeamlessMaterial,
+    VIEW3D_PT_M8_SeamlessMaterial,
     M8_OT_Dummy,
     M8_OT_CheckUpdate,
     M8_OT_SubmitFeedback,
@@ -304,6 +330,10 @@ CLASSES = [
     M8_OT_AlignOriginToNormal,
     VIEW3D_PT_M8_CustomTools,
     M8_CustomTools_Props,
+    M8_AI_Provider_Item,
+    M8_UL_AI_Provider_List,
+    M8_AI_ChatMessage_Item,
+    M8_AI_Scene_Properties,
     M8_MP7_MockDrawProperty,
     SIZE_TOOL_Preferences,
     SIZE_TOOL_OT_ResetTransformPieKeymap,
@@ -546,9 +576,22 @@ CLASSES = [
     VIEW3D_PT_M8_MeshCleaner,
     VIEW3D_PT_M8_SceneAudit,
     VIEW3D_PT_M8_Diagnostics,
+    M8_OT_SmartNormalTransfer,
+    M8_OT_ApplyNormalTransfer,
+    M8_OT_ClearNormalTransfer,
+    M8_OT_FlipNormalTransfer,
+    M8_OT_ClearCustomNormals,
+    VIEW3D_MT_M8NormalPie,
 ]
 
 CLASSES.extend(baking_renaming_classes)
+
+# AI Script Assistant Operators and Panels
+from .ops.ai import CLASSES as AI_OPS_CLASSES
+from .ui.panel.text_ai_panel import CLASSES as TEXT_AI_PANEL_CLASSES
+
+CLASSES.extend(AI_OPS_CLASSES)
+CLASSES.extend(TEXT_AI_PANEL_CLASSES)
 
 _startup_timer_registered = False
 _startup_apply_runs = 0
@@ -672,7 +715,7 @@ def _startup_apply():
                 exclusive_ok = False
 
         # Proactively run exclusive overrides for Quick Delete to ensure it works out of the box
-        if getattr(prefs, "activate_quick_delete", False):
+        if getattr(prefs, "activate_quick_delete", True):
             try:
                 res = bpy.ops.size_tool.exclusive_quick_delete_hotkey()
                 if 'FINISHED' not in res:
@@ -767,6 +810,7 @@ def _set_windows_console_utf8():
 def draw_fast_loop_menu(self, context):
     self.layout.separator()
     self.layout.operator("m8.fast_loop", icon='EDGESEL')
+
 
 try:
     import _bpy
@@ -881,6 +925,41 @@ def register():
         except Exception as e:
             logger.error(f"Failed to migrate unity fbx scale preference: {e}", exc_info=True)
 
+    if prefs and hasattr(prefs, "ai_providers") and len(prefs.ai_providers) == 0:
+        try:
+            from .property.ai_properties import DEFAULT_PROVIDERS
+            for p in DEFAULT_PROVIDERS:
+                item = prefs.ai_providers.add()
+                item.id = p["id"]
+                item.name = p["name"]
+                item.base_url = p["base_url"]
+                item.api_key = p["api_key"]
+                item.models = p["models"]
+                item.fetched_models = p.get("fetched_models", p["models"])
+                item.enabled = p["enabled"]
+            prefs.active_provider_id = "sensenova"
+            prefs.active_model_id = ""
+        except Exception as e:
+            logger.error(f"Failed to initialize default AI providers: {e}", exc_info=True)
+
+    # 彻底清除历史遗留的旧内置模型（实现纯净的零内置模型体验，由用户自行从 API 获取或手动输入）
+    if prefs and hasattr(prefs, "ai_providers") and len(prefs.ai_providers) > 0:
+        OLD_PRESET_FRAGMENTS = (
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "deepseek-chat",
+            "gpt-4o",
+            "glm-4-plus",
+            "qwen2.5-coder",
+        )
+        for p in prefs.ai_providers:
+            if p.name == "Ollama (本地免Key)":
+                p.name = "Ollama"
+            if not p.api_key.strip():
+                if any(frag in p.models for frag in OLD_PRESET_FRAGMENTS):
+                    p.models = ""
+                    p.fetched_models = ""
+
     if prefs and getattr(prefs, "auto_new_object_origin_bottom", False):
         register_auto_origin()
     try:
@@ -896,6 +975,10 @@ def register():
         register_translations()
     except Exception as e:
         logger.error(f"Failed to register translations: {e}", exc_info=True)
+    try:
+        register_scene_properties()
+    except Exception as e:
+        logger.error(f"Failed to register AI scene properties: {e}", exc_info=True)
     register_keymaps()
     try:
         if prefs and getattr(prefs, "activate_subdivision_shortcuts", False):
@@ -912,6 +995,11 @@ def register():
             bpy.ops.size_tool.exclusive_edge_property_pie_hotkey()
     except Exception:
         pass
+    try:
+        if prefs is None or getattr(prefs, "activate_quick_delete", True):
+            bpy.ops.size_tool.exclusive_quick_delete_hotkey()
+    except Exception:
+        pass
     if hasattr(bpy.types, "TOPBAR_MT_editor_menus"):
         _install_menu_draw(bpy.types.TOPBAR_MT_editor_menus, draw_restart_blender_top_bar)
     
@@ -925,6 +1013,7 @@ def register():
         _install_menu_draw(bpy.types.VIEW3D_MT_edit_mesh_context_menu, draw_fast_loop_menu)
     if hasattr(bpy.types, "VIEW3D_MT_edit_mesh_edge"):
         _install_menu_draw(bpy.types.VIEW3D_MT_edit_mesh_edge, draw_fast_loop_menu)
+
 
     if prefs:
         try:
@@ -1023,6 +1112,7 @@ def unregister():
     if hasattr(bpy.types, "VIEW3D_MT_edit_mesh_edge"):
         _remove_menu_draw(bpy.types.VIEW3D_MT_edit_mesh_edge, draw_fast_loop_menu)
 
+
     try:
         unregister_auto_origin()
     except Exception as e:
@@ -1040,6 +1130,10 @@ def unregister():
         state.unregister()
     except Exception as e:
         logger.debug(f"Failed to unregister state properties: {e}")
+    try:
+        unregister_scene_properties()
+    except Exception as e:
+        logger.debug(f"Failed to unregister AI scene properties: {e}")
 
     for cls in reversed(CLASSES):
         try:

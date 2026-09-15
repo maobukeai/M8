@@ -251,7 +251,7 @@
   "Smart Focus": "智能聚焦",
   "Restart Blender": "重启Blender",
   "Click           Open a New Blender": "左键         打开一个新的Blender",
-  "Alt         Reload M8 Addon": "Alt          重新加载刷新blender插件",
+  "Alt         Reload M8 Addon": "Alt          重新加载刷新 M8 插件",
   "Alt         Prompt to save file, Restart Blender": "Alt          提示保存文件,重启Blender",
   "Ctrl         Start and Recover Auto Save": "Ctrl         启动并恢复自动保存(quit.blend)",
   "Shift       Open Recent File": "Shift       打开最近的工程文件",

@@ -17,8 +17,12 @@ def startup_delayed_timer():
         if not context or not hasattr(context, "scene"):
             return None
         settings = getattr(context.scene, "m8_npanel", None)
-        if settings and settings.enabled:
-            core.apply_organization(context)
+        if settings:
+            from . import backup
+            # 若当前场景无分类，尝试从磁盘加载全局预设
+            backup.load_presets_from_disk(context, force=False)
+            if settings.enabled:
+                core.apply_organization(context)
     except Exception as e:
         print(f"[M8 NPanel] Startup timer error: {e}")
     return None  # 仅执行一次
@@ -26,7 +30,15 @@ def startup_delayed_timer():
 
 @persistent
 def on_load_post(dummy):
-    """工程文件加载后重新挂载定时器与工作区监听"""
+    """工程文件加载后自动加载预设并重新挂载定时器与工作区监听"""
+    try:
+        context = bpy.context
+        if context and hasattr(context, "scene"):
+            from . import backup
+            backup.load_presets_from_disk(context, force=False)
+    except Exception:
+        pass
+
     if not bpy.app.timers.is_registered(startup_delayed_timer):
         bpy.app.timers.register(startup_delayed_timer, first_interval=1.5)
     setup_workspace_listener()

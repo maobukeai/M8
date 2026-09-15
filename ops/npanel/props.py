@@ -12,6 +12,12 @@ class M8_NPanelTabItem(bpy.types.PropertyGroup):
         description="原始侧边栏标签名称",
         default=""
     )
+    custom_name: bpy.props.StringProperty(
+        name=_T("自定义名称"),
+        description=_T("自定义子标签在侧边栏按钮上显示的文字（鼠标点击/双击即可直接重命名，留空恢复默认）"),
+        default="",
+        update=lambda self, context: getattr(self, "_on_custom_name_changed", lambda c: None)(context)
+    )
     is_active: bpy.props.BoolProperty(
         name="Active",
         description="是否为当前展开显示的子标签",
@@ -22,6 +28,34 @@ class M8_NPanelTabItem(bpy.types.PropertyGroup):
         description="在管理界面中是否被选中",
         default=False
     )
+
+    def _on_custom_name_changed(self, context):
+        if not self.custom_name.strip():
+            try:
+                from . import classifier
+                self.custom_name = classifier.get_tab_display_label(self.name)
+            except Exception:
+                pass
+        try:
+            from . import backup, core
+            backup.save_presets_to_disk(context)
+            settings = getattr(context.scene, "m8_npanel", None) if context and hasattr(context, "scene") else None
+            st = settings.active_space_type if settings else "VIEW_3D"
+            if settings and settings.enabled:
+                core.apply_organization(context, space_type=st)
+        except Exception:
+            pass
+        if context and getattr(context, "area", None):
+            try:
+                context.area.tag_redraw()
+            except Exception:
+                pass
+        elif context and getattr(context, "screen", None):
+            try:
+                for area in context.screen.areas:
+                    area.tag_redraw()
+            except Exception:
+                pass
 
 
 class M8_NPanelCategoryItem(bpy.types.PropertyGroup):
@@ -48,6 +82,11 @@ class M8_NPanelCategoryItem(bpy.types.PropertyGroup):
         name="Active Tab Name",
         default=""
     )
+    icon: bpy.props.StringProperty(
+        name="Category Icon",
+        description="大分类矢量图标标识符（如 MOD_SOLIDIFY, SCULPTMODE_HLT, MATERIAL 等）",
+        default="OUTLINER_COLLECTION"
+    )
 
 
 class M8_NPanelWorkspaceItem(bpy.types.PropertyGroup):
@@ -71,6 +110,18 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
         description=_T("开启后将聚合整理 N 侧边栏为二级子标签分类"),
         default=False
     )
+    active_space_type: bpy.props.EnumProperty(
+        name=_T("当前编辑器"),
+        description=_T("选择正在配置与管理的编辑器类型"),
+        items=[
+            ("VIEW_3D", _T("3D 视图"), _T("管理 3D 视图视口侧边栏插件 (如 HardOps, BoxCutter, DECALmachine)"), "VIEW3D", 0),
+            ("IMAGE_EDITOR", _T("图像/UV 编辑器"), _T("管理 UV 与图像编辑器侧边栏插件 (如 UV Toolkit, Mio3, TexTools)"), "IMAGE", 1),
+            ("NODE_EDITOR", _T("节点编辑器"), _T("管理着色器与几何节点侧边栏插件 (如 Node Wrangler, Node Peek)"), "NODETREE", 2),
+        ],
+        default="VIEW_3D"
+    )
+
+    # --- 3D 视图配置 (默认) ---
     hide_unassigned: bpy.props.BoolProperty(
         name=_T("隐藏未分配标签"),
         description=_T("将未加入任何分类的第三方残留标签隐藏，保持侧边栏极度清爽"),
@@ -79,19 +130,7 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
     excluded_tabs: bpy.props.StringProperty(
         name=_T("排除标签"),
         description=_T("不进行接管的标签白名单，逗号分隔"),
-        default="Item, Tool, View"
-    )
-    max_tabs_per_row: bpy.props.IntProperty(
-        name=_T("每行最多按钮数"),
-        description=_T("置顶子标签面板中每行最多排布的子标签按钮数量"),
-        default=4,
-        min=1,
-        max=8
-    )
-    workspace_auto_switch: bpy.props.BoolProperty(
-        name=_T("跟随工作区自动切换分类"),
-        description=_T("切换 Blender 工作区时自动激活对应的分类"),
-        default=True
+        default=""
     )
     categories: bpy.props.CollectionProperty(
         type=M8_NPanelCategoryItem,
@@ -100,6 +139,79 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
     category_index: bpy.props.IntProperty(
         name="Category Index",
         default=0
+    )
+
+    # --- 图像与 UV 编辑器配置 ---
+    enabled_image_editor: bpy.props.BoolProperty(
+        name=_T("启用图像编辑器整理"),
+        default=True
+    )
+    hide_unassigned_image_editor: bpy.props.BoolProperty(
+        name=_T("隐藏图像编辑器未分配标签"),
+        default=False
+    )
+    excluded_tabs_image_editor: bpy.props.StringProperty(
+        name=_T("排除标签 (图像编辑器)"),
+        default="Image, Tool, View, 图像, 工具, 视图"
+    )
+    categories_image_editor: bpy.props.CollectionProperty(
+        type=M8_NPanelCategoryItem,
+        name="Image Editor Categories"
+    )
+    category_index_image_editor: bpy.props.IntProperty(
+        name="Image Editor Category Index",
+        default=0
+    )
+
+    # --- 节点编辑器配置 ---
+    enabled_node_editor: bpy.props.BoolProperty(
+        name=_T("启用节点编辑器整理"),
+        default=True
+    )
+    hide_unassigned_node_editor: bpy.props.BoolProperty(
+        name=_T("隐藏节点编辑器未分配标签"),
+        default=False
+    )
+    excluded_tabs_node_editor: bpy.props.StringProperty(
+        name=_T("排除标签 (节点编辑器)"),
+        default="Node, Tool, View, Options, 节点, 工具, 视图, 选项"
+    )
+    categories_node_editor: bpy.props.CollectionProperty(
+        type=M8_NPanelCategoryItem,
+        name="Node Editor Categories"
+    )
+    category_index_node_editor: bpy.props.IntProperty(
+        name="Node Editor Category Index",
+        default=0
+    )
+
+    max_tabs_per_row: bpy.props.EnumProperty(
+        name=_T("每行按钮数"),
+        description=_T("置顶子标签按钮的每行排布规则：智能自适应（推荐）或手动指定最高每行按钮数"),
+        items=[
+            ("AUTO", _T("智能自适应"), _T("智能计算最佳每行排布：1~3个铺满一行，4~6个分两排，超过两排四列显示，最高四行")),
+            ("1", "1", _T("每行最高 1 个按钮")),
+            ("2", "2", _T("每行最高 2 个按钮")),
+            ("3", "3", _T("每行最高 3 个按钮")),
+            ("4", "4", _T("每行最高 4 个按钮")),
+            ("5", "5", _T("每行最高 5 个按钮")),
+            ("6", "6", _T("每行最高 6 个按钮")),
+            ("7", "7", _T("每行最高 7 个按钮")),
+            ("8", "8", _T("每行最高 8 个按钮")),
+        ],
+        default="AUTO",
+        update=lambda self, context: getattr(self, "_update_subtabs_header", lambda c: None)(context)
+    )
+    workspace_auto_switch: bpy.props.BoolProperty(
+        name=_T("跟随工作区自动切换分类"),
+        description=_T("切换 Blender 工作区时自动激活对应的分类"),
+        default=True
+    )
+    show_subtabs_header: bpy.props.BoolProperty(
+        name=_T("显示分类标题栏"),
+        description=_T("是否在侧边栏子标签切换面板顶部显示标题与折叠栏（关闭后隐藏标题栏，界面更紧凑清爽）"),
+        default=False,
+        update=lambda self, context: getattr(self, "_update_subtabs_header", lambda c: None)(context)
     )
     workspace_items: bpy.props.CollectionProperty(
         type=M8_NPanelWorkspaceItem,
@@ -110,6 +222,86 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
         description=_T("在待分配标签池中搜索过滤"),
         default=""
     )
+    filter_unassigned_only: bpy.props.BoolProperty(
+        name=_T("仅看未归类"),
+        description=_T("在可用标签池中仅显示未加入任何分类的独立标签"),
+        default=False
+    )
+
+    def get_categories(self, space_type: str = ""):
+        st = space_type or self.active_space_type
+        if st == "IMAGE_EDITOR":
+            return self.categories_image_editor
+        elif st == "NODE_EDITOR":
+            return self.categories_node_editor
+        return self.categories
+
+    def get_category_index(self, space_type: str = "") -> int:
+        st = space_type or self.active_space_type
+        if st == "IMAGE_EDITOR":
+            return self.category_index_image_editor
+        elif st == "NODE_EDITOR":
+            return self.category_index_node_editor
+        return self.category_index
+
+    def set_category_index(self, val: int, space_type: str = ""):
+        st = space_type or self.active_space_type
+        if st == "IMAGE_EDITOR":
+            self.category_index_image_editor = val
+        elif st == "NODE_EDITOR":
+            self.category_index_node_editor = val
+        else:
+            self.category_index = val
+
+    def get_excluded_tabs(self, space_type: str = "") -> str:
+        st = space_type or self.active_space_type
+        if st == "IMAGE_EDITOR":
+            return self.excluded_tabs_image_editor
+        elif st == "NODE_EDITOR":
+            return self.excluded_tabs_node_editor
+        return self.excluded_tabs
+
+    def get_hide_unassigned(self, space_type: str = "") -> bool:
+        st = space_type or self.active_space_type
+        if st == "IMAGE_EDITOR":
+            return self.hide_unassigned_image_editor
+        elif st == "NODE_EDITOR":
+            return self.hide_unassigned_node_editor
+        return self.hide_unassigned
+
+    def is_space_enabled(self, space_type: str = "") -> bool:
+        if not self.enabled:
+            return False
+        st = space_type or self.active_space_type
+        if st == "IMAGE_EDITOR":
+            return self.enabled_image_editor
+        elif st == "NODE_EDITOR":
+            return self.enabled_node_editor
+        return self.enabled
+
+    def _update_subtabs_header(self, context):
+        try:
+            from . import backup
+            backup.save_presets_to_disk(context)
+        except Exception:
+            pass
+        if self.enabled:
+            try:
+                from . import core
+                core.apply_organization(context, space_type=self.active_space_type)
+            except Exception:
+                pass
+        if context and getattr(context, "area", None):
+            try:
+                context.area.tag_redraw()
+            except Exception:
+                pass
+        elif context and getattr(context, "screen", None):
+            try:
+                for area in context.screen.areas:
+                    area.tag_redraw()
+            except Exception:
+                pass
 
 
 classes = (

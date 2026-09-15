@@ -169,5 +169,23 @@ class VIEW3D_MT_M8ShadingPie(bpy.types.Menu):
             row_tools.operator("m8.material_clean_slots", text=_T("清理空槽"), icon="BRUSH_DATA")
             if act_mat:
                 row_tools.operator("object.material_slot_remove", text="", icon="TRASH")
+
+                # 4. 材质节点无缝化与抗平铺
+                row_seamless = col.row(align=True)
+                from ...ops.material.seamless_material import is_material_seamless, get_material_seamless_mode
+                is_seamless = is_material_seamless(act_mat)
+                if is_seamless:
+                    row_seamless.alert = True
+                    mode = get_material_seamless_mode(act_mat)
+                    mode_label = "Hex" if mode == 'HEX' else "Fast"
+                    op_rev = row_seamless.operator("m8.revert_material_seamless", text=f"{_T('还原无缝材质')} ({mode_label})", icon="LOOP_BACK")
+                    op_rev.scope = 'ACTIVE'
+                else:
+                    op_fast = row_seamless.operator("m8.make_material_seamless", text=_T("快速消缝"), icon="MOD_UVPROJECT")
+                    op_fast.mode = 'FAST'
+                    op_fast.scope = 'ACTIVE'
+                    op_hex = row_seamless.operator("m8.make_material_seamless", text=_T("蜂窝抗铺"), icon="STICKY_UVS_LOC")
+                    op_hex.mode = 'HEX'
+                    op_hex.scope = 'ACTIVE'
         else:
             col.label(text=_T("未选中网格物体"), icon="INFO")

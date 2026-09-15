@@ -109,3 +109,9 @@ SUBDIVISION_KEY_TO_LEVEL = {
     'THREE': 3,
     'FOUR': 4,
 }
+
+NORMAL_PIE_ID = "VIEW3D_MT_m8_normal_pie"
+NORMAL_PIE_KEYMAP_BINDINGS = (
+    ("Mesh", "EMPTY"),
+)
+
