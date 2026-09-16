@@ -10,14 +10,22 @@ def bound_to_tuple(obj: bpy.types.Object, matrix: [None | Matrix] = None) -> tup
     :type matrix:mathutils.Vector
     :return tuple:
     """
-    if matrix:
-        return tuple(matrix @ Vector(i[:]) for i in obj.bound_box)
-    else:
-        return tuple(i[:] for i in obj.bound_box)
+    bb = getattr(obj, "bound_box", None)
+    if not bb:
+        return ()
+    try:
+        if matrix:
+            return tuple(matrix @ Vector(i[:]) for i in bb)
+        else:
+            return tuple(i[:] for i in bb)
+    except Exception:
+        return ()
 
 
 def from_vector_get_bound_box(cbb: list[Vector]) -> list[Vector]:
     """获取边界框"""
+    if not cbb:
+        return [Vector((0, 0, 0)) for _ in range(8)]
     xl = [c[0] for c in cbb]
     yl = [c[1] for c in cbb]
     zl = [c[2] for c in cbb]

@@ -108,7 +108,8 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
     enabled: bpy.props.BoolProperty(
         name=_T("启用侧栏管理器"),
         description=_T("开启后将聚合整理 N 侧边栏为二级子标签分类"),
-        default=False
+        default=False,
+        update=lambda self, context: getattr(self, "_on_enabled_changed", lambda c: None)(context)
     )
     active_space_type: bpy.props.EnumProperty(
         name=_T("当前编辑器"),
@@ -118,19 +119,22 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
             ("IMAGE_EDITOR", _T("图像/UV 编辑器"), _T("管理 UV 与图像编辑器侧边栏插件 (如 UV Toolkit, Mio3, TexTools)"), "IMAGE", 1),
             ("NODE_EDITOR", _T("节点编辑器"), _T("管理着色器与几何节点侧边栏插件 (如 Node Wrangler, Node Peek)"), "NODETREE", 2),
         ],
-        default="VIEW_3D"
+        default="VIEW_3D",
+        update=lambda self, context: getattr(self, "_update_subtabs_header", lambda c: None)(context)
     )
 
     # --- 3D 视图配置 (默认) ---
     hide_unassigned: bpy.props.BoolProperty(
         name=_T("隐藏未分配标签"),
         description=_T("将未加入任何分类的第三方残留标签隐藏，保持侧边栏极度清爽"),
-        default=False
+        default=False,
+        update=lambda self, context: getattr(self, "_update_subtabs_header", lambda c: None)(context)
     )
     excluded_tabs: bpy.props.StringProperty(
         name=_T("排除标签"),
         description=_T("不进行接管的标签白名单，逗号分隔"),
-        default=""
+        default="",
+        update=lambda self, context: getattr(self, "_update_subtabs_header", lambda c: None)(context)
     )
     categories: bpy.props.CollectionProperty(
         type=M8_NPanelCategoryItem,
@@ -144,15 +148,18 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
     # --- 图像与 UV 编辑器配置 ---
     enabled_image_editor: bpy.props.BoolProperty(
         name=_T("启用图像编辑器整理"),
-        default=True
+        default=True,
+        update=lambda self, context: getattr(self, "_on_enabled_changed", lambda c: None)(context)
     )
     hide_unassigned_image_editor: bpy.props.BoolProperty(
         name=_T("隐藏图像编辑器未分配标签"),
-        default=False
+        default=False,
+        update=lambda self, context: getattr(self, "_update_subtabs_header", lambda c: None)(context)
     )
     excluded_tabs_image_editor: bpy.props.StringProperty(
         name=_T("排除标签 (图像编辑器)"),
-        default="Image, Tool, View, 图像, 工具, 视图"
+        default="Image, Tool, View, 图像, 工具, 视图",
+        update=lambda self, context: getattr(self, "_update_subtabs_header", lambda c: None)(context)
     )
     categories_image_editor: bpy.props.CollectionProperty(
         type=M8_NPanelCategoryItem,
@@ -166,15 +173,18 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
     # --- 节点编辑器配置 ---
     enabled_node_editor: bpy.props.BoolProperty(
         name=_T("启用节点编辑器整理"),
-        default=True
+        default=True,
+        update=lambda self, context: getattr(self, "_on_enabled_changed", lambda c: None)(context)
     )
     hide_unassigned_node_editor: bpy.props.BoolProperty(
         name=_T("隐藏节点编辑器未分配标签"),
-        default=False
+        default=False,
+        update=lambda self, context: getattr(self, "_update_subtabs_header", lambda c: None)(context)
     )
     excluded_tabs_node_editor: bpy.props.StringProperty(
         name=_T("排除标签 (节点编辑器)"),
-        default="Node, Tool, View, Options, 节点, 工具, 视图, 选项"
+        default="Node, Tool, View, Options, 节点, 工具, 视图, 选项",
+        update=lambda self, context: getattr(self, "_update_subtabs_header", lambda c: None)(context)
     )
     categories_node_editor: bpy.props.CollectionProperty(
         type=M8_NPanelCategoryItem,
@@ -225,6 +235,16 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
     filter_unassigned_only: bpy.props.BoolProperty(
         name=_T("仅看未归类"),
         description=_T("在可用标签池中仅显示未加入任何分类的独立标签"),
+        default=False
+    )
+    filter_live_only: bpy.props.BoolProperty(
+        name=_T("仅当前可见"),
+        description=_T("在可用标签池中仅显示当前视口模式下正在渲染的可见标签（过滤掉休眠标签）"),
+        default=True
+    )
+    filter_addons_only: bpy.props.BoolProperty(
+        name=_T("仅第三方插件"),
+        description=_T("在可用标签池中仅显示第三方插件标签，隐藏 Blender 原生系统基础标签（条目/工具/视图/动画）"),
         default=False
     )
 
@@ -279,16 +299,55 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
             return self.enabled_node_editor
         return self.enabled
 
+    def _on_enabled_changed(self, context):
+        try:
+            from . import backup, core
+            from .state import PanelStateManager
+            backup.save_presets_to_disk(context)
+            st = self.active_space_type
+            if not self.is_space_enabled(st):
+                # 关闭整理时，立即 0 延迟无痕还原原生侧边栏，清理所有动态药丸面板
+                PanelStateManager.restore_all()
+            else:
+                categories = self.get_categories(st)
+                if len(categories) > 0:
+                    core.apply_organization(context, space_type=st)
+                else:
+                    # 尚无任何分类时，保持原生侧边栏清爽，绝不胡乱劫持
+                    PanelStateManager.restore_all()
+        except Exception as e:
+            print(f"[M8 NPanel] Error on enabled changed: {e}")
+
+        # 触发全视口即刻刷新
+        if context and getattr(context, "area", None):
+            try:
+                context.area.tag_redraw()
+            except Exception:
+                pass
+        if context and getattr(context, "screen", None):
+            try:
+                for area in context.screen.areas:
+                    area.tag_redraw()
+            except Exception:
+                pass
+
     def _update_subtabs_header(self, context):
         try:
             from . import backup
             backup.save_presets_to_disk(context)
         except Exception:
             pass
-        if self.enabled:
+        st = self.active_space_type
+        if self.is_space_enabled(st):
             try:
                 from . import core
-                core.apply_organization(context, space_type=self.active_space_type)
+                core.apply_organization(context, space_type=st)
+            except Exception:
+                pass
+        else:
+            try:
+                from .state import PanelStateManager
+                PanelStateManager.restore_all()
             except Exception:
                 pass
         if context and getattr(context, "area", None):
@@ -296,7 +355,7 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
                 context.area.tag_redraw()
             except Exception:
                 pass
-        elif context and getattr(context, "screen", None):
+        if context and getattr(context, "screen", None):
             try:
                 for area in context.screen.areas:
                     area.tag_redraw()

@@ -905,8 +905,116 @@ def run_tests():
     bpy.ops.m8.clear_normal_transfer()
     bpy.data.objects.remove(obj_grid, do_unlink=True)
 
+    # 35. 验证多区域连续法向传递智能叠加 (Multi-Pass Normal Stacking)
+    bpy.ops.mesh.primitive_cube_add(size=4.0, location=(0, 0, 0))
+    obj_stack = bpy.context.active_object
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm_st = bmesh.from_edit_mesh(obj_stack.data)
+
+    # 步骤 1: 选顶面 (Z > 1.9)，执行 AUTO_STACK (生成第 1 个修改器 M8_Normal_PLANAR)
+    for f in bm_st.faces:
+        f.select = (f.normal.z > 0.9)
+    bmesh.update_edit_mesh(obj_stack.data)
+    res_s1 = bpy.ops.m8.smart_normal_transfer(mode='PLANAR', stack_mode='AUTO_STACK')
+    assert 'FINISHED' in res_s1
+
+    # 步骤 2: 选侧面 (X > 1.9)，执行 AUTO_STACK (不同区域，自动新建第 2 个修改器 M8_Normal_PLANAR_2)
+    bm_st = bmesh.from_edit_mesh(obj_stack.data)
+    for f in bm_st.faces:
+        f.select = (f.normal.x > 0.9)
+    bmesh.update_edit_mesh(obj_stack.data)
+    res_s2 = bpy.ops.m8.smart_normal_transfer(mode='PLANAR', stack_mode='AUTO_STACK')
+    assert 'FINISHED' in res_s2
+
+    # 步骤 3: 选底面 (Z < -1.9)，执行 AUTO_STACK (自动新建第 3 个修改器 M8_Normal_PLANAR_3)
+    bm_st = bmesh.from_edit_mesh(obj_stack.data)
+    for f in bm_st.faces:
+        f.select = (f.normal.z < -0.9)
+    bmesh.update_edit_mesh(obj_stack.data)
+    res_s3 = bpy.ops.m8.smart_normal_transfer(mode='PLANAR', stack_mode='AUTO_STACK')
+    assert 'FINISHED' in res_s3
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    m8_mods = [m for m in obj_stack.modifiers if m.name.startswith("M8_Normal")]
+    assert len(m8_mods) == 3, f"多区域叠加失败，预期 3 个修改器，实际为: {[m.name for m in m8_mods]}"
+    assert obj_stack.modifiers.get("M8_Normal_PLANAR") is not None
+    assert obj_stack.modifiers.get("M8_Normal_PLANAR_2") is not None
+    assert obj_stack.modifiers.get("M8_Normal_PLANAR_3") is not None
+
+    # 验证三个辅助物体和顶点组各自独立
+    h_names = {m.object.name for m in m8_mods if m.object}
+    assert len(h_names) == 3, f"辅助物体未独立隔离: {h_names}"
+    vg_names = {m.vertex_group for m in m8_mods if m.vertex_group}
+    assert len(vg_names) == 3, f"顶点组未独立隔离: {vg_names}"
+    print("[PASS] 多区域连续法向传递智能自增叠加 (3 级修改器与辅助体独立隔离共存) 验证通过")
+
+    # 步骤 4: 一键应用并烘焙所有叠加修改器
+    res_app_all = bpy.ops.m8.apply_normal_transfer()
+    assert 'FINISHED' in res_app_all
+    assert len([m for m in obj_stack.modifiers if m.name.startswith("M8_Normal")]) == 0, "应用后仍有修改器残留"
+    assert not any(bpy.data.objects.get(name) for name in h_names), "辅助物体未完全清理"
+    print("[PASS] 多层叠加修改器一键烘焙应用与辅助体 100% 洁癖级零残留回收验证通过")
+
+    bpy.data.objects.remove(obj_stack, do_unlink=True)
+
+    # 36. 验证提取平滑传递向外包裹膨胀与防内缩补偿 (Cage Envelope & Anti-Shrink)
+    from mathutils.bvhtree import BVHTree
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, radius=2.0, location=(0, 0, 0))
+    obj_sphere = bpy.context.active_object
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm_sp = bmesh.from_edit_mesh(obj_sphere.data)
+
+    # 选中上半凸球冠面 (Z > 0.5)
+    for f in bm_sp.faces:
+        f.select = bool(f.calc_center_median().z > 0.5)
+    bmesh.update_edit_mesh(obj_sphere.data)
+
+    test_offset = 0.015  # 向外推开 15mm
+    res_cage = bpy.ops.m8.smart_normal_transfer(
+        mode='SMOOTH_EXTRACT',
+        extract_clean_mode='AUTO',
+        quad_remesh=True,
+        quad_subdiv=2,
+        cage_offset=test_offset,
+        auto_wrap_outside=True,
+        apply_and_clean=False,
+    )
+    assert 'FINISHED' in res_cage, f"SMOOTH_EXTRACT 包裹测试执行失败: {res_cage}"
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    mod_cage = obj_sphere.modifiers.get("M8_Normal_SMOOTH_EXTRACT")
+    assert mod_cage is not None and mod_cage.object is not None, "未找到生成的平滑辅助体"
+
+    # 构建原凸表面选区 BVH 树
+    bm_orig = bmesh.new()
+    bm_orig.from_mesh(obj_sphere.data)
+    sel_orig_faces = [f for f in bm_orig.faces if f.calc_center_median().z > 0.45]
+    bvh_orig = BVHTree.FromPolygons([v.co for v in bm_orig.verts], [[v.index for v in f.verts] for f in sel_orig_faces])
+
+    # 检验辅助体的每一个顶点相对于原模型表面的法向有符号距离 (signed distance)
+    helper_me = mod_cage.object.data
+    inside_count = 0
+    signed_dists = []
+    for v in helper_me.vertices:
+        loc, norm, idx, dist = bvh_orig.find_nearest(v.co)
+        if loc is not None and norm is not None and norm.length > 1e-4:
+            signed_dist = (v.co - loc).dot(norm.normalized())
+            signed_dists.append(signed_dist)
+            if signed_dist < -1e-4:
+                inside_count += 1
+
+    bm_orig.free()
+
+    assert inside_count == 0, f"辅助体未能完全包裹在模型外侧，仍有 {inside_count} 个顶点凹陷进原模型肉体内！"
+    avg_push_dist = sum(signed_dists) / max(1, len(signed_dists))
+    assert avg_push_dist > 0.005, f"向外包裹推开距离不足 (平均外推: {avg_push_dist:.4f}m <= 0.005m)"
+    print(f"[PASS] 提取平滑传递向外包裹膨胀与防内缩补偿验证通过 (内部穿模点: 0/100%, 平均外包距离: {avg_push_dist*1000:.1f}mm, 完美包裹于模型外侧)")
+
+    bpy.ops.m8.clear_normal_transfer()
+    bpy.data.objects.remove(obj_sphere, do_unlink=True)
+
     print("\n" + "=" * 60)
-    print(">>> 全部 34 项 M8 智能法向传递全场景自适应与复杂硬表面极限测试 100% 通过 (ALL PASS)！")
+    print(">>> 全部 36 项 M8 智能法向传递全场景自适应、多层智能叠加、外壳包裹与复杂硬表面极限测试 100% 通过 (ALL PASS)！")
     print("=" * 60 + "\n")
 
 if __name__ == "__main__":

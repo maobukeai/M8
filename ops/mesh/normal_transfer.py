@@ -1178,6 +1178,62 @@ def _reconstruct_dense_quad_helper(
     return bm_helper
 
 
+def _apply_cage_envelope_push(
+    bm_helper,
+    bm_target,
+    selected_faces,
+    cage_offset=0.002,
+    auto_wrap_outside=True,
+):
+    """
+    辅助网格法向外壳包裹与防内缩补偿系统 (Normal Cage Envelope & Anti-Shrink Push):
+    1. 计算目标选区 BVH 树；
+    2. 针对细分平滑后凹陷进模型内部的顶点 (d · n < 0)，自动推移至外表面；
+    3. 沿平滑顶点法线应用用户指定的向外包裹偏移 cage_offset，使辅助体像一层透明轻壳均匀包裹在模型外部。
+    """
+    if not bm_helper or not bm_helper.faces:
+        return
+
+    bvh = None
+    if auto_wrap_outside and bm_target and selected_faces:
+        try:
+            target_verts_co = [v.co for v in bm_target.verts]
+            target_polys = [[v.index for v in f.verts] for f in selected_faces]
+            bvh = BVHTree.FromPolygons(target_verts_co, target_polys)
+        except Exception:
+            bvh = None
+
+    bm_helper.verts.ensure_lookup_table()
+    bm_helper.faces.ensure_lookup_table()
+    bm_helper.normal_update()
+
+    # 1. 智能防内缩保护 (Anti-Shrink Protection)
+    if bvh and auto_wrap_outside:
+        for v in bm_helper.verts:
+            loc, norm, idx, dist = bvh.find_nearest(v.co)
+            if loc is not None and norm is not None and norm.length > 1e-4:
+                norm_u = norm.normalized()
+                disp = v.co - loc
+                signed_dist = disp.dot(norm_u)
+                if signed_dist < 0.0:
+                    # 强力纠偏：推至原模型外侧微量安全边界 (至少处于表面偏外 0.0005m)
+                    v.co = loc + norm_u * 0.0005
+
+    # 2. 沿平滑顶点法向应用用户可调的 cage_offset
+    if abs(cage_offset) > 1e-6:
+        bm_helper.normal_update()
+        for v in bm_helper.verts:
+            v_norm = v.normal
+            if v_norm.length > 1e-4:
+                v.co += v_norm.normalized() * cage_offset
+            else:
+                avg_fn = sum((f.normal for f in v.link_faces), Vector((0, 0, 0)))
+                if avg_fn.length > 1e-4:
+                    v.co += avg_fn.normalized() * cage_offset
+
+    bm_helper.normal_update()
+
+
 def _build_smooth_extract_helper_mesh(
     bm_target,
     selected_faces,
@@ -1190,13 +1246,16 @@ def _build_smooth_extract_helper_mesh(
     quad_subdiv=2,
     snap_to_surface=True,
     smooth_factor=0.5,
+    cage_offset=0.002,
+    auto_wrap_outside=True,
 ):
     """
     智能提取面并重置为高密平滑纯四边面网格：
     - AUTO: 智能分析形态（双边界环放样，单环封面，复杂曲面消解），并彻底重构为密集平滑纯四边面；
     - BRIDGE: 纯净边界放样，去除中间所有手切线与三角面；
     - DISSOLVE: 拓扑净化消解冗余边与对角线；
-    - RAW: 原样提取保留结构。
+    - RAW: 原样提取保留结构；
+    - CAGE ENVELOPE: 自动防内缩与法向外壳包裹，杜绝凹陷进模型内部。
     """
     if not selected_faces:
         return bmesh.new()
@@ -1222,9 +1281,6 @@ def _build_smooth_extract_helper_mesh(
     bm_helper = None
 
     # 1. 双闭合边界环（如圆柱侧壁、管道、回转体过渡带）
-    # 严格防护：仅在用户显式指定 BRIDGE，或在 AUTO 模式下满足极简等长单层环带时才桥接：
-    # 1) 两端环点数严格相等 (len(loop0) == len(loop1))，严禁 32 对 16 错位连线引发三角褶皱接缝；
-    # 2) 选区为单层环带 (无内部多行中间顶点/环切线)，绝不丢弃多层回转体的既有曲率形态。
     is_simple_uniform_tube = (
         len(closed_loops) == 2
         and len(closed_loops[0]) == len(closed_loops[1])
@@ -1250,7 +1306,6 @@ def _build_smooth_extract_helper_mesh(
             max_dist = max(abs((v.co - center).dot(avg_norm)) for v in loop_verts)
             span = max((v.co - center).length for v in loop_verts)
             if span > 1e-5 and (max_dist / span) < 0.05:
-                # 平面端盖：直接生成单一大 N-gon，后续由四边面重构算法划分为纯四边面
                 bm_cap = bmesh.new()
                 vmap = {v: bm_cap.verts.new(v.co.copy()) for v in loop_verts}
                 bm_cap.verts.ensure_lookup_table()
@@ -1295,6 +1350,15 @@ def _build_smooth_extract_helper_mesh(
             smooth_factor=smooth_factor,
             snap_to_surface=snap_to_surface,
         )
+
+    # 6. 外壳包裹膨胀与防内缩补偿 (Cage Envelope & Anti-Shrink)
+    _apply_cage_envelope_push(
+        bm_helper,
+        bm_target,
+        selected_faces,
+        cage_offset=cage_offset,
+        auto_wrap_outside=auto_wrap_outside,
+    )
 
     return bm_helper
 
@@ -1449,6 +1513,37 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
         default=False,
     )
 
+    cage_offset: bpy.props.FloatProperty(
+        name=_T("向外包裹偏移"),
+        description=_T("将辅助代理体沿法向向外推开微量距离，确保辅助体始终包裹在原模型外侧（Cage Envelope），彻底杜绝曲面平滑收缩导致穿插进模型内部"),
+        default=0.002,
+        min=-0.1,
+        max=1.0,
+        soft_min=0.0,
+        soft_max=0.05,
+        step=0.1,
+        precision=4,
+        unit="LENGTH",
+    )
+
+    auto_wrap_outside: bpy.props.BoolProperty(
+        name=_T("防内缩外壳保护"),
+        description=_T("智能检测并自动纠正因细分与松弛平滑导致凹陷进原模型内部的顶点，强制保证辅助体处于模型外表面"),
+        default=True,
+    )
+
+    stack_mode: bpy.props.EnumProperty(
+        name=_T("叠加模式"),
+        description=_T("处理与已有法向传递修改器的关系：智能叠加（不同区域自动新建修改器并叠加，相同区域覆盖更新）；新建叠加（强制新建）；固化前序并新建（先烘焙已有修改器进网格，保持堆栈极简）；覆盖更新（覆盖已有修改器）"),
+        items=[
+            ("AUTO_STACK", _T("智能叠加"), _T("自动检测选区：不同区域自动新建修改器并叠加，相同区域覆盖更新")),
+            ("STACK", _T("新建叠加"), _T("为当前选区新建独立的修改器、顶点组与辅助体，与已有修改器叠加共存")),
+            ("APPLY_PREVIOUS", _T("固化前序并新建"), _T("先将物体上已有的 M8 修改器烘焙固化进网格，再为当前选区新建修改器（保持堆栈清爽无冗余）")),
+            ("REPLACE", _T("覆盖更新"), _T("覆盖更新当前/上一个同类修改器，适合反复微调同一区域")),
+        ],
+        default="AUTO_STACK",
+    )
+
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
@@ -1483,12 +1578,20 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
                 box_quad.prop(self, "snap_to_surface")
                 box_quad.prop(self, "quad_smooth_factor")
 
+            box_cage = box_smooth.box()
+            box_cage.label(text=_T("外壳包裹与防内缩 (Cage)"), icon="OUTLINER_OB_SURFACE")
+            box_cage.prop(self, "cage_offset")
+            box_cage.prop(self, "auto_wrap_outside")
+
         layout.separator()
         layout.prop(self, "grow_steps")
 
         row = layout.row()
         row.prop(self, "flip_normal", icon="ARROW_LEFTRIGHT")
         row.prop(self, "show_helper", icon="HIDE_OFF" if self.show_helper else "HIDE_ON")
+
+        box_stack = layout.box()
+        box_stack.prop(self, "stack_mode", icon="DUPLICATE")
 
         box = layout.box()
         box.alert = bool(self.apply_and_clean)
@@ -1570,6 +1673,8 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
                     quad_subdiv=self.quad_subdiv,
                     snap_to_surface=self.snap_to_surface,
                     smooth_factor=self.quad_smooth_factor,
+                    cage_offset=self.cage_offset,
+                    auto_wrap_outside=self.auto_wrap_outside,
                 )
                 _merge_bmesh_into(bm_helper, bm_sub)
                 bm_sub.free()
@@ -1606,6 +1711,8 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
                             quad_subdiv=self.quad_subdiv,
                             snap_to_surface=self.snap_to_surface,
                             smooth_factor=self.quad_smooth_factor,
+                            cage_offset=self.cage_offset,
+                            auto_wrap_outside=self.auto_wrap_outside,
                         )
                         _merge_bmesh_into(bm_helper, bm_sub)
                         bm_sub.free()
@@ -1645,14 +1752,116 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
                         vert_weights[v.index] = w
                     current_shell = next_shell
 
+            base_vert_indices = {v.index for v in base_verts}
             vert_indices = list(vert_weights.keys())
 
             # 同步并暂时切换至 OBJECT 模式安全配置顶点组与修改器
             bmesh.update_edit_mesh(me)
             bpy.ops.object.mode_set(mode="OBJECT")
 
+            # 5.5 处理叠加模式 (Stack Mode)
+            existing_m8_mods = [
+                m for m in obj.modifiers 
+                if m.type == "DATA_TRANSFER" and m.name.startswith(MODIFIER_PREFIX)
+            ]
+
+            if self.stack_mode == "APPLY_PREVIOUS" and existing_m8_mods:
+                # 固化前序：将物体上已存的所有 M8 修改器全部一键烘焙并清理
+                for m in list(obj.modifiers):
+                    if m.type == "DATA_TRANSFER" and m.name.startswith(MODIFIER_PREFIX):
+                        h_obj = m.object
+                        vg_name_old = m.vertex_group
+                        try:
+                            bpy.ops.object.modifier_apply(modifier=m.name)
+                        except Exception as e:
+                            logger.debug(f"Failed to apply previous modifier {m.name}: {e}")
+                        if h_obj:
+                            me_h = h_obj.data
+                            try:
+                                bpy.data.objects.remove(h_obj, do_unlink=True)
+                                if me_h and me_h.users == 0:
+                                    bpy.data.meshes.remove(me_h)
+                            except Exception:
+                                pass
+                        if vg_name_old:
+                            vg_old = obj.vertex_groups.get(vg_name_old)
+                            if vg_old:
+                                try:
+                                    obj.vertex_groups.remove(vg_old)
+                                except Exception:
+                                    pass
+                existing_m8_mods = []
+
+            # 智能判定：是原地更新现有修改器，还是新建独立修改器进行多层叠加
+            target_mod = None
+            if self.stack_mode == "AUTO_STACK":
+                # 自动检测：以核心基础选区 base_vert_indices 为基准，若与某已有 M8 修改器的顶点组存在高重合度 (>= 70%)，视为同一区域换算法/调参，覆盖更新
+                for m in reversed(existing_m8_mods):
+                    if m.vertex_group:
+                        vg_test = obj.vertex_groups.get(m.vertex_group)
+                        if vg_test:
+                            in_count = 0
+                            for vid in base_vert_indices:
+                                try:
+                                    if vg_test.weight(vid) > 0.0:
+                                        in_count += 1
+                                except Exception:
+                                    pass
+                            if (in_count / max(1, len(base_vert_indices))) >= 0.7:
+                                target_mod = m
+                                break
+            elif self.stack_mode == "REPLACE":
+                same_mode_mods = [m for m in existing_m8_mods if actual_mode in m.name]
+                target_mod = same_mode_mods[-1] if same_mode_mods else (existing_m8_mods[-1] if existing_m8_mods else None)
+
+            # 确定修改器、顶点组与辅助物体的名称
+            if target_mod:
+                # 若更新已有修改器且模式发生了改变，重命名以保持语义与断言一致
+                ideal_mod_name = f"{MODIFIER_PREFIX}_{actual_mode}"
+                if ideal_mod_name != target_mod.name:
+                    if ideal_mod_name in obj.modifiers and obj.modifiers[ideal_mod_name] != target_mod:
+                        idx = 2
+                        while f"{ideal_mod_name}_{idx}" in obj.modifiers:
+                            idx += 1
+                        target_mod.name = f"{ideal_mod_name}_{idx}"
+                    else:
+                        target_mod.name = ideal_mod_name
+
+                mod_name = target_mod.name
+                vg_name = f"{VG_PREFIX}_{actual_mode.capitalize()}"
+                if target_mod.vertex_group:
+                    vg_old = obj.vertex_groups.get(target_mod.vertex_group)
+                    if vg_old and vg_old.name != vg_name:
+                        if vg_name in obj.vertex_groups and obj.vertex_groups[vg_name] != vg_old:
+                            vg_old.name = f"{vg_name}_old"
+                        vg_old.name = vg_name
+                helper_obj_name = f"_M8_Helper_{obj.name}_{actual_mode}"
+                if target_mod.object and target_mod.object.name != helper_obj_name:
+                    if helper_obj_name in bpy.data.objects and bpy.data.objects[helper_obj_name] != target_mod.object:
+                        target_mod.object.name = f"{helper_obj_name}_old"
+                    target_mod.object.name = helper_obj_name
+            else:
+                base_mod_name = f"{MODIFIER_PREFIX}_{actual_mode}"
+                base_vg_name = f"{VG_PREFIX}_{actual_mode.capitalize()}"
+                base_helper_name = f"_M8_Helper_{obj.name}_{actual_mode}"
+
+                existing_mod_names = {m.name for m in obj.modifiers}
+                if base_mod_name not in existing_mod_names:
+                    mod_name = base_mod_name
+                    vg_name = base_vg_name
+                    helper_obj_name = base_helper_name
+                else:
+                    idx = 2
+                    while True:
+                        cand_mod = f"{base_mod_name}_{idx}"
+                        if cand_mod not in existing_mod_names:
+                            mod_name = cand_mod
+                            vg_name = f"{base_vg_name}_{idx}"
+                            helper_obj_name = f"{base_helper_name}_{idx}"
+                            break
+                        idx += 1
+
             # 6. 顶点组创建与权重赋值（支持线性羽化衰减梯度）
-            vg_name = f"{VG_PREFIX}_{actual_mode.capitalize()}"
             vg = obj.vertex_groups.get(vg_name)
             if not vg:
                 vg = obj.vertex_groups.new(name=vg_name)
@@ -1667,7 +1876,6 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
 
             # 7. 创建或更新辅助物体
             helper_col = _get_or_create_helper_collection(context.scene)
-            helper_obj_name = f"_M8_Helper_{obj.name}_{actual_mode}"
             helper_obj = bpy.data.objects.get(helper_obj_name)
 
             if not helper_obj:
@@ -1713,7 +1921,6 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
             _hide_collection_in_view_layer(vl, HELPER_COLLECTION_NAME, hide=(not self.show_helper))
 
         # 8. 数据传递修改器 (DATA_TRANSFER)
-        mod_name = f"{MODIFIER_PREFIX}_{actual_mode}"
         mod = obj.modifiers.get(mod_name)
         if not mod:
             mod = obj.modifiers.new(name=mod_name, type="DATA_TRANSFER")
@@ -1769,7 +1976,11 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
                 except Exception:
                     pass
         else:
-            self.report({"INFO"}, f"{_T('法向传递修改器已生效')}: {actual_mode} ({len(vert_indices)} {_T('点')})")
+            total_m8_count = len([m for m in obj.modifiers if m.type == "DATA_TRANSFER" and m.name.startswith(MODIFIER_PREFIX)])
+            if total_m8_count > 1:
+                self.report({"INFO"}, f"{_T('法向传递修改器已生效')} ({_T('叠加')} #{total_m8_count} - {mod_name}): {actual_mode} ({len(vert_indices)} {_T('点')})")
+            else:
+                self.report({"INFO"}, f"{_T('法向传递修改器已生效')}: {actual_mode} ({len(vert_indices)} {_T('点')})")
 
         # 确保安全切回原始网格对象的 EDIT 模式，杜绝活动物体漂移至辅助体
         context.view_layer.objects.active = obj

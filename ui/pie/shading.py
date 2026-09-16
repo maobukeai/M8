@@ -88,10 +88,8 @@ class VIEW3D_MT_M8ShadingPie(bpy.types.Menu):
             col.prop(render, "film_transparent", text=_T("背景透明"))
 
         # UV 棋盘格显示 (方便查看 UV 拉伸)
-        is_checker_on = bool(
-            getattr(context.view_layer, "material_override", None) and
-            context.view_layer.material_override.name == "M8_UV_Checker"
-        )
+        from ...ops.mesh.uv_checker import is_uv_checker_active
+        is_checker_on = is_uv_checker_active(context)
         row = col.row(align=True)
         row.operator(
             "m8.toggle_uv_checker",
@@ -101,11 +99,11 @@ class VIEW3D_MT_M8ShadingPie(bpy.types.Menu):
         )
         if is_checker_on and hasattr(context.scene, "m8"):
             sub_col = col.box().column(align=True)
-            split = sub_col.split(factor=0.5, align=True)
-            row_a = split.row(align=True)
-            row_b = split.row(align=True)
-            row_a.prop(context.scene.m8, "uv_checker_scale", text=_T("缩放"))
-            row_b.prop(context.scene.m8, "uv_checker_type", text="")
+            row_scope = sub_col.row(align=True)
+            row_scope.prop(context.scene.m8, "uv_checker_scope", expand=True)
+            split = sub_col.split(factor=0.45, align=True)
+            split.prop(context.scene.m8, "uv_checker_scale", text=_T("缩放"))
+            split.prop(context.scene.m8, "uv_checker_type", text="")
 
         box = pie.box()
         col = box.column(align=True)

@@ -2,7 +2,7 @@ import bpy
 from ..ops.mesh.cleaner import M8_Clean_Props
 from ..ops.misc.custom_tools import M8_CustomTools_Props
 from ..ops.file.image_save_preset import M8_ImageSavePresetProps
-from ..ops.mesh.uv_checker import update_uv_checker_material
+from ..ops.mesh.uv_checker import update_uv_checker_material, update_uv_checker_scope
 from ..utils.i18n import _T
 
 class M8_BakeRenamer_Props(bpy.types.PropertyGroup):
@@ -75,6 +75,16 @@ class M8_SceneState(bpy.types.PropertyGroup):
         step=10,
         update=update_uv_checker_material,
     )
+    uv_checker_scope: bpy.props.EnumProperty(
+        name=_T("作用范围"),
+        description=_T("UV 棋盘格应用范围：全场景或仅选中物体"),
+        items=[
+            ('GLOBAL', _T("全场景"), _T("全场景所有网格物体均显示棋盘格")),
+            ('SELECTED', _T("仅选中"), _T("仅当前选中的网格物体显示棋盘格")),
+        ],
+        default='GLOBAL',
+        update=update_uv_checker_scope,
+    )
     uv_checker_type: bpy.props.EnumProperty(
         name=_T("网格类型"),
         description=_T("UV 棋盘格显示图案类型"),
@@ -82,6 +92,7 @@ class M8_SceneState(bpy.types.PropertyGroup):
             ('UV_GRID', _T("UV网格"), _T("经典带坐标与十字准星的 UV 网格")),
             ('COLOR_GRID', _T("彩色网格"), _T("带字母与色彩分区的彩色网格")),
             ('CHECKER', _T("纯棋盘"), _T("高对比度黑白方块棋盘格")),
+            ('BOX_GRID', _T("免UV三向"), _T("使用三向投影无缝贴图，模型无需展UV即可观察网格比例")),
         ],
         default='UV_GRID',
         update=update_uv_checker_material,

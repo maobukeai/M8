@@ -83,7 +83,16 @@ class M8_OT_NPanelOpenManager(bpy.types.Operator):
         st = self.space_type or (settings.active_space_type if settings else "VIEW_3D")
         from . import backup
         backup.save_presets_to_disk(context)
-        core.apply_organization(context, space_type=st)
+        if settings and settings.is_space_enabled(st):
+            categories = settings.get_categories(st)
+            if len(categories) > 0:
+                core.apply_organization(context, space_type=st)
+            else:
+                from .state import PanelStateManager
+                PanelStateManager.restore_all()
+        else:
+            from .state import PanelStateManager
+            PanelStateManager.restore_all()
         return {"FINISHED"}
 
     def draw(self, context):
@@ -254,9 +263,19 @@ class M8_OT_NPanelOpenManager(bpy.types.Operator):
                 if canon and canon != t_item.name:
                     assigned_map.setdefault(canon, []).append(c.name)
 
+        # 根据当前过滤选项动态计算参与展示的可用标签集合
+        def _is_tab_visible(t_name):
+            if settings.filter_live_only and not core.is_tab_live(t_name, context, space_type=st):
+                return False
+            if settings.filter_addons_only and not core.get_tab_origin_badge(t_name, space_type=st)[1]:
+                return False
+            return True
+
+        visible_all_tabs = [t for t in all_tabs if _is_tab_visible(t)]
+
         # 计算当前完全未归入任何分类的独立未归档标签
         unassigned_tabs = [
-            t for t in all_tabs
+            t for t in visible_all_tabs
             if t not in assigned_map and (not classifier.resolve_canonical_tab(t) or classifier.resolve_canonical_tab(t) not in assigned_map)
         ]
 
@@ -266,16 +285,21 @@ class M8_OT_NPanelOpenManager(bpy.types.Operator):
         right_box = right_col.box()
         right_header = right_box.row(align=True)
         right_header.label(
-            text=f"{_T('可用标签池')} (共 {len(all_tabs)} 项 · 待归档 {len(unassigned_tabs)} 项)",
+            text=f"{_T('可用标签池')} (共 {len(visible_all_tabs)} 项 · 待归档 {len(unassigned_tabs)} 项)",
             icon="LAYER_USED"
         )
 
-        # 搜索过滤输入框与一键清空 +「仅看未归类」过滤切换按钮
+        # 搜索过滤输入框与一键清空
         search_row = right_box.row(align=True)
         search_row.prop(settings, "search_query", text="", icon="VIEWZOOM")
         if settings.search_query:
             search_row.operator("m8.npanel_clear_search", text="", icon="X")
-        search_row.prop(settings, "filter_unassigned_only", text=_T("仅看未归类"), toggle=True, icon="FILTER")
+
+        # 3 个多维精准过滤切换按钮：[未归类] [当前可见] [仅插件]
+        filter_row = right_box.row(align=True)
+        filter_row.prop(settings, "filter_unassigned_only", text=_T("未归类"), toggle=True, icon="FILTER")
+        filter_row.prop(settings, "filter_live_only", text=_T("当前可见"), toggle=True, icon="RESTRICT_VIEW_OFF")
+        filter_row.prop(settings, "filter_addons_only", text=_T("仅插件"), toggle=True, icon="PACKAGE")
 
         # 当存在未归类标签且当前选中分类时，提供醒目的「一键收纳未归类」快捷横条（精简文案避免裁切）
         if cur_cat and unassigned_tabs:
@@ -289,7 +313,7 @@ class M8_OT_NPanelOpenManager(bpy.types.Operator):
 
         pool_col = right_box.column(align=True)
         added_count = 0
-        for t in all_tabs:
+        for t in visible_all_tabs:
             canon_t = classifier.resolve_canonical_tab(t)
             # 已在当前选中分类中的子标签，不在右侧池重复显示（已在中栏展示）
             if t in cat_tabs_set or (canon_t and canon_t in cat_tabs_set):
@@ -302,21 +326,41 @@ class M8_OT_NPanelOpenManager(bpy.types.Operator):
             if settings.filter_unassigned_only and is_assigned:
                 continue
 
+            # 获取标签来源特征与视口可见性
+            badge_text, is_addon = core.get_tab_origin_badge(t, space_type=st)
+            is_live = core.is_tab_live(t, context, space_type=st)
+
             display_label = classifier.get_tab_display_label(t)
-            match_str = f"{t} {display_label}".lower()
+            match_str = f"{t} {display_label} {badge_text}".lower()
             if search_q and search_q not in match_str:
                 continue
 
-            pool_row = pool_col.row(align=True)
-            split_r = pool_row.split(factor=0.82, align=True)
+            # 确定行图标
+            if is_assigned:
+                icon_name = "CHECKMARK"
+            elif not is_addon:
+                icon_name = "BLENDER"
+            elif not is_live:
+                icon_name = "RESTRICT_VIEW_ON"
+            else:
+                icon_name = "BOOKMARKS"
+
+            # 格式化展示文本：标签名 + 来源/分类标记
             if is_assigned:
                 if len(cats_for_t) == 1:
                     c_badge = f"[{cats_for_t[0]}]"
                 else:
                     c_badge = f"[{_T('已在')} {len(cats_for_t)} {_T('个分类')}]"
-                split_r.label(text=f"{display_label} {c_badge}", translate=False, icon="CHECKMARK")
+                full_label = f"{display_label} {c_badge} · {badge_text}"
+            else:
+                full_label = f"{display_label}  [{badge_text}]"
 
-                btn_row = split_r.row(align=True)
+            pool_row = pool_col.row(align=True)
+            split_r = pool_row.split(factor=0.82, align=True)
+            split_r.label(text=full_label, translate=False, icon=icon_name)
+
+            btn_row = split_r.row(align=True)
+            if is_assigned:
                 # 1. [+] 添加（支持多分类重复添加/共享引用）
                 add_op = btn_row.operator("m8.npanel_add_tab_to_category", text="", icon="ADD")
                 add_op.tab_name = t
@@ -329,10 +373,7 @@ class M8_OT_NPanelOpenManager(bpy.types.Operator):
                 trans_op.space_type = st
                 trans_op.move_from_other = True
             else:
-                # 未归类标签：仅显示纯净标签名，彻底剔除冗余重复的 "[未归类]" 文本，绝不裁剪
-                split_r.label(text=display_label, translate=False, icon="BOOKMARKS")
-
-                btn_row = split_r.row(align=True)
+                # 未归类标签
                 add_op = btn_row.operator("m8.npanel_add_tab_to_category", text="", icon="ADD")
                 add_op.tab_name = t
                 add_op.space_type = st
@@ -345,7 +386,13 @@ class M8_OT_NPanelOpenManager(bpy.types.Operator):
                 break
 
         if added_count == 0:
-            if settings.filter_unassigned_only:
+            if settings.filter_live_only and settings.filter_addons_only:
+                pool_col.label(text=_T("当前模式下暂无可见的第三方插件标签"), icon="INFO")
+            elif settings.filter_live_only:
+                pool_col.label(text=_T("当前模式下暂无物理渲染中的可见标签"), icon="INFO")
+            elif settings.filter_addons_only:
+                pool_col.label(text=_T("未检测到其他第三方插件标签"), icon="INFO")
+            elif settings.filter_unassigned_only:
                 pool_col.label(text=_T("所有可用标签均已完成归类！"), icon="CHECKMARK")
             else:
                 pool_col.label(text=_T("暂无匹配的标签"), icon="CHECKMARK")

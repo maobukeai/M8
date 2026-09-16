@@ -67,7 +67,7 @@ def serialize_all_settings(settings) -> dict:
 
 def deserialize_all_settings(settings, data: dict):
     """反序列化配置至 settings（向下兼容 1.0 格式与 2.0 多编辑器格式）"""
-    settings.enabled = data.get("enabled", True)
+    settings.enabled = data.get("enabled", False)
     settings.show_subtabs_header = data.get("show_subtabs_header", False)
     settings.workspace_auto_switch = data.get("workspace_auto_switch", True)
     raw_max = data.get("max_tabs_per_row", "AUTO")
@@ -152,6 +152,18 @@ def deserialize_all_settings(settings, data: dict):
                 t.is_active = (i == 0)
 
 
+def clear_presets_on_disk() -> bool:
+    """彻底删除磁盘持久化预设文件，杜绝恢复默认后旧配置幽灵复活"""
+    try:
+        path = get_preset_filepath()
+        if os.path.isfile(path):
+            os.remove(path)
+        return True
+    except Exception as e:
+        print(f"[M8 NPanel] Failed to clear presets on disk: {e}")
+        return False
+
+
 def save_presets_to_disk(context) -> bool:
     """自动持久化用户分类预设至磁盘"""
     if not context or not hasattr(context, "scene"):
@@ -159,9 +171,11 @@ def save_presets_to_disk(context) -> bool:
     settings = getattr(context.scene, "m8_npanel", None)
     if not settings:
         return False
-    # 若没有任何分类且未启用，无需写空文件覆盖已有配置
-    if not settings.categories and not settings.categories_image_editor and not settings.categories_node_editor:
-        return False
+
+    # 若没有任何分类且未启用，直接清空/删除磁盘预设文件，防止幽灵复活
+    if not settings.categories and not settings.categories_image_editor and not settings.categories_node_editor and not settings.enabled:
+        clear_presets_on_disk()
+        return True
 
     try:
         path = get_preset_filepath()

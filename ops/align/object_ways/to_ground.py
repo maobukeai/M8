@@ -125,29 +125,53 @@ def get_count_bound_box(obj: bpy.types.Object) -> list[Vector]:
     # 计算变换后的边框并找到最小的Z轴
     mat = obj.matrix_world
     if obj.type in VALID_OBJ_TYPE:
+        data = None
         if obj.type == "MESH":
             data = vertices_co(obj, matrix=mat)
         else:
-            data = np.array(bound_to_tuple(obj, matrix=mat))
-        min_c = np.min(data, axis=0)
-        max_c = np.max(data, axis=0)
-        return from_vector_get_bound_box([Vector(min_c), Vector(max_c)])
-    bound_box = [mat @ Vector(b) for b in obj.bound_box]
-    return bound_box
+            bb = bound_to_tuple(obj, matrix=mat)
+            if bb:
+                data = np.array(bb)
+        if data is not None and getattr(data, "size", 0) >= 3:
+            try:
+                data = data.reshape((-1, 3))
+                min_c = np.min(data, axis=0)
+                max_c = np.max(data, axis=0)
+                return from_vector_get_bound_box([Vector(min_c), Vector(max_c)])
+            except Exception:
+                pass
+    try:
+        if getattr(obj, "bound_box", None) and len(obj.bound_box) == 8:
+            return [mat @ Vector(b) for b in obj.bound_box]
+    except Exception:
+        pass
+    loc = mat.translation
+    return [loc.copy() for _ in range(8)]
 
 
 def _get_min_z_(vector_list: list[Vector]) -> float:
+    if not vector_list:
+        return 0.0
     return min([c.z for c in vector_list])
 
 
 def _get_bound_box_center_point_(bound_box: list[Vector]) -> Vector:
     """获取中点"""
-    return (Vector(bound_box[0]) + Vector(bound_box[7])) / 2  # 中点
+    if not bound_box:
+        return Vector((0, 0, 0))
+    if len(bound_box) >= 8:
+        return (Vector(bound_box[0]) + Vector(bound_box[7])) / 2  # 中点
+    return sum(bound_box, Vector()) / len(bound_box)
 
 
 def _get_bound_box_bottom_points_(bound_box: list[Vector]) -> list[Vector]:
     """获取物体边界框底部的5个点"""
-    a = Vector(bound_box[0])
-    b = Vector(bound_box[7])
-    m = (a + b) / 2  # 中点
-    return [a, b, Vector(bound_box[3]), Vector(bound_box[4]), m]
+    if not bound_box:
+        return [Vector((0, 0, 0))] * 5
+    if len(bound_box) >= 8:
+        a = Vector(bound_box[0])
+        b = Vector(bound_box[7])
+        m = (a + b) / 2  # 中点
+        return [a, b, Vector(bound_box[3]), Vector(bound_box[4]), m]
+    p = bound_box[0]
+    return [p.copy() for _ in range(5)]

@@ -30,6 +30,11 @@ def from_bmesh_get_selected_max_min_location(bm: BMesh, matrix: Matrix) -> tuple
     return (max, min)
     """
     select_verts = [matrix @ v.co for v in bm.verts if v.select]
+    if not select_verts:
+        select_verts = [matrix @ v.co for v in bm.verts]
+    if not select_verts:
+        loc = matrix.translation
+        return loc.copy(), loc.copy()
     return Vector(np.max(select_verts, axis=0)), Vector(np.min(select_verts, axis=0))
 
 

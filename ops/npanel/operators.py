@@ -89,6 +89,18 @@ class M8_OT_NPanelSmartAutoGroup(bpy.types.Operator):
             self.report({"WARNING"}, _T("未扫描到有效的第三方侧边栏标签"))
             return {"CANCELLED"}
 
+        # 若开启「仅当前可见」，严格过滤掉当前模式未渲染的休眠标签
+        if settings.filter_live_only:
+            all_tabs = [t for t in all_tabs if core.is_tab_live(t, context, space_type=st)]
+
+        # 若开启「仅第三方插件」，过滤掉系统原生基础标签 (Item, Tool, View, Animation)
+        if settings.filter_addons_only:
+            all_tabs = [t for t in all_tabs if core.get_tab_origin_badge(t, space_type=st)[1]]
+
+        if not all_tabs:
+            self.report({"WARNING"}, _T("当前过滤条件下没有可归档的活跃标签"))
+            return {"CANCELLED"}
+
         # 智能归档计算
         grouped = classifier.auto_group_tabs(all_tabs, tab_modules, space_type=st)
         if not grouped:
@@ -132,12 +144,14 @@ class M8_OT_NPanelRestoreDefault(bpy.types.Operator):
 
     def execute(self, context):
         settings = getattr(context.scene, "m8_npanel", None)
-        st = self.space_type or (settings.active_space_type if settings else "VIEW_3D")
         if settings:
             settings.enabled = False
-            categories = settings.get_categories(st)
-            categories.clear()
-            backup.save_presets_to_disk(context)
+            # 清理全空间分类数据，彻底还原
+            settings.categories.clear()
+            settings.categories_image_editor.clear()
+            settings.categories_node_editor.clear()
+            # 彻底擦除磁盘持久化文件，严防幽灵配置复活
+            backup.clear_presets_on_disk()
 
         PanelStateManager.restore_all()
         _tag_redraw_safely(context)
@@ -395,6 +409,11 @@ class M8_OT_NPanelAddAllUnassigned(bpy.types.Operator):
                     assigned_set.add(canon)
 
         all_tabs, _ = core.scan_all_tabs(st)
+        if settings.filter_live_only:
+            all_tabs = [t for t in all_tabs if core.is_tab_live(t, context, space_type=st)]
+        if settings.filter_addons_only:
+            all_tabs = [t for t in all_tabs if core.get_tab_origin_badge(t, space_type=st)[1]]
+
         added_count = 0
         for t in all_tabs:
             canon = classifier.resolve_canonical_tab(t)

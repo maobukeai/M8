@@ -194,6 +194,140 @@ def scan_all_tabs(space_type: str = "VIEW_3D") -> Tuple[List[str], Dict[str, str
     return sorted_tabs, tab_modules
 
 
+def is_panel_live_in_context(panel: Type[bpy.types.Panel], context: Optional[bpy.types.Context] = None) -> bool:
+    """
+    检测面板在当前上下文（视口模式、选中项、激活状态）下是否处于物理渲染/可见状态。
+    结合 bl_region_type、bl_context 与 poll(context) 多重裁决。
+    """
+    if getattr(panel, "bl_region_type", None) != "UI":
+        return False
+
+    if context is None:
+        context = getattr(bpy, "context", None)
+    if not context:
+        return True
+
+    # 1. 模式限制 (bl_context) 检查
+    bl_ctx = getattr(panel, "bl_context", None)
+    if bl_ctx:
+        mode = getattr(context, "mode", "OBJECT")
+        mode_map = {
+            "objectmode": ["OBJECT"],
+            "mesh_edit": ["EDIT_MESH"],
+            "curve_edit": ["EDIT_CURVE"],
+            "armature_edit": ["EDIT_ARMATURE"],
+            "posemode": ["POSE"],
+            "sculpt": ["SCULPT"],
+            "paint_weight": ["PAINT_WEIGHT"],
+            "paint_vertex": ["PAINT_VERTEX"],
+            "paint_texture": ["PAINT_TEXTURE"],
+            "particle": ["PARTICLE_EDIT"],
+        }
+        allowed = mode_map.get(bl_ctx, [bl_ctx])
+        if mode not in allowed:
+            return False
+
+    # 2. poll(context) 检查
+    poll_fn = getattr(panel, "poll", None)
+    if poll_fn:
+        try:
+            if not poll_fn(context):
+                return False
+        except Exception:
+            return False
+
+    return True
+
+
+def is_tab_live(tab_name: str, context: Optional[bpy.types.Context] = None, space_type: str = "VIEW_3D") -> bool:
+    """
+    检测指定标签在当前视口模式下是否物理渲染（只要该标签下有任意一个面板处于活跃可见状态即为可见）
+    """
+    canon = classifier.resolve_canonical_tab(tab_name)
+    panels = scan_panels(space_type)
+    for p in panels:
+        p_tab = classifier.resolve_canonical_tab(get_panel_original_tab(p))
+        if p_tab == canon:
+            if is_panel_live_in_context(p, context):
+                return True
+    return False
+
+
+_ADDON_TITLE_CACHE: Dict[str, str] = {}
+
+
+def get_tab_origin_badge(tab_name: str, space_type: str = "VIEW_3D") -> Tuple[str, bool]:
+    """
+    分析指定标签的真实插件来源与工作模式特征。
+    返回: (badge_text, is_addon)
+    例如: ("Bool Tool / LoopTools · 仅编辑模式", True)
+          ("HardOps 内置模块", True)
+          ("Rigify · 需骨骼/姿态模式", True)
+          ("Blender 原生系统", False)
+    """
+    global _ADDON_TITLE_CACHE
+    if not _ADDON_TITLE_CACHE:
+        try:
+            import addon_utils
+            for mod in addon_utils.modules():
+                m_name = getattr(mod, "__name__", "")
+                info = addon_utils.module_bl_info(mod)
+                title = info.get("name", m_name)
+                _ADDON_TITLE_CACHE[m_name] = title
+        except Exception:
+            pass
+
+    canon = classifier.resolve_canonical_tab(tab_name)
+    panels = scan_panels(space_type)
+    mods: Set[str] = set()
+    contexts: Set[str] = set()
+
+    for p in panels:
+        p_tab = classifier.resolve_canonical_tab(get_panel_original_tab(p))
+        if p_tab == canon:
+            mod = get_panel_module(p)
+            if mod:
+                mods.add(mod)
+            bl_ctx = getattr(p, "bl_context", None)
+            if bl_ctx:
+                contexts.add(bl_ctx)
+
+    # 1. 常见知名插件与内置子模块特异性指纹
+    if canon == "Hardflow":
+        return _T("HardOps 内置模块"), True
+    if canon.lower() == "rigify":
+        return _T("Rigify · 需骨骼/姿态模式"), True
+    if canon == "Edit":
+        return _T("Bool Tool / LoopTools · 仅编辑模式"), True
+
+    # 2. 纯系统原生面板
+    if not mods or mods == {"bl_ui"}:
+        return _T("Blender 原生系统"), False
+
+    # 3. 提取插件友好展示名
+    addon_names: List[str] = []
+    for m in sorted(list(mods)):
+        if m == "bl_ui":
+            continue
+        friendly = _ADDON_TITLE_CACHE.get(m, "")
+        if not friendly:
+            clean = m.split(".")[-1]
+            friendly = clean.replace("_", " ").title()
+        if friendly not in addon_names:
+            addon_names.append(friendly)
+
+    ctx_suffix = ""
+    if "mesh_edit" in contexts and len(contexts) == 1:
+        ctx_suffix = f" · {_T('仅编辑模式')}"
+    elif "posemode" in contexts and len(contexts) == 1:
+        ctx_suffix = f" · {_T('仅姿态模式')}"
+    elif "armature_edit" in contexts and len(contexts) == 1:
+        ctx_suffix = f" · {_T('仅骨骼编辑模式')}"
+
+    addon_str = "/".join(addon_names[:2]) if addon_names else _T("第三方扩展")
+    return f"{addon_str}{ctx_suffix}", True
+
+
 def get_panel_idname(panel: Type[bpy.types.Panel]) -> str:
     """获取面板的注册 ID 名称（优先 bl_idname，其次 __name__）"""
     return getattr(panel, "bl_idname", None) or getattr(panel, "__name__", "")

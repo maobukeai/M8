@@ -280,7 +280,10 @@ from .ops.align.align_uv import AlignUV
 from .ops.mesh.relax import Relax
 from .ops.mesh.straighten import Straighten
 from .ops.mesh.equal_edge_length import EqualEdgeLength
-from .ops.mesh.uv_checker import M8_OT_ToggleUVChecker
+from .ops.mesh.uv_checker import (
+    M8_OT_ToggleUVChecker,
+    M8_OT_RestoreUVChecker,
+)
 from .ops.material.material_ops import (
     M8_OT_MaterialNew,
     M8_OT_MaterialMakeSingleUser,
@@ -538,6 +541,7 @@ CLASSES = [
     Straighten,
     EqualEdgeLength,
     M8_OT_ToggleUVChecker,
+    M8_OT_RestoreUVChecker,
     OriginToBottom,
     OriginToCursor,
     OriginToActive,

@@ -17,8 +17,8 @@ def get_manifest_version():
         match = re.search(r'^version\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
         if match:
             return match.group(1)
-    return "3.8.6"
-
+    return "3.8.7"
+ 
 EXCLUDE_DIRS = {
     ".git",
     ".github",
@@ -55,13 +55,12 @@ def update_version_json(version, sha256_hash):
         "download_url": f"https://github.com/maobukeai/M8/releases/download/v{version}/M8.zip",
         "sha256": sha256_hash,
         "changelog": (
-            f"### M8 全能工具箱 v{version} 重大版本发布\n\n"
-            "1. 🚀 重磅推出【智能硬表面法向传递系统 (Smart Normal Transfer)】：针对复杂硬表面、凹面板、沉头孔/阶梯孔群等极限工业场景，提供非破坏性、无瑕疵的面拐角法向重投影与自适应修复技术。\n"
-            "2. 💎 拓扑四边面平滑重构引擎：支持 Beauty Quadrangulate 与高密度自适应重构，辅助几何体自动构建极致顺滑的光滑表面，彻底告别三角面拉丝与阴影杂波破面。\n"
-            "3. 🎨 沉头孔与多孔群几何分治算法：智能识别内孔凹壁并排除其影响，使平面/曲面外环法向保持绝对平直挺拔，孔内圆柱侧壁与底面保持垂直平顺。\n"
-            "4. 🌊 边缘平滑羽化 (Feathering) 梯度衰减：首创拓扑测地线距离权重扩散，支持可调式边缘过渡羽化，在消除破面黑斑的同时保留结构锐边。\n"
-            "5. ⚡ 非破坏性工作流与零残留回收：参数即时可调，支持应用烘焙与一键无痕清理，大纲视图辅助集合与物体 100% 洁癖级自动回收。\n"
-            "6. 🌐 全面补齐专业 i18n 英汉双语映射，国际化体验平滑一致；通过 237 个文件语法自检与 34 项硬表面全场景极限自动化测试套件。"
+            f"### M8 全能工具箱 v{version} 发布\n\n"
+            "1. 🚀 智能硬表面法向传递系统 (Smart Normal Transfer) 全面进阶：优化凹凸曲面、沉头孔与多孔群几何分治投影精度，增强软羽化梯度过渡与锐边平滑防护。\n"
+            "2. 💎 UV 棋盘格 (UV Checker) 架构重构：优化材质覆盖管线与动态节点映射机制，提升视图重绘性能与拉伸检测精度。\n"
+            "3. 📂 N 面板管理系统深度调优：增强插件智能分类与识别机制，优化二级标签折叠、图标自选及配置备份导入导出体验。\n"
+            "4. 📐 对齐与测量工具增强：修复复杂局部变换与多物体边界下的接地 (To Ground) 与测量轴向对齐精度。\n"
+            "5. 🌐 全面通过 237 个 Python 文件语法检查与硬表面全场景自动化测试套件。"
         ),
     }
     version_json_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

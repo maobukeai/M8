@@ -50,10 +50,14 @@ class Measure:
 
     @property
     def max_bound_box_point(self) -> Vector:
+        if not self.__bound_box__:
+            return Vector((0, 0, 0))
         return Vector(np.max(self.__bound_box__, axis=0))
 
     @property
     def min_bound_box_point(self) -> Vector:
+        if not self.__bound_box__:
+            return Vector((0, 0, 0))
         return Vector(np.min(self.__bound_box__, axis=0))
 
     @property
@@ -86,10 +90,14 @@ class MeasureObjects:
 
     @property
     def max(self) -> Vector:
+        if not self.__points__:
+            return Vector((0, 0, 0))
         return Vector(np.max(self.__points__, axis=0))
 
     @property
     def min(self) -> Vector:
+        if not self.__points__:
+            return Vector((0, 0, 0))
         return Vector(np.min(self.__points__, axis=0))
 
     @property

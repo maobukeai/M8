@@ -628,8 +628,94 @@ class TestM8NPanel(unittest.TestCase):
         self.assertTrue(tab1.is_active)
         self.assertTrue(tab2.is_active)
 
+    def test_restore_default_and_enabled_toggle_cleanliness(self):
+        """验证恢复默认彻底抹除预设、关闭整理即刻无痕还原、打开开关不自动创建分类"""
+        from M8.ops.npanel import backup
+        import os
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_path = os.path.join(tmp_dir, "m8_npanel_presets.json")
+            with patch.object(backup, "get_preset_filepath", return_value=test_path):
+                # 1. 验证 clear_presets_on_disk 功能
+                with open(test_path, "w", encoding="utf-8") as f:
+                    f.write('{"test": true}')
+                self.assertTrue(os.path.isfile(test_path))
+
+                backup.clear_presets_on_disk()
+                self.assertFalse(os.path.isfile(test_path), "clear_presets_on_disk 应彻底删除磁盘预设文件")
+
+                # 2. 验证 save_presets_to_disk 在空配置且未启用时自动删除磁盘文件
+                with open(test_path, "w", encoding="utf-8") as f:
+                    f.write('{"test": true}')
+                mock_empty_settings = type("MockEmptySettings", (), {
+                    "enabled": False,
+                    "categories": [],
+                    "categories_image_editor": [],
+                    "categories_node_editor": [],
+                })()
+                mock_ctx = type("MockContext", (), {
+                    "scene": type("MockScene", (), {"m8_npanel": mock_empty_settings})()
+                })()
+                backup.save_presets_to_disk(mock_ctx)
+                self.assertFalse(os.path.isfile(test_path), "空配置且未启用时调用 save_presets_to_disk 应安全清理磁盘预设")
+
+        # 3. 验证 deserialize_all_settings 默认 enabled 为 False
+        mock_list = type("MockCol", (), {"clear": lambda self: None})()
+        mock_target = type("MockTargetSettings", (), {
+            "enabled": True,
+            "categories": mock_list,
+            "categories_image_editor": mock_list,
+            "categories_node_editor": mock_list,
+        })()
+        backup.deserialize_all_settings(mock_target, {})
+        self.assertFalse(mock_target.enabled, "未声明 enabled 时应默认为 False，严禁默认开启")
+
+    def test_panel_live_detection_and_origin_badges(self):
+        """验证面板实时可见性裁决与插件来源指纹标注引擎"""
+        class MockEditPanel:
+            bl_region_type = "UI"
+            bl_context = "mesh_edit"
+            bl_category = "Edit"
+
+            @classmethod
+            def poll(cls, context):
+                return True
+
+        class MockObjectPanel:
+            bl_region_type = "UI"
+            bl_context = "objectmode"
+            bl_category = "Item"
+
+            @classmethod
+            def poll(cls, context):
+                return getattr(context, "has_selection", False)
+
+        ctx_obj = type("MockCtx", (), {"mode": "OBJECT", "has_selection": False})()
+        ctx_edit = type("MockCtx", (), {"mode": "EDIT_MESH", "has_selection": True})()
+
+        # 在 OBJECT 模式下，mesh_edit 面板必为 False
+        self.assertFalse(core.is_panel_live_in_context(MockEditPanel, ctx_obj))
+        # 在 EDIT_MESH 模式下，mesh_edit 面板为 True
+        self.assertTrue(core.is_panel_live_in_context(MockEditPanel, ctx_edit))
+
+        # 在无选中物体时，MockObjectPanel poll 为 False
+        self.assertFalse(core.is_panel_live_in_context(MockObjectPanel, ctx_obj))
+
+        # 测试来源标注特异性匹配
+        badge, is_addon = core.get_tab_origin_badge("Edit")
+        self.assertIn("LoopTools", badge)
+        self.assertTrue(is_addon)
+
+        badge_hops, is_hops = core.get_tab_origin_badge("Hardflow")
+        self.assertIn("HardOps", badge_hops)
+        self.assertTrue(is_hops)
+
+        badge_rig, is_rig = core.get_tab_origin_badge("Rigify")
+        self.assertIn("Rigify", badge_rig)
+        self.assertTrue(is_rig)
+
 
 if __name__ == "__main__":
     unittest.main(argv=[sys.argv[0]])
-
-
