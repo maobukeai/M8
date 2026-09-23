@@ -1,12 +1,18 @@
 schema_version = "1.0.0"
 
 id = "M8"
-version = "3.8.7"
+version = "3.8.8"
 name = "M8 Toolbox"
-tagline = "Efficiency is life in complex 3D modeling projects. M8 is not just a toolbox, it's the lubricant for your workflow."
+tagline = "Essential workflow enhancer and modeling toolbox for Blender"
 maintainer = "MaobuKawaii"
 type = "add-on"
 license = ["SPDX:GPL-2.0-or-later"]
 
 # 最低支持的 Blender 版本（扩展系统要求 4.2.0 起步）
 blender_version_min = "4.2.0"
+
+[permissions]
+network = "Check updates and connect to AI services"
+files = "Import and export FBX presets and load textures"
+clipboard = "Copy diagnostics reports and AI code snippets"
+

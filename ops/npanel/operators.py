@@ -89,7 +89,13 @@ class M8_OT_NPanelSmartAutoGroup(bpy.types.Operator):
             self.report({"WARNING"}, _T("未扫描到有效的第三方侧边栏标签"))
             return {"CANCELLED"}
 
-        # 若开启「仅当前可见」，严格过滤掉当前模式未渲染的休眠标签
+        # 排除系统保留、M8 自身标签与大分类名称
+        all_tabs = [
+            t for t in all_tabs
+            if t.lower() not in ("m8", "misc") and not classifier.is_system_excluded(t) and not classifier.is_category_tab_name(t)
+        ]
+
+        # 若开启「仅当前可见」，严格过滤掉当前视口模式未渲染的休眠标签（结合真实视口 Context Override）
         if settings.filter_live_only:
             all_tabs = [t for t in all_tabs if core.is_tab_live(t, context, space_type=st)]
 
@@ -318,6 +324,10 @@ class M8_OT_NPanelAddTabToCategory(bpy.types.Operator):
         st = self.space_type or settings.active_space_type
         categories = settings.get_categories(st)
 
+        # 严禁将大分类标题或系统保留名称添加为子标签
+        if not self.tab_name or classifier.is_category_tab_name(self.tab_name) or classifier.is_system_excluded(self.tab_name):
+            return {"CANCELLED"}
+
         # 如果当前尚无任何分类，自动创建第一个分类并选中
         if not categories:
             cat = categories.add()
@@ -363,9 +373,9 @@ class M8_OT_NPanelAddTabToCategory(bpy.types.Operator):
 
         disp = classifier.get_tab_display_label(self.tab_name)
         if self.move_from_other:
-            self.report({"INFO"}, _T(f"已将【{disp}】转移至【{cat.name}】！"))
+            self.report({"INFO"}, _T("已将【%s】转移至【%s】！") % (disp, cat.name))
         else:
-            self.report({"INFO"}, _T(f"已将【{disp}】添加至【{cat.name}】！"))
+            self.report({"INFO"}, _T("已将【%s】添加至【%s】！") % (disp, cat.name))
         return {"FINISHED"}
 
 
@@ -435,7 +445,7 @@ class M8_OT_NPanelAddAllUnassigned(bpy.types.Operator):
         _tag_redraw_safely(context)
 
         if added_count > 0:
-            self.report({"INFO"}, _T(f"已成功将 {added_count} 个未归类标签收纳至【{cur_cat.name}】！"))
+            self.report({"INFO"}, _T("已成功将 %d 个未归类标签收纳至【%s】！") % (added_count, cur_cat.name))
         else:
             self.report({"INFO"}, _T("当前没有待归类的独立标签。"))
         return {"FINISHED"}
@@ -708,7 +718,7 @@ class M8_OT_NPanelClearCategoryTabs(bpy.types.Operator):
         if settings.enabled:
             core.apply_organization(context, space_type=st)
         _tag_redraw_safely(context)
-        self.report({"INFO"}, _T(f"已清空分类【{self.category_name}】的所有子标签"))
+        self.report({"INFO"}, _T("已清空分类【%s】的所有子标签") % self.category_name)
         return {"FINISHED"}
 
 

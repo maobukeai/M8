@@ -629,6 +629,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
     delete_pie_bottom_right: bpy.props.EnumProperty(items=_delete_pie_items, name="Bottom-Right", default=9)
     has_migrated_delete_pie: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
     has_migrated_unity_scale: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
+    has_migrated_unity_scale_v2: bpy.props.BoolProperty(default=False, options={'HIDDEN'})
 
 
     switch_mode_smart_focus: bpy.props.BoolProperty(
@@ -2223,7 +2224,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
             box_models = right_box.box()
             header_models = box_models.row(align=True)
             models_list = [m.strip() for m in cur_p.models.split(",") if m.strip()]
-            header_models.label(text=f"{_T('已配置模型')} ({len(models_list)} 个):", icon=_ICON("CONSOLE"))
+            header_models.label(text=_T("已配置模型 (%d 个):") % len(models_list), icon=_ICON("CONSOLE"))
 
             if getattr(cur_p, "is_fetching_models", False):
                 header_models.label(text=_T("⏳ 正在拉取模型中..."), icon=_ICON("TIME"))
@@ -2246,7 +2247,7 @@ class SIZE_TOOL_Preferences(bpy.types.AddonPreferences):
                 if missing_items:
                     f_row2 = f_col.row(align=True)
                     f_row2.scale_y = 1.15
-                    f_op = f_row2.operator("m8.ai_add_all_fetched_models", text=f"{_T('【一键全部加入列表】')} (+{len(missing_items)} 个)", icon=_ICON("ADD"))
+                    f_op = f_row2.operator("m8.ai_add_all_fetched_models", text=_T("【一键全部加入列表】 (+%d 个)") % len(missing_items), icon=_ICON("ADD"))
                     f_op.provider_id = cur_p.id
             elif getattr(cur_p, "fetch_status", "") == "ERROR":
                 f_box = box_models.box()

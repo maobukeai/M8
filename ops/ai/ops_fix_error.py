@@ -124,39 +124,55 @@ class M8_OT_AI_FixError(bpy.types.Operator):
         tag_redraw_all_areas({'TEXT_EDITOR'})
 
         def _on_success(raw_content):
-            ai_props.is_generating = False
-            ai_props.status_message = _T("修复完成！已更新脚本")
-            ai_props.last_error = ""
-
-            fixed_code = clean_markdown_code(raw_content)
-            if not fixed_code:
-                fixed_code = raw_content
-
-            # 更新助手气泡
-            a_msg.is_thinking_active = False
-            a_msg.show_thinking = False
-            explanation, extracted_code = split_markdown_response(raw_content)
-            a_msg.content = explanation or raw_content
-            a_msg.code = fixed_code or extracted_code
-
-            # 同步写入文本编辑器
+            from . import ops_generate as _gen
+            if _gen._is_unregistered:
+                return
             try:
-                edit_text.clear()
-                edit_text.write(fixed_code)
+                ai_props.is_generating = False
+                ai_props.status_message = _T("修复完成！已更新脚本")
+                ai_props.last_error = ""
+
+                fixed_code = clean_markdown_code(raw_content)
+                if not fixed_code:
+                    fixed_code = raw_content
+
+                # 更新助手气泡
+                a_msg.is_thinking_active = False
+                a_msg.show_thinking = False
+                explanation, extracted_code = split_markdown_response(raw_content)
+                a_msg.content = explanation or raw_content
+                a_msg.code = fixed_code or extracted_code
+
+                # 同步写入文本编辑器
+                try:
+                    edit_text.clear()
+                    edit_text.write(fixed_code)
+                except Exception:
+                    pass
+
+                tag_redraw_all_areas({'TEXT_EDITOR', 'VIEW_3D', 'OUTLINER'})
+            except (ReferenceError, AttributeError):
+                pass
             except Exception:
                 pass
 
-            tag_redraw_all_areas({'TEXT_EDITOR', 'VIEW_3D', 'OUTLINER'})
-
         def _on_error(err):
-            ai_props.is_generating = False
-            ai_props.status_message = f"{_T('修复请求失败')}: {err}"
-            a_msg.is_thinking_active = False
-            a_msg.show_thinking = False
-            a_msg.show_full_thinking = False
-            a_msg.content = f"❌ 修复请求失败: {err}"
-            a_msg.error_msg = str(err)
-            tag_redraw_all_areas({'TEXT_EDITOR'})
+            from . import ops_generate as _gen
+            if _gen._is_unregistered:
+                return
+            try:
+                ai_props.is_generating = False
+                ai_props.status_message = f"{_T('修复请求失败')}: {err}"
+                a_msg.is_thinking_active = False
+                a_msg.show_thinking = False
+                a_msg.show_full_thinking = False
+                a_msg.content = f"❌ 修复请求失败: {err}"
+                a_msg.error_msg = str(err)
+                tag_redraw_all_areas({'TEXT_EDITOR'})
+            except (ReferenceError, AttributeError):
+                pass
+            except Exception:
+                pass
 
         request_chat_completion_async(
             base_url=target_provider.base_url,

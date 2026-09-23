@@ -285,7 +285,7 @@ class M8_OT_NPanelOpenManager(bpy.types.Operator):
         right_box = right_col.box()
         right_header = right_box.row(align=True)
         right_header.label(
-            text=f"{_T('可用标签池')} (共 {len(visible_all_tabs)} 项 · 待归档 {len(unassigned_tabs)} 项)",
+            text=_T("可用标签池 (共 %d 项 · 待归档 %d 项)") % (len(visible_all_tabs), len(unassigned_tabs)),
             icon="LAYER_USED"
         )
 

@@ -208,7 +208,11 @@ class MirrorArmature:
             tb.tail = t
             if is_new:
                 tb.roll = src.roll
-                tb.envelope = src.envelope
+                tb.envelope_distance = src.envelope_distance
+                tb.envelope_weight = src.envelope_weight
+                tb.head_radius = src.head_radius
+                tb.tail_radius = src.tail_radius
+                tb.use_envelope_multiply = src.use_envelope_multiply
 
         for tb, h, t, src, is_new in pairs:
             if not src.parent:

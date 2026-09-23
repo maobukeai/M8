@@ -119,13 +119,29 @@ from .ui.pie.shading import VIEW3D_MT_M8ShadingPie
 from .ui.pie.delete_pie import VIEW3D_MT_M8DeletePie
 from .ui.pie.save import VIEW3D_MT_M8SavePie
 from .ui.pie.edge_property_pie import VIEW3D_MT_M8EdgePropertyPie
-from .ui.pie.normal_pie import VIEW3D_MT_M8NormalPie
+from .ui.pie.normal_pie import (
+    VIEW3D_MT_M8NormalPie,
+    VIEW3D_MT_M8NormalDirectToolsMenu,
+    VIEW3D_MT_M8NormalHistoryMenu,
+)
 from .ops.mesh.normal_transfer import (
     M8_OT_SmartNormalTransfer,
     M8_OT_ApplyNormalTransfer,
     M8_OT_ClearNormalTransfer,
     M8_OT_FlipNormalTransfer,
     M8_OT_ClearCustomNormals,
+    M8_OT_SaveNormalSnapshot,
+    M8_OT_RestoreNormalSnapshot,
+    M8_OT_ClearNormalSnapshot,
+    M8_OT_CreateGeometryStash,
+    M8_OT_TransferFromStash,
+    M8_OT_ClearGeometryStash,
+    M8_OT_TransferFromTarget,
+    M8_OT_PointNormalsToCursor,
+    M8_OT_ToggleSplitNormals,
+    M8_OT_FlattenNormals,
+    M8_OT_AlignNormalsToAxis,
+    M8_OT_AverageNormals,
 )
 from .ui.pie.switch_editor_pie import VIEW3D_MT_M8SwitchEditorPie, M8_OT_SwitchEditorArea
 from .ui.pie.align_generic import M8_OT_AlignPieContextCall
@@ -585,7 +601,21 @@ CLASSES = [
     M8_OT_ClearNormalTransfer,
     M8_OT_FlipNormalTransfer,
     M8_OT_ClearCustomNormals,
+    M8_OT_SaveNormalSnapshot,
+    M8_OT_RestoreNormalSnapshot,
+    M8_OT_ClearNormalSnapshot,
+    M8_OT_CreateGeometryStash,
+    M8_OT_TransferFromStash,
+    M8_OT_ClearGeometryStash,
+    M8_OT_TransferFromTarget,
+    M8_OT_PointNormalsToCursor,
+    M8_OT_ToggleSplitNormals,
+    M8_OT_FlattenNormals,
+    M8_OT_AlignNormalsToAxis,
+    M8_OT_AverageNormals,
     VIEW3D_MT_M8NormalPie,
+    VIEW3D_MT_M8NormalDirectToolsMenu,
+    VIEW3D_MT_M8NormalHistoryMenu,
 ]
 
 CLASSES.extend(baking_renaming_classes)
@@ -921,11 +951,12 @@ def register():
         except Exception as e:
             logger.error(f"Failed to migrate double click select group preference: {e}", exc_info=True)
 
-    if prefs and not getattr(prefs, "has_migrated_unity_scale", False):
+    if prefs and not getattr(prefs, "has_migrated_unity_scale_v2", False):
         try:
-            if getattr(prefs, "unity_fbx_global_scale", 1.0) == 100.0:
+            if abs(getattr(prefs, "unity_fbx_global_scale", 1.0) - 100.0) < 0.001:
                 prefs.unity_fbx_global_scale = 1.0
             prefs.has_migrated_unity_scale = True
+            prefs.has_migrated_unity_scale_v2 = True
         except Exception as e:
             logger.error(f"Failed to migrate unity fbx scale preference: {e}", exc_info=True)
 
@@ -1026,12 +1057,6 @@ def register():
                 register_auto_pack()
             else:
                 unregister_auto_pack()
-
-            # Ensure Unity FBX global scale default is 100.0 if somehow stuck at 1.0 (migration fix)
-            if hasattr(prefs, "unity_fbx_global_scale"):
-                current_val = getattr(prefs, "unity_fbx_global_scale", 1.0)
-                if abs(current_val - 1.0) < 0.001:
-                    prefs.unity_fbx_global_scale = 100.0
         except Exception:
             pass
             
@@ -1134,6 +1159,12 @@ def unregister():
         state.unregister()
     except Exception as e:
         logger.debug(f"Failed to unregister state properties: {e}")
+    try:
+        from .ops.ai.ops_generate import cleanup_ai_state
+        cleanup_ai_state()
+    except Exception as e:
+        logger.debug(f"Failed to cleanup AI state on unregister: {e}")
+
     try:
         unregister_scene_properties()
     except Exception as e:

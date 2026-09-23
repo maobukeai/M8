@@ -457,11 +457,12 @@ def _get_m8_addon_prefs():
     root_pkg = ".".join(__package__.split(".")[:3]) if (__package__ or "").startswith("bl_ext") else (__package__ or "").split(".")[0]
     addon = bpy.context.preferences.addons.get(root_pkg)
     prefs = addon.preferences if addon else None
-    if prefs and not getattr(prefs, "has_migrated_unity_scale", False):
+    if prefs and not getattr(prefs, "has_migrated_unity_scale_v2", False):
         try:
-            if getattr(prefs, "unity_fbx_global_scale", 1.0) == 100.0:
+            if abs(getattr(prefs, "unity_fbx_global_scale", 1.0) - 100.0) < 0.001:
                 prefs.unity_fbx_global_scale = 1.0
             prefs.has_migrated_unity_scale = True
+            prefs.has_migrated_unity_scale_v2 = True
         except Exception:
             pass
     return prefs

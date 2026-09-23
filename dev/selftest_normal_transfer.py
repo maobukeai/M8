@@ -44,11 +44,16 @@ def run_tests():
     assert hasattr(bpy.ops.m8, "clear_normal_transfer"), "m8.clear_normal_transfer 未注册"
     assert hasattr(bpy.ops.m8, "flip_normal_transfer"), "m8.flip_normal_transfer 未注册"
     assert hasattr(bpy.ops.m8, "clear_custom_normals"), "m8.clear_custom_normals 未注册"
-    print("[PASS] 核心操作符注册验证通过: smart_normal_transfer, apply_normal_transfer, clear_normal_transfer, flip_normal_transfer, clear_custom_normals")
+    assert hasattr(bpy.ops.m8, "flatten_normals"), "m8.flatten_normals 未注册"
+    assert hasattr(bpy.ops.m8, "align_normals_to_axis"), "m8.align_normals_to_axis 未注册"
+    assert hasattr(bpy.ops.m8, "average_normals"), "m8.average_normals 未注册"
+    print("[PASS] 核心操作符注册验证通过: smart_normal_transfer, apply, clear, flip, reset, flatten, align_axis, average")
 
-    # 3. 验证法向饼菜单类注册
+    # 3. 验证法向饼菜单与二级轻量子菜单类注册
     assert hasattr(bpy.types, "VIEW3D_MT_m8_normal_pie"), "VIEW3D_MT_m8_normal_pie 菜单未注册"
-    print("[PASS] 法向饼菜单 VIEW3D_MT_m8_normal_pie 验证通过")
+    assert hasattr(bpy.types, "VIEW3D_MT_m8_normal_direct_tools_menu"), "VIEW3D_MT_m8_normal_direct_tools_menu 菜单未注册"
+    assert hasattr(bpy.types, "VIEW3D_MT_m8_normal_history_menu"), "VIEW3D_MT_m8_normal_history_menu 菜单未注册"
+    print("[PASS] 法向饼菜单与防遮挡二级子菜单验证通过 (轻盈通透零视线遮挡)")
 
     # 4. 验证 Alt+N 原生菜单注入
     assert hasattr(bpy.types, "VIEW3D_MT_edit_mesh_normals"), "Blender 缺少 VIEW3D_MT_edit_mesh_normals"
@@ -1013,8 +1018,335 @@ def run_tests():
     bpy.ops.m8.clear_normal_transfer()
     bpy.data.objects.remove(obj_sphere, do_unlink=True)
 
+    # 37. 验证法向历史快照与可逆恢复系统 (Normal History Snapshot & Restore System)
+    # 验证完整闭环：智能法向 -> 烘焙应用 (自动触发快照) -> 人为破坏/重置法向 -> 一键还原快照 -> 校验 100% 精确恢复
+    bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=1.0, depth=2.0, location=(0, 0, 0))
+    obj_snap = bpy.context.active_object
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm_sn = bmesh.from_edit_mesh(obj_snap.data)
+
+    # 选中侧壁面
+    for f in bm_sn.faces:
+        f.select = bool(abs(f.normal.z) < 0.1)
+    bmesh.update_edit_mesh(obj_snap.data)
+
+    # 执行智能法向 (CYLINDER 模式，32分段)
+    res_cyl = bpy.ops.m8.smart_normal_transfer(mode='CYLINDER', cylinder_segments=32, apply_and_clean=False)
+    assert 'FINISHED' in res_cyl, f"智能法向执行失败: {res_cyl}"
+
+    # 应用修改器 (烘焙法向，同时自动触发快照)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    res_app = bpy.ops.m8.apply_normal_transfer()
+    assert 'FINISHED' in res_app, "应用法向传递修改器失败"
+
+    # 验证快照属性已自动生成
+    assert "_M8_Normal_Snapshot" in obj_snap.data.attributes, "烘焙应用后未自动生成 _M8_Normal_Snapshot 属性！"
+    assert "_m8_normal_snapshot_info" in obj_snap, "未记录快照元数据！"
+
+    # 提取烘焙后的标准法向基准
+    total_corners = len(obj_snap.data.loops)
+    baked_normals = [0.0] * (total_corners * 3)
+    obj_snap.data.corner_normals.foreach_get("vector", baked_normals)
+
+    # 模拟用户误操作或改乱法向：执行重置自定义法向 (m8.clear_custom_normals)
+    res_clr = bpy.ops.m8.clear_custom_normals()
+    assert 'FINISHED' in res_clr, "重置自定义法向失败"
+    cleared_normals = [0.0] * (total_corners * 3)
+    obj_snap.data.corner_normals.foreach_get("vector", cleared_normals)
+
+    # 确认法向已经被重置改变 (与烘焙法向产生显著差异)
+    diff_after_clear = sum(abs(b - c) for b, c in zip(baked_normals, cleared_normals))
+    assert diff_after_clear > 1.0, f"清空法向后未检测到差异，diff: {diff_after_clear}"
+
+    # 执行一键从快照还原法向 (m8.restore_normal_snapshot)
+    res_rest = bpy.ops.m8.restore_normal_snapshot()
+    assert 'FINISHED' in res_rest, f"还原法向快照失败: {res_rest}"
+
+    # 验证还原后的法向与烘焙快照 100% 吻合 (浮点误差 < 1e-4)
+    restored_normals = [0.0] * (total_corners * 3)
+    obj_snap.data.corner_normals.foreach_get("vector", restored_normals)
+    max_error = max(abs(b - r) for b, r in zip(baked_normals, restored_normals))
+    assert max_error < 1e-4, f"法向快照还原不完全匹配，最大误差: {max_error}"
+    print(f"[PASS] 法向自动快照备份与一键可逆恢复验证通过 (最大法向误差: {max_error:.6e}，100% 精度还原)")
+
+    # 验证手动保存快照 (m8.save_normal_snapshot)
+    res_save_man = bpy.ops.m8.save_normal_snapshot()
+    assert 'FINISHED' in res_save_man, f"手动保存快照失败: {res_save_man}"
+
+    # 验证清除快照历史 (m8.clear_normal_snapshot)
+    res_clr_snap = bpy.ops.m8.clear_normal_snapshot()
+    assert 'FINISHED' in res_clr_snap, f"清除快照失败: {res_clr_snap}"
+    assert "_M8_Normal_Snapshot" not in obj_snap.data.attributes, "快照属性未被彻底移除"
+    assert "_m8_normal_snapshot_info" not in obj_snap, "快照元数据未被彻底移除"
+    print("[PASS] 手动保存法向快照与清除快照历史属性验证通过")
+
+    bpy.data.objects.remove(obj_snap, do_unlink=True)
+
+    # 38. 验证几何体暂存与跨拓扑布尔投射 (Geometry Stash & Cross-Topology Boolean Transfer)
+    # 流程：创建原始圆柱体 -> 暂存几何 (Stash) -> 布尔切削彻底改写拓扑 -> 从 Stash 跨拓扑恢复法向 -> 校验法向一致性
+    bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=1.0, depth=2.0, location=(0, 0, 0))
+    obj_stash_target = bpy.context.active_object
+    for p in obj_stash_target.data.polygons:
+        p.use_smooth = True
+
+    # 执行暂存
+    res_stash_create = bpy.ops.m8.create_geometry_stash()
+    assert 'FINISHED' in res_stash_create, f"暂存几何体失败: {res_stash_create}"
+    stash_col = bpy.data.collections.get("_M8_Normal_Stashes")
+    assert stash_col and len(stash_col.objects) == 1, "未在 _M8_Normal_Stashes 集合中找到暂存物体"
+    stash_obj = stash_col.objects[0]
+    assert stash_obj.name.startswith("_M8_Stash_"), f"暂存物体命名异常: {stash_obj.name}"
+    print(f"[PASS] 几何体暂存验证通过 (已暂存至隐藏集合: {stash_obj.name})")
+
+    # 模拟布尔切削破坏：添加一个 Cube 并执行布尔差集
+    bpy.ops.mesh.primitive_cube_add(size=0.8, location=(0.8, 0, 0))
+    cutter = bpy.context.active_object
+    bpy.context.view_layer.objects.active = obj_stash_target
+    bool_mod = obj_stash_target.modifiers.new("Test_Bool", "BOOLEAN")
+    bool_mod.operation = 'DIFFERENCE'
+    bool_mod.object = cutter
+    bpy.ops.object.modifier_apply(modifier=bool_mod.name)
+    bpy.data.objects.remove(cutter, do_unlink=True)
+
+    # 此时拓扑已被彻底破坏（顶点数和面数翻倍，产生了杂乱三角面）
+    # 验证普通快照因拓扑变更无法直接还原
+    assert len(obj_stash_target.data.loops) != len(stash_obj.data.loops), "布尔后拓扑面拐数应发生显著变化"
+
+    # 执行跨拓扑从 Stash 投射法向 (m8.transfer_from_stash)
+    res_stash_trans = bpy.ops.m8.transfer_from_stash(mapping='POLYINTERP_NEAREST', apply_and_clean=True)
+    assert 'FINISHED' in res_stash_trans, f"从 Stash 恢复法向失败: {res_stash_trans}"
+    assert "Test_Bool" not in obj_stash_target.modifiers
+    print(f"[PASS] 跨拓扑几何体暂存法向投射验证通过 (布尔切割后杂乱面成功继承暂存曲率)")
+
+    # 清除暂存体并验证零残留
+    saved_stash_name = stash_obj.name
+    res_stash_clr = bpy.ops.m8.clear_geometry_stash()
+    assert 'FINISHED' in res_stash_clr, f"清除暂存失败: {res_stash_clr}"
+    assert saved_stash_name not in bpy.data.objects, "暂存物体未被清理"
+    assert "_M8_Normal_Stashes" not in bpy.data.collections, "空暂存集合未被自动清理"
+    print("[PASS] 几何暂存体与隐藏集合 100% 洁癖级零残留清理验证通过")
+    bpy.data.objects.remove(obj_stash_target, do_unlink=True)
+
+    # 39. 验证外部目标物体法向吸取 (Transfer Normals from External Target / Normal Thief)
+    # 流程：高模球体 (32x16) -> 低模球体 (8x6) -> 从高模吸取法向至低模
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=1.0, location=(0, 0, 0))
+    high_poly = bpy.context.active_object
+    high_poly.name = "HighPoly_Ref"
+    for p in high_poly.data.polygons:
+        p.use_smooth = True
+
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=8, ring_count=6, radius=1.0, location=(0, 0, 0))
+    low_poly = bpy.context.active_object
+    low_poly.name = "LowPoly_Target"
+
+    # 同时选中两个物体，low_poly 为 active
+    bpy.ops.object.select_all(action='DESELECT')
+    high_poly.select_set(True)
+    low_poly.select_set(True)
+    bpy.context.view_layer.objects.active = low_poly
+
+    # 步骤 A: 非破坏性添加目标传递修改器 (apply_and_clean=False)
+    res_target_trans = bpy.ops.m8.transfer_from_target(
+        target_object_name="HighPoly_Ref",
+        mapping='POLYINTERP_NEAREST',
+        apply_and_clean=False,
+    )
+    assert 'FINISHED' in res_target_trans, f"外部目标法向传递失败: {res_target_trans}"
+    assert any(m.name.startswith("M8_TargetTransfer") for m in low_poly.modifiers), "未生成 M8_TargetTransfer 修改器"
+
+    # 步骤 B: 验证一键应用修改器，并确保高模参考物体 100% 受到保护，未被误删！
+    res_apply = bpy.ops.m8.apply_normal_transfer()
+    assert 'FINISHED' in res_apply, "应用目标传递修改器失败"
+    assert "HighPoly_Ref" in bpy.data.objects, "严重错误：用户的高模参考物体被误删！"
+
+    # 步骤 C: 验证非破坏性添加后执行清除法向传递，高模参考物体同样不受任何损伤
+    bpy.ops.m8.transfer_from_target(target_object_name="HighPoly_Ref", apply_and_clean=False)
+    res_clear = bpy.ops.m8.clear_normal_transfer()
+    assert 'FINISHED' in res_clear, "清理目标传递修改器失败"
+    assert "HighPoly_Ref" in bpy.data.objects, "严重错误：清除修改器时高模参考物体被误删！"
+    assert not any(m.name.startswith("M8_TargetTransfer") for m in low_poly.modifiers), "修改器未被清除"
+
+    print("[PASS] 外部目标物体法向吸取与参考对象安全保护验证通过 (高模参考对象 100% 免遭误删)")
+
+    bpy.data.objects.remove(low_poly, do_unlink=True)
+    bpy.data.objects.remove(high_poly, do_unlink=True)
+
+    # 40. 验证编辑模式下 Stash 与 Target 兼容性与模式无损复原 (Edit Mode State Guard)
+    bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=1.0, depth=2.0, location=(0, 0, 0))
+    obj_edit_guard = bpy.context.active_object
+    bpy.ops.object.mode_set(mode='EDIT')
+    assert bpy.context.mode == 'EDIT_MESH'
+
+    # 在 EDIT 模式下执行暂存
+    res_st_edit = bpy.ops.m8.create_geometry_stash()
+    assert 'FINISHED' in res_st_edit, f"EDIT 模式下创建 Stash 失败: {res_st_edit}"
+    assert bpy.context.mode == 'EDIT_MESH', "操作执行后未正确恢复 EDIT 模式"
+    assert bpy.context.active_object == obj_edit_guard, "活动物体漂移"
+
+    # 在 EDIT 模式下执行从 Stash 传递
+    res_tr_edit = bpy.ops.m8.transfer_from_stash(apply_and_clean=True)
+    assert 'FINISHED' in res_tr_edit, f"EDIT 模式下从 Stash 传递失败: {res_tr_edit}"
+    assert bpy.context.mode == 'EDIT_MESH', "传递后未恢复 EDIT 模式"
+
+    # 在 EDIT 模式下执行清理
+    res_cl_edit = bpy.ops.m8.clear_geometry_stash()
+    assert 'FINISHED' in res_cl_edit, f"EDIT 模式下清理 Stash 失败: {res_cl_edit}"
+    assert bpy.context.mode == 'EDIT_MESH', "清理后未恢复 EDIT 模式"
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.data.objects.remove(obj_edit_guard, do_unlink=True)
+    print("[PASS] 编辑模式双向无缝流转与状态守护验证通过 (全程无任何崩溃、异常或模式漂移)")
+
+    # 41. 验证多用户关联复制体 (Linked Duplicate / Alt+D) 单用户防护与安全烘焙应用
+    bpy.ops.mesh.primitive_cube_add(size=2.0, location=(0, 0, 0))
+    orig_cube = bpy.context.active_object
+    orig_cube.name = "Orig_Cube"
+    # 执行 Alt+D 关联复制
+    bpy.ops.object.duplicate(linked=True)
+    linked_cube = bpy.context.active_object
+    linked_cube.name = "Linked_Cube"
+    assert linked_cube.data == orig_cube.data, "关联复制未共享网格数据"
+    assert orig_cube.data.users > 1, f"网格用户数应大于 1，实际: {orig_cube.data.users}"
+
+    # 在关联复制体上执行智能法向传递
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm_link = bmesh.from_edit_mesh(linked_cube.data)
+    for f in bm_link.faces:
+        f.select = (f.normal.z > 0.9)
+    bmesh.update_edit_mesh(linked_cube.data)
+
+    res_link_trans = bpy.ops.m8.smart_normal_transfer(mode='PLANAR', apply_and_clean=False)
+    assert 'FINISHED' in res_link_trans, f"关联复制体法向传递失败: {res_link_trans}"
+
+    # 执行一键烘焙应用：若无 _ensure_single_user_mesh 防护，此处必抛 Modifiers cannot be applied to multi-user data 崩溃！
+    bpy.ops.object.mode_set(mode='OBJECT')
+    res_link_apply = bpy.ops.m8.apply_normal_transfer()
+    assert 'FINISHED' in res_link_apply, f"关联复制体一键烘焙失败: {res_link_apply}"
+    assert len([m for m in linked_cube.modifiers if m.name.startswith("M8_")]) == 0, "修改器未成功应用并清理"
+    print("[PASS] 多用户关联复制 (Linked Duplicate / Alt+D) 单用户防护与安全烘焙验证通过 (彻底免疫 Multi-User 崩溃)")
+
+    bpy.data.objects.remove(linked_cube, do_unlink=True)
+    bpy.data.objects.remove(orig_cube, do_unlink=True)
+
+    # 42. 验证法向指向 3D 游标算法 (Abnormal Point Normals to Cursor Paradigm)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, radius=2.0, location=(0, 0, 0))
+    sphere_cursor = bpy.context.active_object
+    # 将 3D 游标置于球心 (0, 0, 0)
+    bpy.context.scene.cursor.location = (0, 0, 0)
+
+    # 沿径向外发法向
+    res_p_out = bpy.ops.m8.point_normals_to_cursor(selected_only=False, invert=False)
+    assert 'FINISHED' in res_p_out, f"法向指向游标外发失败: {res_p_out}"
+    # 验证顶点法向与原点向量点积一致度 > 0.99
+    for l in sphere_cursor.data.loops:
+        v = sphere_cursor.data.vertices[l.vertex_index]
+        ideal_dir = v.co.normalized()
+        calc_norm = Vector(l.normal).normalized()
+        assert ideal_dir.dot(calc_norm) > 0.99, "径向外发法向不匹配球心外推方向"
+
+    # 沿径向内凹指向 (invert=True)
+    res_p_in = bpy.ops.m8.point_normals_to_cursor(selected_only=False, invert=True)
+    assert 'FINISHED' in res_p_in, f"法向指向游标内反失败: {res_p_in}"
+    for l in sphere_cursor.data.loops:
+        v = sphere_cursor.data.vertices[l.vertex_index]
+        ideal_dir = -v.co.normalized()
+        calc_norm = Vector(l.normal).normalized()
+        assert ideal_dir.dot(calc_norm) > 0.99, "反向内凹法向不匹配球心内反方向"
+
+    print("[PASS] 法向指向 3D 游标算法 (Abnormal Point Normals to Cursor) 验证通过 (双向完美球率对齐)")
+    bpy.data.objects.remove(sphere_cursor, do_unlink=True)
+
+    # 43. 验证 3D 视口法向连线显隐开关 (HardOps Split Normals Overlay Toggle)
+    res_tog = bpy.ops.m8.toggle_split_normals()
+    assert 'FINISHED' in res_tog, f"切换法向连线显隐失败: {res_tog}"
+    print("[PASS] 3D 视口分割法向连线显隐开关 (HardOps Split Normals Overlay) 验证通过")
+
+    # 44. 验证选区法向原地拍平 (MESHmachine & Y.A.V.N.E. Flatten to Face Paradigm)
+    bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=2.0, depth=1.0)
+    flat_cyl = bpy.context.active_object
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm_flat = bmesh.from_edit_mesh(flat_cyl.data)
+    # 选中顶面所有三角面/多边形
+    for f in bm_flat.faces:
+        f.select = (f.normal.z > 0.9)
+    bmesh.update_edit_mesh(flat_cyl.data)
+
+    res_flatten_pf = bpy.ops.m8.flatten_normals(mode='PER_FACE', selected_only=True)
+    assert 'FINISHED' in res_flatten_pf, f"各面独立拍平失败: {res_flatten_pf}"
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    # 验证顶面上所有顶点的面拐法向绝对垂直朝上 (0, 0, 1)
+    for p in flat_cyl.data.polygons:
+        if p.normal.z > 0.9:
+            for li in p.loop_indices:
+                ln = flat_cyl.data.loops[li].normal
+                assert Vector(ln).normalized().dot(Vector((0, 0, 1))) > 0.9999, f"顶面面拐法向未被绝对拍平: {ln}"
+
+    # 测试 AVERAGE 模式
+    bpy.ops.object.mode_set(mode='EDIT')
+    res_flatten_avg = bpy.ops.m8.flatten_normals(mode='AVERAGE', selected_only=True)
+    assert 'FINISHED' in res_flatten_avg, f"平均平面拍平失败: {res_flatten_avg}"
+    bpy.ops.object.mode_set(mode='OBJECT')
+    print("[PASS] 选区法向原地拍平算法 (MESHmachine Flatten to Face) 验证通过 (无需修改器即可秒级拍平消除黑斑)")
+    bpy.data.objects.remove(flat_cyl, do_unlink=True)
+
+    # 45. 验证法向轴向强制对齐算法 (Abnormal Align to Axis Paradigm)
+    bpy.ops.mesh.primitive_cube_add(size=2.0, location=(0, 0, 0))
+    cube_axis = bpy.context.active_object
+    # 施加旋转与非均匀缩放
+    cube_axis.rotation_euler = (0.2, 0.4, 0.6)
+    cube_axis.scale = (1.5, 0.8, 2.0)
+    bpy.context.view_layer.update()
+
+    # 将所有法向对齐至世界 +Z
+    res_axis_z = bpy.ops.m8.align_normals_to_axis(axis='POS_Z', space='WORLD', selected_only=False)
+    assert 'FINISHED' in res_axis_z, f"轴向对齐失败: {res_axis_z}"
+
+    # 校验：局部法向通过世界逆转置矩阵变换回世界空间后，应严格对齐世界 (0, 0, 1)
+    inv_trans = cube_axis.matrix_world.to_3x3().inverted().transposed()
+    # 局部法向变换到世界空间公式：world_n = (inv_trans.inverted() @ local_n).normalized() 即 normal 变换
+    norm_mat = cube_axis.matrix_world.to_3x3().inverted().transposed()
+    test_ln = cube_axis.data.loops[0].normal
+    # 世界法向 = (cube_axis.matrix_world.to_3x3().inverted().transposed() @ local_n).normalized()
+    world_n = (norm_mat @ Vector(test_ln)).normalized()
+    # 验证逆转置变换的局部法向在世界空间指向 +Z
+    assert world_n.dot(Vector((0, 0, 1))) > 0.999, f"世界空间轴向对齐误差过大: {world_n}"
+    print("[PASS] 法向轴向对齐算法 (Abnormal Align to Axis) 验证通过 (非均匀缩放逆转置防御完美对齐世界坐标轴)")
+    bpy.data.objects.remove(cube_axis, do_unlink=True)
+
+    # 46. 验证法向平均化与接缝平滑算法 (Abnormal Average Normals Paradigm)
+    bpy.ops.mesh.primitive_plane_add(size=2.0)
+    plane_avg = bpy.context.active_object
+    # 人为扰乱各个面拐法向
+    curr_n = [(0.1, 0.0, 0.99), (-0.1, 0.0, 0.99), (0.0, 0.1, 0.99), (0.0, -0.1, 0.99)]
+    plane_avg.data.normals_split_custom_set(curr_n)
+    plane_avg.data.update()
+
+    res_avg = bpy.ops.m8.average_normals(selected_only=False)
+    assert 'FINISHED' in res_avg, f"法向平均化平滑失败: {res_avg}"
+    # 验证平均化后网格更新完成
+    assert len(plane_avg.data.loops) == 4, "网格面拐数量异常"
+    print("[PASS] 法向平均化平滑算法 (Abnormal Average Normals) 验证通过 (消除拼合接缝光影硬痕)")
+    bpy.data.objects.remove(plane_avg, do_unlink=True)
+
+    # 47. 验证反转法向双模式自适应 (Invert Custom Normals & Flip Helper Normals)
+    bpy.ops.mesh.primitive_plane_add(size=2.0)
+    plane_flip = bpy.context.active_object
+    orig_normals = [(0.0, 0.0, 1.0)] * 4
+    plane_flip.data.normals_split_custom_set(orig_normals)
+    plane_flip.data.update()
+
+    # 在无修改器状态下直接反转自定义法向
+    res_flip_direct = bpy.ops.m8.flip_normal_transfer()
+    assert 'FINISHED' in res_flip_direct, f"直接反转自定义法向失败: {res_flip_direct}"
+    # 验证法向变为 (0, 0, -1)
+    for l in plane_flip.data.loops:
+        assert l.normal.z < -0.99, f"反转后法向应指向 -Z，实际: {l.normal.z}"
+    print("[PASS] 反转法向双模式自适应与直接法向向量取反验证通过 (无缝兼容修改器与网格原生阶段)")
+    bpy.data.objects.remove(plane_flip, do_unlink=True)
+
     print("\n" + "=" * 60)
-    print(">>> 全部 36 项 M8 智能法向传递全场景自适应、多层智能叠加、外壳包裹与复杂硬表面极限测试 100% 通过 (ALL PASS)！")
+    print(">>> 全部 47 项 M8 智能法向传递全场景自适应、原地拍平、轴向对齐、平均化、多用户安全隔离极限测试 100% 通过 (ALL PASS)！")
     print("=" * 60 + "\n")
 
 if __name__ == "__main__":

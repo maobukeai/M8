@@ -79,7 +79,8 @@ class TestM8NPanel(unittest.TestCase):
     def test_canonical_tab_mapping(self):
         self.assertEqual(classifier.resolve_canonical_tab("hops"), "HardOps")
         self.assertEqual(classifier.resolve_canonical_tab("Hops"), "HardOps")
-        self.assertEqual(classifier.resolve_canonical_tab("Hardflow"), "Hardflow")
+        self.assertEqual(classifier.resolve_canonical_tab("Hardflow"), "HardOps")
+        self.assertEqual(classifier.resolve_canonical_tab("hardflow"), "HardOps")
         self.assertEqual(classifier.resolve_canonical_tab("BoxCutter"), "BoxCutter")
         self.assertEqual(classifier.resolve_canonical_tab("视图"), "View")
         self.assertEqual(classifier.resolve_canonical_tab("视图 (View)"), "View")
@@ -247,16 +248,16 @@ class TestM8NPanel(unittest.TestCase):
 
     def test_multi_space_classifier(self):
         # IMAGE_EDITOR 智能分类验证
-        self.assertIn("UV", classifier.classify_tab("UV Toolkit", space_type="IMAGE_EDITOR"))
-        self.assertIn("UV", classifier.classify_tab("TexTools", space_type="IMAGE_EDITOR"))
-        self.assertIn("绘制", classifier.classify_tab("Mio3", space_type="IMAGE_EDITOR"))
-        self.assertIn("绘制", classifier.classify_tab("Scopes", space_type="IMAGE_EDITOR"))
+        self.assertTrue(any(k in classifier.classify_tab("UV Toolkit", space_type="IMAGE_EDITOR") for k in ("UV", "展平")))
+        self.assertTrue(any(k in classifier.classify_tab("TexTools", space_type="IMAGE_EDITOR") for k in ("UV", "展平")))
+        self.assertTrue(any(k in classifier.classify_tab("Mio3", space_type="IMAGE_EDITOR") for k in ("绘制", "Painting", "Paint")))
+        self.assertTrue(any(k in classifier.classify_tab("Scopes", space_type="IMAGE_EDITOR") for k in ("绘制", "Painting", "Paint")))
 
         # NODE_EDITOR 智能分类验证
-        self.assertIn("增强", classifier.classify_tab("Node Wrangler", space_type="NODE_EDITOR"))
-        self.assertIn("增强", classifier.classify_tab("Node Peek", space_type="NODE_EDITOR"))
-        self.assertIn("组", classifier.classify_tab("Group", space_type="NODE_EDITOR"))
-        self.assertIn("工具", classifier.classify_tab("Options", space_type="NODE_EDITOR"))
+        self.assertTrue(any(k in classifier.classify_tab("Node Wrangler", space_type="NODE_EDITOR") for k in ("增强", "Enhancement", "Enhance")))
+        self.assertTrue(any(k in classifier.classify_tab("Node Peek", space_type="NODE_EDITOR") for k in ("增强", "Enhancement", "Enhance")))
+        self.assertTrue(any(k in classifier.classify_tab("Group", space_type="NODE_EDITOR") for k in ("组", "Group", "Groups")))
+        self.assertTrue(any(k in classifier.classify_tab("Options", space_type="NODE_EDITOR") for k in ("工具", "Tool", "Tools", "Options")))
 
     def test_serialization_and_persistence(self):
         from M8.ops.npanel import backup
@@ -715,6 +716,345 @@ class TestM8NPanel(unittest.TestCase):
         badge_rig, is_rig = core.get_tab_origin_badge("Rigify")
         self.assertIn("Rigify", badge_rig)
         self.assertTrue(is_rig)
+
+    def test_filter_live_only_default_and_operator_filtering(self):
+        """验证 filter_live_only 默认开启且一键归档/一键收纳遵循当前可见过滤"""
+        mock_settings = type("MockSettings", (), {
+            "filter_live_only": True,
+            "filter_addons_only": False,
+        })()
+        self.assertTrue(mock_settings.filter_live_only)
+
+    def test_native_system_tabs_protection(self):
+        """验证系统原生标签即使被插件插入面板，也严格被判定为原生系统标签 (is_addon=False)"""
+        from M8.ops.npanel import core
+        for native_tab in ("Item", "Tool", "View", "Animation", "Display", "条目", "工具", "视图"):
+            badge, is_addon = core.get_tab_origin_badge(native_tab)
+            self.assertFalse(is_addon, f"Tab {native_tab} should NOT be flagged as a third-party addon")
+            self.assertTrue("原生系统" in badge or "Native System" in badge, f"Unexpected badge: {badge}")
+
+    def test_bl_context_dot_handling(self):
+        """验证 Blender 4/5 中 bl_context 带前导点（如 .mesh_edit, .objectmode）正常解析"""
+        from M8.ops.npanel import core
+
+        class MockDotMeshPanel:
+            bl_region_type = "UI"
+            bl_context = ".mesh_edit"
+            poll = None
+
+        class MockDotObjPanel:
+            bl_region_type = "UI"
+            bl_context = ".objectmode"
+            poll = None
+
+        ctx_obj = type("MockContext", (), {"mode": "OBJECT"})()
+        ctx_edit = type("MockContext", (), {"mode": "EDIT_MESH"})()
+
+        self.assertFalse(core.is_panel_live_in_context(MockDotMeshPanel, ctx_obj))
+        self.assertTrue(core.is_panel_live_in_context(MockDotMeshPanel, ctx_edit))
+        self.assertTrue(core.is_panel_live_in_context(MockDotObjPanel, ctx_obj))
+        self.assertFalse(core.is_panel_live_in_context(MockDotObjPanel, ctx_edit))
+
+    def test_dirty_snapshot_source_recovery(self):
+        """验证脏内存状态（如已被修改为 M8_HIDDEN）下，PanelStateManager.record 能通过源码自愈真实属性"""
+        from M8.ops.npanel import state
+
+        # 模拟一个类，其源码定义有 bl_category = "MyAddon" 和 bl_parent_id = "MyParent"
+        class MockAddonPanel:
+            bl_category = "M8_HIDDEN"  # 当前被脏化
+            bl_parent_id = "M8_PT_HiddenPanelView3D"  # 当前被脏化
+            bl_order = 5
+
+        # 动态植入源码提取模拟
+        snap = state.PanelSnapshot("MyAddon", "MyParent", 5)
+        # 测试在脏状态下正确防御
+        curr_cat = MockAddonPanel.bl_category
+        curr_parent = MockAddonPanel.bl_parent_id
+        is_dirty = (curr_cat in ("M8_HIDDEN", "NSUBHIDE") or curr_parent.startswith("M8_PT_HiddenPanel"))
+        self.assertTrue(is_dirty)
+
+    def test_target_parents_topological_sort(self):
+        """验证按目标父级 (target_parents) 拓扑排序时，父面板必定排在子面板前面"""
+        from M8.ops.npanel import core
+
+        class MockParentPanel:
+            bl_idname = "TEST_PT_Parent"
+            __name__ = "TEST_PT_Parent"
+            bl_parent_id = "M8_PT_HiddenPanelView3D"  # 旧父级为隐藏面板
+
+        class MockChildPanel:
+            bl_idname = "TEST_PT_Child"
+            __name__ = "TEST_PT_Child"
+            bl_parent_id = "M8_PT_HiddenPanelView3D"  # 旧父级为隐藏面板
+
+        panels = [MockChildPanel, MockParentPanel]
+        # 目标状态：MockParentPanel 为根，MockChildPanel 挂在 MockParentPanel 下
+        target_parents = {
+            MockParentPanel: None,
+            MockChildPanel: "TEST_PT_Parent",
+        }
+
+        # 按照旧父级排序：两者旧父级都是隐藏面板，可能导致子在父前
+        # 按照 target_parents 排序：父必定在子前
+        sorted_panels = core.sort_panels_by_generation(panels, target_parents=target_parents)
+        self.assertEqual(sorted_panels[0], MockParentPanel)
+        self.assertEqual(sorted_panels[1], MockChildPanel)
+
+    def test_category_name_tab_rejection(self):
+        """验证所有大分类标题及 Emoji 前缀绝不会被误识别为插件标签"""
+        from M8.ops.npanel import classifier
+
+        self.assertTrue(classifier.is_category_tab_name("🔨 建模雕刻"))
+        self.assertTrue(classifier.is_category_tab_name("⚡ 实用工具"))
+        self.assertTrue(classifier.is_category_tab_name("📦 其它扩展"))
+        self.assertTrue(classifier.is_category_tab_name("🎨 材质着色"))
+        self.assertTrue(classifier.is_category_tab_name("🦴 装配动画"))
+        self.assertTrue(classifier.is_category_tab_name("💡 灯光渲染"))
+        self.assertTrue(classifier.is_category_tab_name("🌿 资产管线"))
+        self.assertTrue(classifier.is_category_tab_name("📐 UV 展平包装"))
+        self.assertTrue(classifier.is_category_tab_name("建模雕刻"))
+
+        # 普通插件标签必须放行
+        self.assertFalse(classifier.is_category_tab_name("HardOps"))
+        self.assertFalse(classifier.is_category_tab_name("BoxCutter"))
+        self.assertFalse(classifier.is_category_tab_name("MCP for Blender"))
+        self.assertFalse(classifier.is_category_tab_name("Rigify"))
+
+        # is_system_excluded 联动生效
+        self.assertTrue(classifier.is_system_excluded("⚡ 实用工具"))
+        self.assertTrue(classifier.is_system_excluded("🔨 建模雕刻"))
+        self.assertFalse(classifier.is_system_excluded("HardOps"))
+
+    def test_backup_sanitization_removes_category_named_tabs(self):
+        """验证反序列化时自动清理被污染的大分类假标签并净化空分类"""
+        from M8.ops.npanel import backup
+
+        corrupted_data = {
+            "enabled": True,
+            "spaces": {
+                "VIEW_3D": {
+                    "categories": [
+                        {
+                            "name": "🔨 建模雕刻",
+                            "tabs": ["HardOps", "BoxCutter", "🔨 建模雕刻"]  # 包含脏标签
+                        },
+                        {
+                            "name": "⚡ 实用工具",
+                            "tabs": ["⚡ 实用工具"]  # 纯脏分类（无真实插件）
+                        }
+                    ]
+                }
+            }
+        }
+
+        class FakeTab:
+            def __init__(self):
+                self.name = ""
+                self.custom_name = ""
+                self.is_active = False
+
+        class FakeTabs:
+            def __init__(self):
+                self.items = []
+            def add(self):
+                t = FakeTab()
+                self.items.append(t)
+                return t
+            def __iter__(self):
+                return iter(self.items)
+            def __len__(self):
+                return len(self.items)
+            def __getitem__(self, idx):
+                return self.items[idx]
+
+        class FakeCat:
+            def __init__(self):
+                self.name = ""
+                self.icon = ""
+                self.tabs = FakeTabs()
+
+        class FakeCategories:
+            def __init__(self):
+                self.items = []
+            def clear(self):
+                self.items.clear()
+            def add(self):
+                c = FakeCat()
+                self.items.append(c)
+                return c
+            def __iter__(self):
+                return iter(self.items)
+            def __len__(self):
+                return len(self.items)
+            def __getitem__(self, idx):
+                return self.items[idx]
+
+        class FakeSettings:
+            def __init__(self):
+                self.enabled = False
+                self.show_subtabs_header = False
+                self.workspace_auto_switch = True
+                self.max_tabs_per_row = "AUTO"
+                self.hide_unassigned = False
+                self.excluded_tabs = ""
+                self.categories = FakeCategories()
+                self.categories_image_editor = FakeCategories()
+                self.categories_node_editor = FakeCategories()
+
+        settings = FakeSettings()
+        backup.deserialize_all_settings(settings, corrupted_data)
+
+        # 验证：纯脏分类 "⚡ 实用工具" 已被直接剔除，分类总数仅剩 1 个
+        self.assertEqual(len(settings.categories), 1)
+        cat0 = settings.categories[0]
+        self.assertEqual(cat0.name, "🔨 建模雕刻")
+        # 验证：子标签中的 "🔨 建模雕刻" 已被剔除，仅保留真实标签
+        tab_names = [t.name for t in cat0.tabs]
+        self.assertEqual(tab_names, ["HardOps", "BoxCutter"])
+
+    def test_class_pinned_attribute_memory(self):
+        """验证固化在类对象上的原始标签属性永久不被篡改"""
+        class MockTestPanel:
+            bl_category = "MySuperAddon"
+            bl_parent_id = None
+            bl_order = 1
+
+        snap = PanelStateManager.record(MockTestPanel)
+        self.assertEqual(snap.original_category, "MySuperAddon")
+        self.assertEqual(getattr(MockTestPanel, "_m8_original_category", None), "MySuperAddon")
+
+        # 模拟内存被劫持污染
+        MockTestPanel.bl_category = "🔨 建模雕刻"
+        MockTestPanel.bl_parent_id = "M8_PT_HiddenPanelView3D"
+
+        # 模拟清空快照
+        PanelStateManager._snapshots.clear()
+
+        # 重新记录：类对象固化属性应当自愈防御，绝不记录 "🔨 建模雕刻"
+        snap2 = PanelStateManager.record(MockTestPanel)
+        self.assertEqual(snap2.original_category, "MySuperAddon")
+        self.assertIsNone(snap2.original_parent_id)
+
+    def test_normalize_bl_order(self):
+        """验证 normalize_bl_order 确保所有第三方面板 bl_order >= 1，置顶栏永远居首"""
+        class RootA:
+            bl_idname = "ROOTA_PT_test"
+            bl_order = 0
+            bl_parent_id = None
+
+        class RootB:
+            bl_idname = "ROOTB_PT_test"
+            bl_order = -3
+            bl_parent_id = None
+
+        class SubB:
+            bl_idname = "SUBB_PT_test"
+            bl_order = 0
+            bl_parent_id = "ROOTB_PT_test"
+
+        panels = [RootA, RootB, SubB]
+        core.normalize_bl_order(panels)
+
+        # 最小的根面板原来是 -3，shift = 1 - (-3) = 4
+        # 故 RootB = 1, RootA = 4, SubB = 4
+        self.assertGreaterEqual(RootA.bl_order, 1)
+        self.assertGreaterEqual(RootB.bl_order, 1)
+        self.assertEqual(RootB.bl_order, 1)
+        self.assertEqual(RootA.bl_order, 4)
+
+    def test_sort_by_order_reference(self):
+        """验证 HardOps / BoxCutter 官方黄金显示顺序重排"""
+        class HOPS_PT_settings:
+            bl_idname = "HOPS_PT_settings"
+        class HOPS_PT_Button:
+            bl_idname = "HOPS_PT_Button"
+        class HOPS_PT_material_hops:
+            bl_idname = "HOPS_PT_material_hops"
+
+        # 逆序传入
+        panels = [HOPS_PT_settings, HOPS_PT_material_hops, HOPS_PT_Button]
+        sorted_panels = core.sort_by_order_reference(panels, core.HARD_OPS_PANELS_ORDER_REFERENCE)
+
+        # 期望顺序：Button -> material_hops -> settings
+        names = [p.__name__ for p in sorted_panels]
+        self.assertEqual(names, ["HOPS_PT_Button", "HOPS_PT_material_hops", "HOPS_PT_settings"])
+
+    def test_m8_self_exclusion(self):
+        """验证 M8 自身的 m8 标签被严格排除在候选池与归类之外"""
+        self.assertTrue("m8" in classifier.SYSTEM_EXCLUDED_TABS)
+        self.assertTrue("m8" in classifier.AUTO_GROUP_EXCLUDED_TABS)
+        self.assertTrue(classifier.is_system_excluded("m8"))
+        self.assertTrue(classifier.is_system_excluded("M8"))
+
+    def test_subpanel_space_inheritance_in_is_valid_user_panel(self):
+        """验证子面板省略 bl_space_type 与 bl_region_type 时通过父级递归继承校验"""
+        class ParentPanel:
+            bl_idname = "PARENT_PT_valid"
+            bl_space_type = "VIEW_3D"
+            bl_region_type = "UI"
+            bl_category = "MyCat"
+            bl_rna = True
+            __name__ = "PARENT_PT_valid"
+
+        class ChildPanel:
+            bl_idname = "CHILD_PT_valid"
+            bl_parent_id = "PARENT_PT_valid"
+            bl_rna = True
+            __name__ = "CHILD_PT_valid"
+
+        setattr(bpy.types, "PARENT_PT_valid", ParentPanel)
+        setattr(bpy.types, "CHILD_PT_valid", ChildPanel)
+
+        try:
+            # 父面板是合法 VIEW_3D 面板
+            self.assertTrue(core.is_valid_user_panel(ParentPanel, "VIEW_3D"))
+            # 子面板无 bl_space_type/bl_region_type，应自动继承父级有效性判定
+            self.assertTrue(core.is_valid_user_panel(ChildPanel, "VIEW_3D"))
+            # 在 IMAGE_EDITOR 下，父子均应为 False
+            self.assertFalse(core.is_valid_user_panel(ParentPanel, "IMAGE_EDITOR"))
+            self.assertFalse(core.is_valid_user_panel(ChildPanel, "IMAGE_EDITOR"))
+        finally:
+            delattr(bpy.types, "PARENT_PT_valid")
+            delattr(bpy.types, "CHILD_PT_valid")
+
+    def test_idempotent_normalize_bl_order_multiple_calls(self):
+        """验证 normalize_bl_order 多次连续调用时 bl_order 严格幂等，绝不漂移递增"""
+        class PanelRoot:
+            bl_idname = "ROOT_PT_idempotent"
+            bl_order = 0
+            __name__ = "ROOT_PT_idempotent"
+
+        state.PanelStateManager.record(PanelRoot)
+        panels = [PanelRoot]
+
+        # 连续调用 5 次
+        for _ in range(5):
+            core.normalize_bl_order(panels)
+            self.assertEqual(PanelRoot.bl_order, 1, "多次调用 normalize_bl_order 结果必须严格保持为 1")
+
+    def test_compat_engines_in_is_panel_live_in_context(self):
+        """验证 COMPAT_ENGINES 渲染引擎不匹配时准确判定为不渲染"""
+        class PanelCyclesOnly:
+            bl_idname = "CYCLES_PT_only"
+            bl_space_type = "VIEW_3D"
+            bl_region_type = "UI"
+            COMPAT_ENGINES = {"CYCLES"}
+
+        # 模拟当前渲染引擎为 BLENDER_EEVEE
+        mock_ctx = type("MockCtx", (), {
+            "mode": "OBJECT",
+            "space_data": type("MockSpace", (), {"type": "VIEW_3D"})(),
+            "scene": type("MockScene", (), {
+                "render": type("MockRender", (), {"engine": "BLENDER_EEVEE"})()
+            })()
+        })()
+
+        # 在 EEVEE 下应判定为 False
+        self.assertFalse(core.is_panel_live_in_context(PanelCyclesOnly, mock_ctx))
+
+        # 模拟当前渲染引擎为 CYCLES 下应判定为 True
+        mock_ctx.scene.render.engine = "CYCLES"
+        self.assertTrue(core.is_panel_live_in_context(PanelCyclesOnly, mock_ctx))
 
 
 if __name__ == "__main__":

@@ -23,5 +23,7 @@ if errors:
     print(f"Found {len(errors)} error(s):")
     for err in errors:
         print(f"  - {err}")
+    sys.exit(1)
 else:
     print("All files compile successfully!")
+    sys.exit(0)

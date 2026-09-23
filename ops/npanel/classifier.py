@@ -7,7 +7,7 @@ from ...utils.i18n import _T
 
 # 系统内部隐藏与标记专用标签（绝不向用户展示或归档）
 SYSTEM_EXCLUDED_TABS: Set[str] = {
-    "nsubhide", "m8_hidden"
+    "nsubhide", "m8_hidden", "misc", "杂项", "m8"
 }
 
 # 原生基础标签的中英双向对照与友好展示名
@@ -32,6 +32,8 @@ NATIVE_TAB_SHORT_ZH: Dict[str, str] = {
 # 复杂插件附生碎片标签与主插件标签同源映射表（包含原生中英标签别名对齐）
 TAB_CANONICAL_MAP: Dict[str, str] = {
     "hops": "HardOps",
+    "hardflow": "HardOps",
+    "hard_flow": "HardOps",
     "条目": "Item",
     "item": "Item",
     "工具": "Tool",
@@ -185,10 +187,43 @@ SMART_CATEGORIES_NODE_EDITOR = [
 ]
 
 
+CATEGORY_EMOJI_PREFIXES = ('🔨', '🎨', '💡', '🦴', '🌿', '⚡', '📦', '📐', '🔧', '📁')
+
+ALL_CATEGORY_NAMES: Set[str] = {
+    # 3D 视图
+    "🔨 建模雕刻", "🎨 材质着色", "💡 灯光渲染", "🦴 装配动画", "🌿 资产管线", "⚡ 实用工具", "📦 其它扩展",
+    "建模雕刻", "材质着色", "灯光渲染", "装配动画", "资产管线", "实用工具", "其它扩展",
+    # 图像与 UV
+    "📐 UV 展平包装", "🎨 图像绘制",
+    "UV 展平包装", "图像绘制",
+    # 节点
+    "🌿 节点增强", "📦 节点组库", "⚡ 选项与工具",
+    "节点增强", "节点组库", "选项与工具",
+}
+
+
+def is_category_tab_name(name: str) -> bool:
+    """判定给定名称是否为分类标题或带有分类 Emoji 前缀（绝不可被当作插件原始侧边栏标签）"""
+    if not name:
+        return False
+    clean = str(name).strip()
+    if any(clean.startswith(emoji) for emoji in CATEGORY_EMOJI_PREFIXES):
+        return True
+    if clean in ALL_CATEGORY_NAMES:
+        return True
+    return False
+
+
 def is_system_excluded(tab_name: str) -> bool:
-    """检查是否属于系统原生或应忽略的标签"""
-    clean_name = (tab_name or "").strip().lower()
-    return clean_name in SYSTEM_EXCLUDED_TABS
+    """检查是否属于系统原生、内部隐藏或大分类标题"""
+    if not tab_name:
+        return True
+    clean_name = str(tab_name).strip().lower()
+    if clean_name in SYSTEM_EXCLUDED_TABS:
+        return True
+    if is_category_tab_name(tab_name):
+        return True
+    return False
 
 
 import re
@@ -223,7 +258,13 @@ def classify_tab(tab_name: str, module_name: str = "", space_type: str = "VIEW_3
 
 
 AUTO_GROUP_EXCLUDED_TABS: Set[str] = {
-    "item", "条目"
+    "item", "条目",
+    "tool", "工具",
+    "view", "视图",
+    "animation", "动画",
+    "display", "显示",
+    "misc", "杂项",
+    "m8",
 }
 
 

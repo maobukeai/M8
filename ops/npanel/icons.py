@@ -1,4 +1,4 @@
-﻿"""
+"""
 M8 N-Panel Icon Preview Manager
 Loads sub_tabs.png from the local icons folder for header menu buttons
 """

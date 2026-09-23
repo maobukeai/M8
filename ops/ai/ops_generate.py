@@ -8,6 +8,23 @@ from ...property.keymap_helpers import _get_addon_prefs
 from ...utils.ai_client import request_chat_completion_async, clean_markdown_code
 from ...utils.adapter import tag_redraw_all_areas
 
+_active_generation_id = 0
+_is_unregistered = False
+
+
+def reset_ai_state():
+    """Reset AI lifecycle state on registration."""
+    global _active_generation_id, _is_unregistered
+    _is_unregistered = False
+
+
+def cleanup_ai_state():
+    """Cancel all active AI tickers and invalidate pending callbacks on addon unregister."""
+    global _active_generation_id, _is_unregistered
+    _is_unregistered = True
+    _active_generation_id += 1
+
+
 
 def apply_code_to_text_editor(code: str, mode: str = 'REPLACE', base_name: str = "M8_Script.py"):
     """Write generated code into Blender Text Editor and ensure it is visibly focused."""
@@ -196,6 +213,11 @@ class M8_OT_AI_GenerateCode(bpy.types.Operator):
 
         msg_index = len(ai_props.chat_history) - 1
 
+        global _active_generation_id, _is_unregistered
+        _is_unregistered = False
+        _active_generation_id += 1
+        current_gen_id = _active_generation_id
+
         # 清空输入框
         ai_props.prompt = ""
 
@@ -214,11 +236,17 @@ class M8_OT_AI_GenerateCode(bpy.types.Operator):
             "has_received_chunks": False,
             "thinking_phase_ended": False,
             "stream_completed": False,
+            "terminated": False,
+            "failed": False,
             "post_thinking_wait_ticks": 0,
             "final_response": None,
         }
 
         def _on_chunk(c, r):
+            if _is_unregistered or current_gen_id != _active_generation_id:
+                return
+            if stream_state.get("terminated") or stream_state.get("failed"):
+                return
             stream_state["has_received_chunks"] = True
             if r:
                 thinking_char_queue.extend(list(r))
@@ -228,16 +256,25 @@ class M8_OT_AI_GenerateCode(bpy.types.Operator):
                 content_char_queue.extend(list(c))
 
         def _typewriter_ticker():
-            if not ai_props.is_generating and stream_state["stream_completed"] and not thinking_char_queue and not content_char_queue:
+            if _is_unregistered or current_gen_id != _active_generation_id:
                 return None
 
-            elapsed = time.time() - start_time
-            ai_props.live_thinking_seconds = elapsed
-
-            # 安全获取助手消息实例
-            if not (0 <= msg_index < len(ai_props.chat_history)):
+            if stream_state.get("terminated") or stream_state.get("failed"):
                 return None
-            curr_msg = ai_props.chat_history[msg_index]
+
+            if not getattr(ai_props, "is_generating", False) and stream_state.get("stream_completed") and not thinking_char_queue and not content_char_queue:
+                return None
+
+            try:
+                elapsed = time.time() - start_time
+                ai_props.live_thinking_seconds = elapsed
+
+                # 安全获取助手消息实例
+                if not (0 <= msg_index < len(ai_props.chat_history)):
+                    return None
+                curr_msg = ai_props.chat_history[msg_index]
+            except (ReferenceError, AttributeError):
+                return None
 
             updated = False
 
@@ -274,14 +311,21 @@ class M8_OT_AI_GenerateCode(bpy.types.Operator):
                 return None
 
             if updated:
-                for window in bpy.context.window_manager.windows:
-                    for area in window.screen.areas:
-                        if area.type == 'TEXT_EDITOR':
-                            area.tag_redraw()
+                try:
+                    for window in bpy.context.window_manager.windows:
+                        for area in window.screen.areas:
+                            if area.type == 'TEXT_EDITOR':
+                                area.tag_redraw()
+                except Exception:
+                    pass
 
             return 0.035
 
         def _finalize_generation():
+            if _is_unregistered or current_gen_id != _active_generation_id:
+                return
+            if stream_state.get("terminated") or stream_state.get("failed"):
+                return
             try:
                 ai_props.is_generating = False
                 ai_props.status_message = _T("已完成！")
@@ -308,6 +352,8 @@ class M8_OT_AI_GenerateCode(bpy.types.Operator):
                     for area in window.screen.areas:
                         if area.type == 'TEXT_EDITOR':
                             area.tag_redraw()
+            except (ReferenceError, AttributeError):
+                pass
             except Exception as fin_err:
                 from ...utils.logger import get_logger
                 get_logger().error(f"Error in _finalize_generation: {fin_err}", exc_info=True)
@@ -315,6 +361,10 @@ class M8_OT_AI_GenerateCode(bpy.types.Operator):
         bpy.app.timers.register(_typewriter_ticker, first_interval=0.03)
 
         def _on_success(raw_response):
+            if _is_unregistered or current_gen_id != _active_generation_id:
+                return
+            if stream_state.get("terminated") or stream_state.get("failed"):
+                return
             try:
                 raw_text = str(raw_response)
                 thinking_text = getattr(raw_response, "thinking", "").strip()
@@ -342,12 +392,22 @@ class M8_OT_AI_GenerateCode(bpy.types.Operator):
 
                 stream_state["final_response"] = raw_response
                 stream_state["stream_completed"] = True
+            except (ReferenceError, AttributeError):
+                pass
             except Exception as e:
                 from ...utils.logger import get_logger
                 get_logger().error(f"Error in _on_success: {e}", exc_info=True)
 
         def _on_error(err):
+            if _is_unregistered or current_gen_id != _active_generation_id:
+                return
             try:
+                stream_state["terminated"] = True
+                stream_state["failed"] = True
+                stream_state["stream_completed"] = False
+                thinking_char_queue.clear()
+                content_char_queue.clear()
+
                 ai_props.is_generating = False
                 ai_props.status_message = f"{_T('生成失败')}: {err}"
                 if 0 <= msg_index < len(ai_props.chat_history):
@@ -361,6 +421,8 @@ class M8_OT_AI_GenerateCode(bpy.types.Operator):
                     for area in window.screen.areas:
                         if area.type == 'TEXT_EDITOR':
                             area.tag_redraw()
+            except (ReferenceError, AttributeError):
+                pass
             except Exception as e:
                 from ...utils.logger import get_logger
                 get_logger().error(f"Error in _on_error: {e}", exc_info=True)

@@ -18,6 +18,215 @@ logger = get_logger()
 HELPER_COLLECTION_NAME = "_M8_Normal_Helpers"
 MODIFIER_PREFIX = "M8_Normal"
 VG_PREFIX = "VG_M8_Normal"
+SNAPSHOT_ATTR_NAME = "_M8_Normal_Snapshot"
+SNAPSHOT_INFO_KEY = "_m8_normal_snapshot_info"
+STASH_COLLECTION_NAME = "_M8_Normal_Stashes"
+STASH_OBJ_PREFIX = "_M8_Stash_"
+STASH_PROP_KEY = "_m8_normal_stash_name"
+ALL_M8_NORMAL_MOD_PREFIXES = (MODIFIER_PREFIX, "M8_StashTransfer", "M8_TargetTransfer")
+ALL_M8_NORMAL_VG_PREFIXES = (VG_PREFIX, "VG_M8_StashTransfer", "VG_M8_TargetTransfer")
+
+
+def _extract_mesh_corner_normals(me):
+    """跨 Blender 版本统一提取网格的面拐法向列表 [(nx, ny, nz), ...]"""
+    total_corners = len(me.loops)
+    if total_corners == 0:
+        return []
+    if hasattr(me, "corner_normals") and len(me.corner_normals) == total_corners:
+        flat = [0.0] * (total_corners * 3)
+        me.corner_normals.foreach_get("vector", flat)
+        return [(flat[i * 3], flat[i * 3 + 1], flat[i * 3 + 2]) for i in range(total_corners)]
+    else:
+        if hasattr(me, "calc_normals_split"):
+            try:
+                me.calc_normals_split()
+            except Exception:
+                pass
+        return [tuple(l.normal) for l in me.loops]
+
+
+def _ensure_single_user_mesh(obj):
+    """确保物体网格为单用户数据，防止 modifier_apply 抛出 Modifiers cannot be applied to multi-user data"""
+    if obj and obj.type == "MESH" and obj.data and obj.data.users > 1:
+        obj.data = obj.data.copy()
+
+
+def _save_mesh_normal_snapshot(context, obj, silent=False):
+    """将物体当前的最终计算法向（含修改器效果与已烘焙自定义法向）完整快照记录在网格原生属性中"""
+    if not obj or obj.type != "MESH":
+        return False, "无效的网格物体"
+
+    prev_mode = context.mode
+    if prev_mode == "EDIT_MESH":
+        obj.update_from_editmode()
+        bpy.ops.object.mode_set(mode="OBJECT")
+    elif prev_mode != "OBJECT":
+        try:
+            bpy.ops.object.mode_set(mode="OBJECT")
+        except Exception:
+            pass
+
+    context.view_layer.objects.active = obj
+    obj.select_set(True)
+
+    try:
+        me = obj.data
+        eval_normals = None
+        try:
+            dg = context.evaluated_depsgraph_get()
+            eval_obj = obj.evaluated_get(dg)
+            if eval_obj and eval_obj.data and len(eval_obj.data.loops) == len(me.loops):
+                eval_normals = _extract_mesh_corner_normals(eval_obj.data)
+        except Exception as e:
+            logger.debug(f"Snapshot evaluated mesh fallback: {e}")
+
+        if not eval_normals or len(eval_normals) != len(me.loops):
+            eval_normals = _extract_mesh_corner_normals(me)
+
+        if not eval_normals or len(eval_normals) != len(me.loops):
+            return False, "无法提取当前网格的面拐法向数据"
+
+        # 在 OBJECT 模式下获取或创建面拐属性 (此时 len(attr.data) == len(me.loops))
+        attr = me.attributes.get(SNAPSHOT_ATTR_NAME)
+        if not attr:
+            attr = me.attributes.new(name=SNAPSHOT_ATTR_NAME, type="FLOAT_VECTOR", domain="CORNER")
+
+        # 防御校验：确保属性数据长度与面拐数匹配，避免残留脏数据
+        if len(attr.data) != len(me.loops):
+            me.attributes.remove(attr)
+            attr = me.attributes.new(name=SNAPSHOT_ATTR_NAME, type="FLOAT_VECTOR", domain="CORNER")
+
+        flat = [comp for norm in eval_normals for comp in norm]
+        attr.data.foreach_set("vector", flat)
+
+        import time
+        poly_smooth = [bool(p.use_smooth) for p in me.polygons]
+        obj[SNAPSHOT_INFO_KEY] = {
+            "timestamp": time.time(),
+            "loop_count": len(me.loops),
+            "poly_count": len(me.polygons),
+            "vert_count": len(me.vertices),
+            "poly_smooth": poly_smooth,
+        }
+
+        if not silent:
+            logger.info(f"M8 Normal Snapshot saved for {obj.name}: {len(eval_normals)} corner normals.")
+        return True, f"已成功保存 {len(eval_normals)} 个面拐法向快照"
+
+    finally:
+        if prev_mode == "EDIT_MESH":
+            context.view_layer.objects.active = obj
+            obj.select_set(True)
+            bpy.ops.object.mode_set(mode="EDIT")
+        elif prev_mode != "OBJECT" and context.mode != prev_mode:
+            try:
+                bpy.ops.object.mode_set(mode=prev_mode)
+            except Exception:
+                pass
+
+
+def _restore_mesh_normal_snapshot(context, obj):
+    """从网格快照属性中 100% 恢复自定义分割法向与多边形着色状态"""
+    if not obj or obj.type != "MESH":
+        return False, "无效的网格物体"
+
+    prev_mode = context.mode
+    if prev_mode == "EDIT_MESH":
+        obj.update_from_editmode()
+        bpy.ops.object.mode_set(mode="OBJECT")
+    elif prev_mode != "OBJECT":
+        try:
+            bpy.ops.object.mode_set(mode="OBJECT")
+        except Exception:
+            pass
+
+    context.view_layer.objects.active = obj
+    obj.select_set(True)
+
+    try:
+        me = obj.data
+        attr = me.attributes.get(SNAPSHOT_ATTR_NAME)
+        if not attr:
+            return False, "当前物体未保存任何法向快照"
+
+        if len(attr.data) != len(me.loops):
+            return False, f"网格拓扑已变更（当前面拐: {len(me.loops)}, 快照面拐: {len(attr.data)}），无法直接还原"
+
+        # 1. 优先恢复多边形原始平滑/平直着色状态 (确保立面 Flat 与曲面 Smooth 各得其所)
+        info = obj.get(SNAPSHOT_INFO_KEY, {})
+        poly_smooth = info.get("poly_smooth")
+        if poly_smooth and len(poly_smooth) == len(me.polygons):
+            for poly, is_sm in zip(me.polygons, poly_smooth):
+                poly.use_smooth = is_sm
+        else:
+            for poly in me.polygons:
+                poly.use_smooth = True
+
+        total_corners = len(me.loops)
+        flat = [0.0] * (total_corners * 3)
+        attr.data.foreach_get("vector", flat)
+        loop_normals = [
+            (flat[i * 3], flat[i * 3 + 1], flat[i * 3 + 2])
+            for i in range(total_corners)
+        ]
+
+        try:
+            me.normals_split_custom_set(loop_normals)
+            me.update()
+        except Exception as e:
+            return False, f"恢复法向失败: {e}"
+
+        return True, f"已成功恢复 {total_corners} 个面拐的自定义法向快照"
+
+    finally:
+        if prev_mode == "EDIT_MESH":
+            context.view_layer.objects.active = obj
+            obj.select_set(True)
+            bpy.ops.object.mode_set(mode="EDIT")
+        elif prev_mode != "OBJECT" and context.mode != prev_mode:
+            try:
+                bpy.ops.object.mode_set(mode=prev_mode)
+            except Exception:
+                pass
+
+
+def _clear_mesh_normal_snapshot(context, obj):
+    """清除当前物体上的法向快照属性与历史元数据"""
+    if not obj or obj.type != "MESH":
+        return False, "无效的网格物体"
+
+    prev_mode = context.mode
+    if prev_mode == "EDIT_MESH":
+        obj.update_from_editmode()
+        bpy.ops.object.mode_set(mode="OBJECT")
+    elif prev_mode != "OBJECT":
+        try:
+            bpy.ops.object.mode_set(mode="OBJECT")
+        except Exception:
+            pass
+
+    context.view_layer.objects.active = obj
+    obj.select_set(True)
+
+    try:
+        me = obj.data
+        attr = me.attributes.get(SNAPSHOT_ATTR_NAME)
+        if attr:
+            me.attributes.remove(attr)
+        if SNAPSHOT_INFO_KEY in obj:
+            del obj[SNAPSHOT_INFO_KEY]
+        return True, "已成功清除法向快照历史"
+
+    finally:
+        if prev_mode == "EDIT_MESH":
+            context.view_layer.objects.active = obj
+            obj.select_set(True)
+            bpy.ops.object.mode_set(mode="EDIT")
+        elif prev_mode != "OBJECT" and context.mode != prev_mode:
+            try:
+                bpy.ops.object.mode_set(mode=prev_mode)
+            except Exception:
+                pass
 
 
 def _hide_collection_in_view_layer(view_layer, col_name, hide=True):
@@ -50,6 +259,253 @@ def _get_or_create_helper_collection(scene):
     if vl:
         _hide_collection_in_view_layer(vl, HELPER_COLLECTION_NAME, hide=True)
     return col
+
+
+def _get_or_create_stash_collection(scene):
+    """获取或创建专门收纳几何暂存体 (Stash) 的隐藏集合，默认在视口与大纲中静默隐藏"""
+    col = bpy.data.collections.get(STASH_COLLECTION_NAME)
+    if not col:
+        col = bpy.data.collections.new(STASH_COLLECTION_NAME)
+        scene.collection.children.link(col)
+    col.hide_viewport = True
+    col.hide_render = True
+    vl = getattr(bpy.context, "view_layer", None)
+    if vl:
+        _hide_collection_in_view_layer(vl, STASH_COLLECTION_NAME, hide=True)
+    return col
+
+
+def _get_geometry_stash(obj):
+    """获取与当前物体关联的几何暂存体对象"""
+    if not obj or obj.type != "MESH":
+        return None
+    stash_name = obj.get(STASH_PROP_KEY)
+    if stash_name:
+        stash_obj = bpy.data.objects.get(stash_name)
+        if stash_obj and stash_obj.type == "MESH":
+            return stash_obj
+    default_name = f"{STASH_OBJ_PREFIX}{obj.name}"
+    stash_obj = bpy.data.objects.get(default_name)
+    if stash_obj and stash_obj.type == "MESH":
+        return stash_obj
+    return None
+
+
+def _create_geometry_stash(context, obj):
+    """
+    在破坏性布尔/倒角/拓扑改动前，将当前网格的纯净几何与计算法向完整克隆并暂存在隐藏集合中。
+    无论后续拓扑如何被破坏，均可通过数据传递跨拓扑投影恢复完美曲率法向 (MESHmachine Stash 范式)。
+    """
+    if not obj or obj.type != "MESH":
+        return None, "无效的网格物体"
+
+    prev_mode = context.mode
+    if prev_mode == "EDIT_MESH":
+        obj.update_from_editmode()
+        bpy.ops.object.mode_set(mode="OBJECT")
+    elif prev_mode != "OBJECT":
+        try:
+            bpy.ops.object.mode_set(mode="OBJECT")
+        except Exception:
+            pass
+
+    context.view_layer.objects.active = obj
+    obj.select_set(True)
+
+    try:
+        # 清理已有同名旧暂存体
+        old_stash = _get_geometry_stash(obj)
+        if old_stash:
+            old_me = old_stash.data
+            bpy.data.objects.remove(old_stash, do_unlink=True)
+            if old_me and old_me.users == 0:
+                bpy.data.meshes.remove(old_me)
+
+        # 评估网格，获取当前物体最终状态（含修改器效果与平滑着色）
+        depsgraph = context.evaluated_depsgraph_get()
+        eval_obj = obj.evaluated_get(depsgraph)
+        stash_me = bpy.data.meshes.new_from_object(eval_obj, preserve_all_data_layers=True, depsgraph=depsgraph)
+        stash_name = f"{STASH_OBJ_PREFIX}{obj.name}"
+        stash_me.name = f"{stash_name}_Mesh"
+
+        stash_obj = bpy.data.objects.new(stash_name, stash_me)
+        stash_obj.matrix_world = obj.matrix_world.copy()
+        stash_obj.hide_viewport = True
+        stash_obj.hide_render = True
+
+        stash_col = _get_or_create_stash_collection(context.scene)
+        stash_col.objects.link(stash_obj)
+
+        obj[STASH_PROP_KEY] = stash_obj.name
+
+        return stash_obj, f"已成功暂存当前几何体: {stash_obj.name} ({len(stash_me.polygons)} 面)"
+    finally:
+        if prev_mode == "EDIT_MESH":
+            context.view_layer.objects.active = obj
+            obj.select_set(True)
+            bpy.ops.object.mode_set(mode="EDIT")
+        elif prev_mode != "OBJECT" and context.mode != prev_mode:
+            try:
+                bpy.ops.object.mode_set(mode=prev_mode)
+            except Exception:
+                pass
+
+
+def _clear_geometry_stash(context, obj):
+    """彻底清除指定物体的几何暂存体与关联数据块"""
+    if not obj or obj.type != "MESH":
+        return False, "无效的网格物体"
+
+    stash_obj = _get_geometry_stash(obj)
+    if not stash_obj:
+        if STASH_PROP_KEY in obj:
+            del obj[STASH_PROP_KEY]
+        return False, "未找到关联的几何暂存体"
+
+    stash_me = stash_obj.data
+    try:
+        bpy.data.objects.remove(stash_obj, do_unlink=True)
+        if stash_me and stash_me.users == 0:
+            bpy.data.meshes.remove(stash_me)
+    except Exception as e:
+        logger.debug(f"Clear geometry stash fallback: {e}")
+
+    if STASH_PROP_KEY in obj:
+        del obj[STASH_PROP_KEY]
+
+    # 空集合自动回收
+    col = bpy.data.collections.get(STASH_COLLECTION_NAME)
+    if col and len(col.objects) == 0:
+        try:
+            bpy.data.collections.remove(col)
+        except Exception:
+            pass
+
+    return True, "已清除几何暂存体"
+
+
+def _apply_normal_transfer_from_source(
+    context,
+    target_obj,
+    source_obj,
+    selected_only=True,
+    mapping="POLYINTERP_NEAREST",
+    apply_and_clean=False,
+    mod_prefix="M8_Transfer",
+):
+    """
+    从源几何体 (source_obj) 跨拓扑投射法向至目标物体 (target_obj)。
+    支持编辑模式局部面选区与整物体全量投射。
+    """
+    if not target_obj or target_obj.type != "MESH":
+        return False, "无效的目标网格物体"
+    if not source_obj or source_obj.type != "MESH":
+        return False, "请指定有效的参考网格物体"
+
+    prev_mode = context.mode
+    selected_verts = []
+    selected_faces = []
+
+    if prev_mode == "EDIT_MESH":
+        target_obj.update_from_editmode()
+        bm = bmesh.from_edit_mesh(target_obj.data)
+        selected_faces = [f.index for f in bm.faces if f.select]
+        selected_verts = [v.index for v in bm.verts if v.select]
+        if not selected_faces and not selected_verts:
+            # 若未选择任何面/点，自动退化为全物体投射
+            selected_only = False
+        bpy.ops.object.mode_set(mode="OBJECT")
+    elif prev_mode != "OBJECT":
+        try:
+            bpy.ops.object.mode_set(mode="OBJECT")
+        except Exception:
+            pass
+
+    context.view_layer.objects.active = target_obj
+    target_obj.select_set(True)
+
+    try:
+        vg = None
+        if selected_only and (selected_verts or selected_faces):
+            vg_name = f"VG_{mod_prefix}_{source_obj.name[:10]}"
+            vg = target_obj.vertex_groups.get(vg_name)
+            if not vg:
+                vg = target_obj.vertex_groups.new(name=vg_name)
+            else:
+                try:
+                    vg.remove(list(range(len(target_obj.data.vertices))))
+                except Exception:
+                    pass
+
+            v_indices = set(selected_verts)
+            for p_idx in selected_faces:
+                p = target_obj.data.polygons[p_idx]
+                v_indices.update(p.vertices)
+
+            for vid in v_indices:
+                vg.add([vid], 1.0, "REPLACE")
+
+        mod_name = f"{mod_prefix}_{source_obj.name[:12]}"
+        mod = target_obj.modifiers.get(mod_name)
+        if not mod:
+            mod = target_obj.modifiers.new(name=mod_name, type="DATA_TRANSFER")
+
+        mod.object = source_obj
+        mod.use_loop_data = True
+        mod.data_types_loops = {"CUSTOM_NORMAL"}
+        mod.loop_mapping = mapping
+        if vg:
+            mod.vertex_group = vg.name
+
+        # 确保 DATA_TRANSFER 位于 WEIGHTED_NORMAL 之后，防止传递法向被覆盖
+        weighted_mods = [m for m in target_obj.modifiers if m.type == "WEIGHTED_NORMAL"]
+        if weighted_mods and hasattr(target_obj.modifiers, "move"):
+            try:
+                last_wn_idx = max(target_obj.modifiers.find(m.name) for m in weighted_mods)
+                curr_idx = target_obj.modifiers.find(mod.name)
+                if curr_idx < last_wn_idx:
+                    target_obj.modifiers.move(curr_idx, last_wn_idx)
+            except Exception as e:
+                logger.debug(f"Modifier move after WEIGHTED_NORMAL fallback: {e}")
+
+        # 仅将受影响的多边形标记为 smooth，杜绝污染平直侧面
+        if selected_faces:
+            for p_idx in selected_faces:
+                target_obj.data.polygons[p_idx].use_smooth = True
+        elif not selected_only:
+            for poly in target_obj.data.polygons:
+                poly.use_smooth = True
+
+        if apply_and_clean:
+            try:
+                _ensure_single_user_mesh(target_obj)
+                bpy.ops.object.modifier_apply(modifier=mod.name)
+                # 自动快照备份
+                try:
+                    _save_mesh_normal_snapshot(context, target_obj, silent=True)
+                except Exception:
+                    pass
+                if vg:
+                    try:
+                        target_obj.vertex_groups.remove(vg)
+                    except Exception:
+                        pass
+                return True, f"已成功将 {source_obj.name} 的法向烘焙至网格"
+            except Exception as e:
+                return False, f"修改器应用失败: {e}"
+        else:
+            return True, f"法向传递修改器已就绪: 来源 [{source_obj.name}] ➔ 算法 [{mapping}]"
+
+    finally:
+        if prev_mode == "EDIT_MESH":
+            context.view_layer.objects.active = target_obj
+            target_obj.select_set(True)
+            bpy.ops.object.mode_set(mode="EDIT")
+        elif prev_mode != "OBJECT" and context.mode != prev_mode:
+            try:
+                bpy.ops.object.mode_set(mode=prev_mode)
+            except Exception:
+                pass
 
 
 def _extract_boundary_loops(boundary_edges):
@@ -1195,7 +1651,7 @@ def _apply_cage_envelope_push(
         return
 
     bvh = None
-    if auto_wrap_outside and bm_target and selected_faces:
+    if bm_target and selected_faces:
         try:
             target_verts_co = [v.co for v in bm_target.verts]
             target_polys = [[v.index for v in f.verts] for f in selected_faces]
@@ -1207,29 +1663,26 @@ def _apply_cage_envelope_push(
     bm_helper.faces.ensure_lookup_table()
     bm_helper.normal_update()
 
-    # 1. 智能防内缩保护 (Anti-Shrink Protection)
-    if bvh and auto_wrap_outside:
-        for v in bm_helper.verts:
+    for v in bm_helper.verts:
+        out_norm = None
+        if bvh:
             loc, norm, idx, dist = bvh.find_nearest(v.co)
             if loc is not None and norm is not None and norm.length > 1e-4:
-                norm_u = norm.normalized()
-                disp = v.co - loc
-                signed_dist = disp.dot(norm_u)
-                if signed_dist < 0.0:
-                    # 强力纠偏：推至原模型外侧微量安全边界 (至少处于表面偏外 0.0005m)
-                    v.co = loc + norm_u * 0.0005
+                out_norm = norm.normalized()
+                if auto_wrap_outside:
+                    disp = v.co - loc
+                    signed_dist = disp.dot(out_norm)
+                    if signed_dist < 0.0:
+                        # 强力纠偏：推至原模型外侧微量安全边界 (至少处于表面偏外 0.0005m)
+                        v.co = loc + out_norm * 0.0005
 
-    # 2. 沿平滑顶点法向应用用户可调的 cage_offset
-    if abs(cage_offset) > 1e-6:
-        bm_helper.normal_update()
-        for v in bm_helper.verts:
-            v_norm = v.normal
-            if v_norm.length > 1e-4:
-                v.co += v_norm.normalized() * cage_offset
-            else:
-                avg_fn = sum((f.normal for f in v.link_faces), Vector((0, 0, 0)))
-                if avg_fn.length > 1e-4:
-                    v.co += avg_fn.normalized() * cage_offset
+        if abs(cage_offset) > 1e-6:
+            # 优先使用原模型表面绝对朝外的外法向进行 Cage 外推，杜绝辅助体面法向反转导致的向内穿模
+            push_dir = out_norm
+            if push_dir is None or push_dir.length < 1e-4:
+                push_dir = v.normal if v.normal.length > 1e-4 else sum((f.normal for f in v.link_faces), Vector())
+            if push_dir and push_dir.length > 1e-4:
+                v.co += push_dir.normalized() * cage_offset
 
     bm_helper.normal_update()
 
@@ -1556,46 +2009,46 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
         if self.mode in ("AUTO", "CYLINDER"):
             box_cyl = layout.box()
             box_cyl.label(text=_T("圆柱拟合参数"), icon="MESH_CYLINDER")
-            box_cyl.prop(self, "cylinder_segments")
-            box_cyl.prop(self, "axis_override")
-            box_cyl.prop(self, "cylinder_cap_mode")
-            box_cyl.prop(self, "cylinder_arc_mode")
+            box_cyl.prop(self, "cylinder_segments", text=_T("圆柱分段数"))
+            box_cyl.prop(self, "axis_override", text=_T("圆柱中轴方向"))
+            box_cyl.prop(self, "cylinder_cap_mode", text=_T("端盖闭合"))
+            box_cyl.prop(self, "cylinder_arc_mode", text=_T("弧度范围"))
 
         if self.mode in ("AUTO", "SMOOTH_EXTRACT"):
             box_smooth = layout.box()
             box_smooth.label(text=_T("提取与四边面平滑"), icon="MOD_SMOOTH")
-            box_smooth.prop(self, "extract_clean_mode")
+            box_smooth.prop(self, "extract_clean_mode", text=_T("提取净化模式"))
             if self.extract_clean_mode in ("AUTO", "BRIDGE"):
-                box_smooth.prop(self, "profile_cuts")
+                box_smooth.prop(self, "profile_cuts", text=_T("剖面中间分段"))
             if self.extract_clean_mode in ("AUTO", "DISSOLVE"):
-                box_smooth.prop(self, "dissolve_angle")
-            box_smooth.prop(self, "smooth_iterations")
+                box_smooth.prop(self, "dissolve_angle", text=_T("融解角度阈值"))
+            box_smooth.prop(self, "smooth_iterations", text=_T("平滑迭代次数"))
 
             box_quad = box_smooth.box()
-            box_quad.prop(self, "quad_remesh", icon="MESH_GRID")
+            box_quad.prop(self, "quad_remesh", text=_T("重置为四边面"), icon="MESH_GRID")
             if self.quad_remesh:
-                box_quad.prop(self, "quad_subdiv")
-                box_quad.prop(self, "snap_to_surface")
-                box_quad.prop(self, "quad_smooth_factor")
+                box_quad.prop(self, "quad_subdiv", text=_T("四边面细分层级"))
+                box_quad.prop(self, "snap_to_surface", text=_T("贴合原曲面"))
+                box_quad.prop(self, "quad_smooth_factor", text=_T("曲面光顺度"))
 
             box_cage = box_smooth.box()
             box_cage.label(text=_T("外壳包裹与防内缩 (Cage)"), icon="OUTLINER_OB_SURFACE")
-            box_cage.prop(self, "cage_offset")
-            box_cage.prop(self, "auto_wrap_outside")
+            box_cage.prop(self, "cage_offset", text=_T("向外包裹偏移"))
+            box_cage.prop(self, "auto_wrap_outside", text=_T("防内缩外壳保护"))
 
         layout.separator()
-        layout.prop(self, "grow_steps")
+        layout.prop(self, "grow_steps", text=_T("扩展选区 (圈数)"))
 
         row = layout.row()
-        row.prop(self, "flip_normal", icon="ARROW_LEFTRIGHT")
-        row.prop(self, "show_helper", icon="HIDE_OFF" if self.show_helper else "HIDE_ON")
+        row.prop(self, "flip_normal", text=_T("反转法向"), icon="ARROW_LEFTRIGHT")
+        row.prop(self, "show_helper", text=_T("显示辅助体"), icon="HIDE_OFF" if self.show_helper else "HIDE_ON")
 
         box_stack = layout.box()
-        box_stack.prop(self, "stack_mode", icon="DUPLICATE")
+        box_stack.prop(self, "stack_mode", text=_T("叠加模式"), icon="DUPLICATE")
 
         box = layout.box()
         box.alert = bool(self.apply_and_clean)
-        box.prop(self, "apply_and_clean", icon="CHECKMARK")
+        box.prop(self, "apply_and_clean", text=_T("立即烘焙并清理"), icon="CHECKMARK")
 
     def execute(self, context):
         if context.mode != "EDIT_MESH":
@@ -1767,6 +2220,7 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
 
             if self.stack_mode == "APPLY_PREVIOUS" and existing_m8_mods:
                 # 固化前序：将物体上已存的所有 M8 修改器全部一键烘焙并清理
+                _ensure_single_user_mesh(obj)
                 for m in list(obj.modifiers):
                     if m.type == "DATA_TRANSFER" and m.name.startswith(MODIFIER_PREFIX):
                         h_obj = m.object
@@ -1953,7 +2407,13 @@ class M8_OT_SmartNormalTransfer(bpy.types.Operator):
         # 9. 烘焙应用与清理 (Apply & Clean)
         if self.apply_and_clean:
             try:
+                _ensure_single_user_mesh(obj)
                 bpy.ops.object.modifier_apply(modifier=mod.name)
+                # 自动快照备份：在修改器烘焙应用完成后，自动静默记录法向快照，提供随时可逆的后悔药保障
+                try:
+                    _save_mesh_normal_snapshot(context, obj, silent=True)
+                except Exception as e:
+                    logger.debug(f"Auto-snapshot on apply_and_clean fallback: {e}")
                 self.report({"INFO"}, _T("法向已烘焙至网格，辅助体已清理"))
             except Exception as e:
                 self.report({"WARNING"}, f"{_T('修改器应用失败')}: {e}")
@@ -2001,7 +2461,7 @@ class M8_OT_ApplyNormalTransfer(bpy.types.Operator):
         if not obj or obj.type != "MESH":
             return False
         return any(
-            m.type == "DATA_TRANSFER" and m.name.startswith(MODIFIER_PREFIX)
+            m.type == "DATA_TRANSFER" and m.name.startswith(ALL_M8_NORMAL_MOD_PREFIXES)
             for m in obj.modifiers
         )
 
@@ -2018,11 +2478,14 @@ class M8_OT_ApplyNormalTransfer(bpy.types.Operator):
         helpers_to_remove = set()
         vgs_to_remove = set()
 
+        _ensure_single_user_mesh(obj)
+
         for mod in list(obj.modifiers):
-            if mod.type == "DATA_TRANSFER" and mod.name.startswith(MODIFIER_PREFIX):
-                if mod.object:
+            if mod.type == "DATA_TRANSFER" and mod.name.startswith(ALL_M8_NORMAL_MOD_PREFIXES):
+                # 仅回收 M8 专属辅助体，严禁误删用户场景中的高模参考物体或暂存体
+                if mod.object and mod.object.name.startswith("_M8_Helper_"):
                     helpers_to_remove.add(mod.object)
-                if mod.vertex_group and mod.vertex_group.startswith(VG_PREFIX):
+                if mod.vertex_group and mod.vertex_group.startswith(ALL_M8_NORMAL_VG_PREFIXES):
                     vgs_to_remove.add(mod.vertex_group)
                 try:
                     bpy.ops.object.modifier_apply(modifier=mod.name)
@@ -2060,6 +2523,12 @@ class M8_OT_ApplyNormalTransfer(bpy.types.Operator):
             except Exception:
                 pass
 
+        # 自动快照备份：在修改器烘焙应用完成后，自动静默记录法向快照，提供随时可逆的后悔药保障
+        try:
+            _save_mesh_normal_snapshot(context, obj, silent=True)
+        except Exception as e:
+            logger.debug(f"Auto-snapshot on apply fallback: {e}")
+
         if prev_mode == "EDIT_MESH":
             bpy.ops.object.mode_set(mode="EDIT")
 
@@ -2079,7 +2548,7 @@ class M8_OT_ClearNormalTransfer(bpy.types.Operator):
         if not obj or obj.type != "MESH":
             return False
         return any(
-            m.type == "DATA_TRANSFER" and m.name.startswith(MODIFIER_PREFIX)
+            m.type == "DATA_TRANSFER" and m.name.startswith(ALL_M8_NORMAL_MOD_PREFIXES)
             for m in obj.modifiers
         )
 
@@ -2090,10 +2559,11 @@ class M8_OT_ClearNormalTransfer(bpy.types.Operator):
         vgs_to_remove = set()
 
         for mod in list(obj.modifiers):
-            if mod.type == "DATA_TRANSFER" and mod.name.startswith(MODIFIER_PREFIX):
-                if mod.object:
+            if mod.type == "DATA_TRANSFER" and mod.name.startswith(ALL_M8_NORMAL_MOD_PREFIXES):
+                # 仅回收 M8 专属辅助体，严禁误删用户场景中的高模参考物体或暂存体
+                if mod.object and mod.object.name.startswith("_M8_Helper_"):
                     helpers_to_remove.add(mod.object)
-                if mod.vertex_group and mod.vertex_group.startswith(VG_PREFIX):
+                if mod.vertex_group and mod.vertex_group.startswith(ALL_M8_NORMAL_VG_PREFIXES):
                     vgs_to_remove.add(mod.vertex_group)
                 obj.modifiers.remove(mod)
                 cleared_count += 1
@@ -2133,30 +2603,35 @@ class M8_OT_ClearNormalTransfer(bpy.types.Operator):
 
 class M8_OT_FlipNormalTransfer(bpy.types.Operator):
     bl_idname = "m8.flip_normal_transfer"
-    bl_label = _T("反转法向传递")
-    bl_description = _T("快速反转当前物体上 M8 法向传递辅助体的法线朝向")
+    bl_label = _T("反转法向")
+    bl_description = _T("反转当前物体上 M8 辅助体的法向朝向，或直接将选中区域的自定义分割法向取反")
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context):
         obj = context.active_object or context.edit_object
-        if not obj or obj.type != "MESH":
-            return False
-        return any(
-            m.type == "DATA_TRANSFER" and m.name.startswith(MODIFIER_PREFIX) and m.object
-            for m in obj.modifiers
-        )
+        return bool(obj and obj.type == "MESH")
 
     def execute(self, context):
         obj = context.active_object or context.edit_object
-        flipped_count = 0
-        prev_mode = context.mode
+        if not obj or obj.type != "MESH":
+            self.report({"WARNING"}, _T("无效的网格物体"))
+            return {"CANCELLED"}
 
-        for mod in obj.modifiers:
-            if mod.type == "DATA_TRANSFER" and mod.name.startswith(MODIFIER_PREFIX) and mod.object:
+        prev_mode = context.mode
+        helper_mods = [
+            m for m in obj.modifiers
+            if m.type == "DATA_TRANSFER"
+            and m.name.startswith(ALL_M8_NORMAL_MOD_PREFIXES)
+            and m.object
+            and m.object.name.startswith("_M8_Helper_")
+        ]
+
+        if helper_mods:
+            flipped_count = 0
+            for mod in helper_mods:
                 h_obj = mod.object
-                if h_obj.data and hasattr(h_obj.data, "polygons"):
-                    # 如果辅助体处于编辑模式，先切换为对象模式
+                if h_obj and h_obj.data and hasattr(h_obj.data, "polygons"):
                     if h_obj.mode == "EDIT":
                         bpy.ops.object.mode_set(mode="OBJECT")
                     bm = bmesh.new()
@@ -2168,14 +2643,84 @@ class M8_OT_FlipNormalTransfer(bpy.types.Operator):
                     bm.free()
                     flipped_count += 1
 
-        obj.data.update()
-        if prev_mode == "EDIT_MESH" and context.mode != "EDIT_MESH":
-            context.view_layer.objects.active = obj
-            obj.select_set(True)
-            bpy.ops.object.mode_set(mode="EDIT")
+            obj.data.update()
+            if prev_mode == "EDIT_MESH" and context.mode != "EDIT_MESH":
+                context.view_layer.objects.active = obj
+                obj.select_set(True)
+                bpy.ops.object.mode_set(mode="EDIT")
 
-        self.report({"INFO"}, f"{_T('已反转')} {flipped_count} {_T('个辅助体的法向朝向')}")
-        return {"FINISHED"}
+            self.report({"INFO"}, f"{_T('已反转')} {flipped_count} {_T('个辅助体的法向朝向')}")
+            return {"FINISHED"}
+
+        # 模式 2：直接反转选区或网格的自定义法向向量 (Invert Custom Normals)
+        selected_verts = set()
+        selected_faces = set()
+        if prev_mode == "EDIT_MESH":
+            obj.update_from_editmode()
+            bm = bmesh.from_edit_mesh(obj.data)
+            selected_verts = {v.index for v in bm.verts if v.select}
+            selected_faces = {f.index for f in bm.faces if f.select}
+            bpy.ops.object.mode_set(mode="OBJECT")
+        elif prev_mode != "OBJECT":
+            try:
+                bpy.ops.object.mode_set(mode="OBJECT")
+            except Exception:
+                pass
+
+        context.view_layer.objects.active = obj
+        obj.select_set(True)
+
+        try:
+            me = obj.data
+            total_corners = len(me.loops)
+            if total_corners == 0:
+                self.report({"WARNING"}, _T("网格没有面拐数据"))
+                return {"CANCELLED"}
+
+            curr_normals = _extract_mesh_corner_normals(me)
+            new_normals = list(curr_normals)
+
+            affected_vert_set = set()
+            if selected_verts or selected_faces:
+                affected_vert_set.update(selected_verts)
+                for f_idx in selected_faces:
+                    affected_vert_set.update(me.polygons[f_idx].vertices)
+            else:
+                affected_vert_set = set(range(len(me.vertices)))
+
+            for l_idx, loop in enumerate(me.loops):
+                if loop.vertex_index in affected_vert_set:
+                    cn = curr_normals[l_idx]
+                    new_normals[l_idx] = (-cn[0], -cn[1], -cn[2])
+
+            _ensure_single_user_mesh(obj)
+            me = obj.data
+
+            for poly in me.polygons:
+                if any(v in affected_vert_set for v in poly.vertices):
+                    poly.use_smooth = True
+
+            me.normals_split_custom_set(new_normals)
+            me.update()
+
+            try:
+                _save_mesh_normal_snapshot(context, obj, silent=True)
+            except Exception:
+                pass
+
+            self.report({"INFO"}, f"{_T('已反转')} {len(affected_vert_set)} {_T('个顶点的自定义法向')}")
+            return {"FINISHED"}
+        finally:
+            if prev_mode == "EDIT_MESH":
+                context.view_layer.objects.active = obj
+                obj.select_set(True)
+                bpy.ops.object.mode_set(mode="EDIT")
+            elif prev_mode != "OBJECT" and context.mode != prev_mode:
+                try:
+                    bpy.ops.object.mode_set(mode=prev_mode)
+                except Exception:
+                    pass
+
 
 
 class M8_OT_ClearCustomNormals(bpy.types.Operator):
@@ -2216,5 +2761,818 @@ class M8_OT_ClearCustomNormals(bpy.types.Operator):
 
         self.report({"INFO"}, _T("已重置自定义法向"))
         return {"FINISHED"}
+
+
+class M8_OT_SaveNormalSnapshot(bpy.types.Operator):
+    bl_idname = "m8.save_normal_snapshot"
+    bl_label = _T("保存法向快照")
+    bl_description = _T("将当前物体的最终法向完整记录为快照并保存在网格中，随工程文件永久保存，支持随时恢复")
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        return bool(obj and obj.type == "MESH")
+
+    def execute(self, context):
+        obj = context.active_object or context.edit_object
+        success, msg = _save_mesh_normal_snapshot(context, obj, silent=False)
+        if success:
+            self.report({"INFO"}, _T(msg))
+            return {"FINISHED"}
+        else:
+            self.report({"WARNING"}, _T(msg))
+            return {"CANCELLED"}
+
+
+class M8_OT_RestoreNormalSnapshot(bpy.types.Operator):
+    bl_idname = "m8.restore_normal_snapshot"
+    bl_label = _T("还原法向快照")
+    bl_description = _T("从网格快照中 100% 还原自定义法向，即使已应用修改器、重置法向或重新打开文件均可一键恢复")
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        if not obj or obj.type != "MESH":
+            return False
+        return SNAPSHOT_ATTR_NAME in obj.data.attributes
+
+    def execute(self, context):
+        obj = context.active_object or context.edit_object
+        success, msg = _restore_mesh_normal_snapshot(context, obj)
+        if success:
+            self.report({"INFO"}, _T(msg))
+            return {"FINISHED"}
+        else:
+            self.report({"WARNING"}, _T(msg))
+            return {"CANCELLED"}
+
+
+class M8_OT_ClearNormalSnapshot(bpy.types.Operator):
+    bl_idname = "m8.clear_normal_snapshot"
+    bl_label = _T("清除法向快照")
+    bl_description = _T("清除当前物体上保存的法向历史快照数据与属性")
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        if not obj or obj.type != "MESH":
+            return False
+        return SNAPSHOT_ATTR_NAME in obj.data.attributes
+
+    def execute(self, context):
+        obj = context.active_object or context.edit_object
+        success, msg = _clear_mesh_normal_snapshot(context, obj)
+        if success:
+            self.report({"INFO"}, _T(msg))
+            return {"FINISHED"}
+        else:
+            self.report({"WARNING"}, _T(msg))
+            return {"CANCELLED"}
+
+
+class M8_OT_CreateGeometryStash(bpy.types.Operator):
+    bl_idname = "m8.create_geometry_stash"
+    bl_label = _T("暂存几何体 (Stash)")
+    bl_description = _T("在破坏性布尔/倒角前将干净几何体暂存至隐藏集合，以便后续跨拓扑100%还原完美曲率法向")
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        return bool(obj and obj.type == "MESH")
+
+    def execute(self, context):
+        obj = context.active_object or context.edit_object
+        stash_obj, msg = _create_geometry_stash(context, obj)
+        if stash_obj:
+            self.report({"INFO"}, _T(msg))
+            return {"FINISHED"}
+        else:
+            self.report({"WARNING"}, _T(msg))
+            return {"CANCELLED"}
+
+
+class M8_OT_TransferFromStash(bpy.types.Operator):
+    bl_idname = "m8.transfer_from_stash"
+    bl_label = _T("从暂存体恢复法向")
+    bl_description = _T("利用数据传递修改器从暂存的几何体跨拓扑投射法向至当前网格")
+    bl_options = {"REGISTER", "UNDO"}
+
+    mapping: bpy.props.EnumProperty(
+        name=_T("面拐映射算法"),
+        items=[
+            ("POLYINTERP_NEAREST", _T("最近多边形插值 (推荐)"), _T("跨拓扑最均匀保真")),
+            ("NEAREST_POLYNOR", _T("最近多边形法向"), _T("匹配最近面的法向")),
+            ("NEAREST_CORNER", _T("最近面拐点"), _T("匹配最近的角点")),
+            ("TOPOLOGY", _T("拓扑匹配"), _T("点线面完全相同时 1:1 映射")),
+        ],
+        default="POLYINTERP_NEAREST",
+    )
+
+    selected_only: bpy.props.BoolProperty(
+        name=_T("仅限选中区域"),
+        description=_T("仅将法向投射至当前选中的面/顶点；未勾选则作用于整物体"),
+        default=True,
+    )
+
+    apply_and_clean: bpy.props.BoolProperty(
+        name=_T("直接烘焙并清理"),
+        description=_T("立即应用修改器并清理临时顶点组，无需手动应用"),
+        default=False,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        if not obj or obj.type != "MESH":
+            return False
+        return _get_geometry_stash(obj) is not None
+
+    def execute(self, context):
+        obj = context.active_object or context.edit_object
+        stash_obj = _get_geometry_stash(obj)
+        if not stash_obj:
+            self.report({"WARNING"}, _T("未找到与当前物体关联的几何暂存体"))
+            return {"CANCELLED"}
+
+        success, msg = _apply_normal_transfer_from_source(
+            context,
+            target_obj=obj,
+            source_obj=stash_obj,
+            selected_only=self.selected_only,
+            mapping=self.mapping,
+            apply_and_clean=self.apply_and_clean,
+            mod_prefix="M8_StashTransfer",
+        )
+        if success:
+            self.report({"INFO"}, _T(msg))
+            return {"FINISHED"}
+        else:
+            self.report({"WARNING"}, _T(msg))
+            return {"CANCELLED"}
+
+
+class M8_OT_ClearGeometryStash(bpy.types.Operator):
+    bl_idname = "m8.clear_geometry_stash"
+    bl_label = _T("清除几何暂存")
+    bl_description = _T("彻底清除当前物体关联的几何暂存体及数据块")
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        if not obj or obj.type != "MESH":
+            return False
+        return _get_geometry_stash(obj) is not None
+
+    def execute(self, context):
+        obj = context.active_object or context.edit_object
+        success, msg = _clear_geometry_stash(context, obj)
+        if success:
+            self.report({"INFO"}, _T(msg))
+            return {"FINISHED"}
+        else:
+            self.report({"WARNING"}, _T(msg))
+            return {"CANCELLED"}
+
+
+class M8_OT_TransferFromTarget(bpy.types.Operator):
+    bl_idname = "m8.transfer_from_target"
+    bl_label = _T("从目标物体吸取法向")
+    bl_description = _T("从视口选中的另一个网格物体或指定目标参考体跨物体传递法向 (Normal Thief / Target Transfer 范式)")
+    bl_options = {"REGISTER", "UNDO"}
+
+    target_object_name: bpy.props.StringProperty(
+        name=_T("目标参考物体"),
+        description=_T("作为法向来源的参考物体名称（留空则自动选用视口中选中的其他网格物体）"),
+        default="",
+    )
+
+    mapping: bpy.props.EnumProperty(
+        name=_T("面拐映射算法"),
+        items=[
+            ("POLYINTERP_NEAREST", _T("最近多边形插值 (推荐)"), _T("跨拓扑最均匀保真")),
+            ("NEAREST_POLYNOR", _T("最近多边形法向"), _T("匹配最近面的法向")),
+            ("NEAREST_CORNER", _T("最近面拐点"), _T("匹配最近的角点")),
+            ("TOPOLOGY", _T("拓扑匹配"), _T("点线面完全相同时 1:1 映射")),
+        ],
+        default="POLYINTERP_NEAREST",
+    )
+
+    selected_only: bpy.props.BoolProperty(
+        name=_T("仅限选中区域"),
+        description=_T("仅将法向投射至当前选中的面/顶点；未勾选则作用于整物体"),
+        default=True,
+    )
+
+    apply_and_clean: bpy.props.BoolProperty(
+        name=_T("直接烘焙并清理"),
+        description=_T("立即应用修改器并清理临时顶点组"),
+        default=False,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        return bool(obj and obj.type == "MESH")
+
+    def invoke(self, context, event):
+        act_obj = context.active_object or context.edit_object
+        if not self.target_object_name:
+            candidates = [o for o in context.selected_objects if o != act_obj and o.type == "MESH"]
+            if candidates:
+                self.target_object_name = candidates[0].name
+        return self.execute(context)
+
+    def execute(self, context):
+        act_obj = context.active_object or context.edit_object
+        if not act_obj or act_obj.type != "MESH":
+            self.report({"WARNING"}, _T("无效的目标网格物体"))
+            return {"CANCELLED"}
+
+        source_obj = None
+        if self.target_object_name:
+            source_obj = bpy.data.objects.get(self.target_object_name)
+
+        if not source_obj or source_obj.type != "MESH":
+            candidates = [o for o in context.selected_objects if o != act_obj and o.type == "MESH"]
+            if candidates:
+                source_obj = candidates[0]
+
+        if not source_obj or source_obj.type != "MESH":
+            self.report({"WARNING"}, _T("请在视口中同时选中参考高模物体，或在操作面板中指定目标参考物体"))
+            return {"CANCELLED"}
+
+        if source_obj == act_obj:
+            self.report({"WARNING"}, _T("源参考物体不能与当前操作物体相同"))
+            return {"CANCELLED"}
+
+        success, msg = _apply_normal_transfer_from_source(
+            context,
+            target_obj=act_obj,
+            source_obj=source_obj,
+            selected_only=self.selected_only,
+            mapping=self.mapping,
+            apply_and_clean=self.apply_and_clean,
+            mod_prefix="M8_TargetTransfer",
+        )
+        if success:
+            self.report({"INFO"}, _T(msg))
+            return {"FINISHED"}
+        else:
+            self.report({"WARNING"}, _T(msg))
+            return {"CANCELLED"}
+
+
+class M8_OT_PointNormalsToCursor(bpy.types.Operator):
+    bl_idname = "m8.point_normals_to_cursor"
+    bl_label = _T("法向指向游标")
+    bl_description = _T("将选中顶点/面拐的自定义法向对齐至 3D 游标（从游标发射或指向游标），常用于圆顶、圆弧面与植被树冠的高光平滑 (Abnormal 范式)")
+    bl_options = {"REGISTER", "UNDO"}
+
+    invert: bpy.props.BoolProperty(
+        name=_T("反向指向"),
+        description=_T("反转方向，使法向指向 3D 游标中心（适合内凹碗状/反射罩几何）"),
+        default=False,
+    )
+
+    selected_only: bpy.props.BoolProperty(
+        name=_T("仅限选中区域"),
+        description=_T("仅调整当前选中的面或顶点；未勾选则作用于整个模型"),
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        return bool(obj and obj.type == "MESH")
+
+    def execute(self, context):
+        obj = context.active_object or context.edit_object
+        if not obj or obj.type != "MESH":
+            self.report({"WARNING"}, _T("无效的网格物体"))
+            return {"CANCELLED"}
+
+        prev_mode = context.mode
+        selected_verts = set()
+        selected_faces = set()
+
+        if prev_mode == "EDIT_MESH":
+            obj.update_from_editmode()
+            bm = bmesh.from_edit_mesh(obj.data)
+            selected_verts = {v.index for v in bm.verts if v.select}
+            selected_faces = {f.index for f in bm.faces if f.select}
+            if not selected_verts and not selected_faces:
+                self.selected_only = False
+            bpy.ops.object.mode_set(mode="OBJECT")
+        elif prev_mode != "OBJECT":
+            try:
+                bpy.ops.object.mode_set(mode="OBJECT")
+            except Exception:
+                pass
+
+        context.view_layer.objects.active = obj
+        obj.select_set(True)
+
+        try:
+            me = obj.data
+            cursor_loc = context.scene.cursor.location
+            mat_world = obj.matrix_world
+            local_cursor = mat_world.inverted() @ cursor_loc
+
+            total_corners = len(me.loops)
+            if total_corners == 0:
+                self.report({"WARNING"}, _T("网格没有面拐数据"))
+                return {"CANCELLED"}
+
+            # 提取现有法向作为基底
+            curr_normals = _extract_mesh_corner_normals(me)
+            new_normals = list(curr_normals)
+
+            # 确定受影响顶点
+            affected_vert_set = set()
+            if self.selected_only and (selected_verts or selected_faces):
+                affected_vert_set.update(selected_verts)
+                for f_idx in selected_faces:
+                    affected_vert_set.update(me.polygons[f_idx].vertices)
+            else:
+                affected_vert_set = set(range(len(me.vertices)))
+
+            # 计算每个局部顶点的朝向向量
+            vert_local_dirs = {}
+            for vid in affected_vert_set:
+                v = me.vertices[vid]
+                diff = v.co - local_cursor
+                if diff.length_squared < 1e-8:
+                    diff = Vector((0, 0, 1))
+                if self.invert:
+                    diff = -diff
+                vert_local_dirs[vid] = tuple(diff.normalized())
+
+            # 赋给对应 loop
+            for l_idx, loop in enumerate(me.loops):
+                if loop.vertex_index in vert_local_dirs:
+                    new_normals[l_idx] = vert_local_dirs[loop.vertex_index]
+
+            # 确保单用户保护
+            _ensure_single_user_mesh(obj)
+            me = obj.data
+
+            # 必须先标记受影响的多边形为 smooth，再写入分割法向，避免 use_smooth 冲刷重算法向
+            for poly in me.polygons:
+                if any(v in affected_vert_set for v in poly.vertices):
+                    poly.use_smooth = True
+
+            me.normals_split_custom_set(new_normals)
+            me.update()
+
+            # 自动备份快照
+            try:
+                _save_mesh_normal_snapshot(context, obj, silent=True)
+            except Exception:
+                pass
+
+            self.report({"INFO"}, f"{_T('已将')} {len(affected_vert_set)} {_T('个顶点的法向对齐至 3D 游标')}")
+            return {"FINISHED"}
+        finally:
+            if prev_mode == "EDIT_MESH":
+                context.view_layer.objects.active = obj
+                obj.select_set(True)
+                bpy.ops.object.mode_set(mode="EDIT")
+            elif prev_mode != "OBJECT" and context.mode != prev_mode:
+                try:
+                    bpy.ops.object.mode_set(mode=prev_mode)
+                except Exception:
+                    pass
+
+
+class M8_OT_ToggleSplitNormals(bpy.types.Operator):
+    bl_idname = "m8.toggle_split_normals"
+    bl_label = _T("显示法向连线")
+    bl_description = _T("切换 3D 视图中面拐分割法向线（Split Normals）的显隐，用于直观检查模型法向与光影平滑度")
+    bl_options = {"REGISTER"}
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        v3d = None
+        space = getattr(context, "space_data", None)
+        if space and space.type == "VIEW_3D":
+            v3d = space
+        else:
+            for area in context.screen.areas:
+                if area.type == "VIEW_3D":
+                    v3d = area.spaces.active
+                    break
+
+        if v3d and hasattr(v3d, "overlay"):
+            curr = v3d.overlay.show_split_normals
+            v3d.overlay.show_split_normals = not curr
+            state_str = _T("开启") if not curr else _T("关闭")
+            self.report({"INFO"}, f"{_T('法向连线显示已')}{state_str}")
+            return {"FINISHED"}
+        else:
+            self.report({"WARNING"}, _T("未找到活动的 3D 视图"))
+            return {"CANCELLED"}
+
+
+class M8_OT_FlattenNormals(bpy.types.Operator):
+    bl_idname = "m8.flatten_normals"
+    bl_label = _T("选区法向拍平")
+    bl_description = _T("将选中区域的面拐法向直接对齐至几何面法向，无需修改器即可瞬间消除硬表面开孔、凹槽周围的高光黑斑与波浪拉扯 (MESHmachine & Y.A.V.N.E. 范式)")
+    bl_options = {"REGISTER", "UNDO"}
+
+    mode: bpy.props.EnumProperty(
+        name=_T("拍平模式"),
+        items=[
+            ("PER_FACE", _T("各面独立拍平"), _T("每个选中的多边形分别将其所有面拐法向对齐为其自身的几何面法向 (最适合复杂角度的多孔硬表面)")),
+            ("AVERAGE", _T("选区平均平面"), _T("计算选中面的面积加权平均几何法向，并将所有选中面拐对齐至该统一平面")),
+            ("ACTIVE", _T("对齐活动面"), _T("将所有选中面拐强制对齐至活动多边形 (Active Face) 的几何法向")),
+        ],
+        default="PER_FACE",
+    )
+
+    selected_only: bpy.props.BoolProperty(
+        name=_T("仅限选中区域"),
+        description=_T("仅处理当前选中的面或顶点；未勾选则作用于整个模型"),
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        return bool(obj and obj.type == "MESH")
+
+    def execute(self, context):
+        obj = context.active_object or context.edit_object
+        if not obj or obj.type != "MESH":
+            self.report({"WARNING"}, _T("无效的网格物体"))
+            return {"CANCELLED"}
+
+        prev_mode = context.mode
+        selected_faces = []
+        selected_verts = set()
+        active_face_idx = None
+
+        if prev_mode == "EDIT_MESH":
+            obj.update_from_editmode()
+            bm = bmesh.from_edit_mesh(obj.data)
+            selected_faces = [f.index for f in bm.faces if f.select]
+            selected_verts = {v.index for v in bm.verts if v.select}
+            if bm.faces.active and bm.faces.active.select:
+                active_face_idx = bm.faces.active.index
+            if not selected_faces and not selected_verts:
+                self.selected_only = False
+            bpy.ops.object.mode_set(mode="OBJECT")
+        elif prev_mode != "OBJECT":
+            try:
+                bpy.ops.object.mode_set(mode="OBJECT")
+            except Exception:
+                pass
+
+        context.view_layer.objects.active = obj
+        obj.select_set(True)
+
+        try:
+            me = obj.data
+            total_corners = len(me.loops)
+            if total_corners == 0:
+                self.report({"WARNING"}, _T("网格没有面拐数据"))
+                return {"CANCELLED"}
+
+            target_poly_indices = set()
+            if self.selected_only and (selected_faces or selected_verts):
+                target_poly_indices.update(selected_faces)
+                for p in me.polygons:
+                    if any(v in selected_verts for v in p.vertices):
+                        target_poly_indices.add(p.index)
+            else:
+                target_poly_indices = set(range(len(me.polygons)))
+
+            if not target_poly_indices:
+                self.report({"WARNING"}, _T("未选中任何多边形"))
+                return {"CANCELLED"}
+
+            curr_normals = _extract_mesh_corner_normals(me)
+            new_normals = list(curr_normals)
+
+            # 模式 1: 对齐活动面
+            if self.mode == "ACTIVE" and active_face_idx is not None and active_face_idx < len(me.polygons):
+                act_norm = tuple(me.polygons[active_face_idx].normal.normalized())
+                for p_idx in target_poly_indices:
+                    poly = me.polygons[p_idx]
+                    for l_idx in poly.loop_indices:
+                        new_normals[l_idx] = act_norm
+            # 模式 2: 选区面积加权平均平面
+            elif self.mode == "AVERAGE":
+                weighted_sum = Vector((0.0, 0.0, 0.0))
+                for p_idx in target_poly_indices:
+                    p = me.polygons[p_idx]
+                    weighted_sum += p.normal * max(p.area, 1e-6)
+                if weighted_sum.length_squared > 1e-8:
+                    avg_norm = tuple(weighted_sum.normalized())
+                else:
+                    avg_norm = (0.0, 0.0, 1.0)
+                for p_idx in target_poly_indices:
+                    poly = me.polygons[p_idx]
+                    for l_idx in poly.loop_indices:
+                        new_normals[l_idx] = avg_norm
+            # 模式 3: 各面独立按自身几何法向拍平 (PER_FACE)
+            else:
+                for p_idx in target_poly_indices:
+                    poly = me.polygons[p_idx]
+                    p_norm = poly.normal
+                    if p_norm.length_squared > 1e-8:
+                        fn = tuple(p_norm.normalized())
+                    else:
+                        fn = (0.0, 0.0, 1.0)
+                    for l_idx in poly.loop_indices:
+                        new_normals[l_idx] = fn
+
+            _ensure_single_user_mesh(obj)
+            me = obj.data
+
+            for p_idx in target_poly_indices:
+                me.polygons[p_idx].use_smooth = True
+
+            me.normals_split_custom_set(new_normals)
+            me.update()
+
+            try:
+                _save_mesh_normal_snapshot(context, obj, silent=True)
+            except Exception:
+                pass
+
+            self.report({"INFO"}, f"{_T('已将')} {len(target_poly_indices)} {_T('个多边形法向原地拍平')}")
+            return {"FINISHED"}
+        finally:
+            if prev_mode == "EDIT_MESH":
+                context.view_layer.objects.active = obj
+                obj.select_set(True)
+                bpy.ops.object.mode_set(mode="EDIT")
+            elif prev_mode != "OBJECT" and context.mode != prev_mode:
+                try:
+                    bpy.ops.object.mode_set(mode=prev_mode)
+                except Exception:
+                    pass
+
+
+class M8_OT_AlignNormalsToAxis(bpy.types.Operator):
+    bl_idname = "m8.align_normals_to_axis"
+    bl_label = _T("法向轴向对齐")
+    bl_description = _T("将选中区域的面拐法向绝对强制对齐到指定坐标轴向（如地台+Z、垂直墙面+X/+Y），彻底杜绝建筑与硬表面场景的接缝漏光 (Abnormal & Y.A.V.N.E. 范式)")
+    bl_options = {"REGISTER", "UNDO"}
+
+    axis: bpy.props.EnumProperty(
+        name=_T("对齐轴向"),
+        items=[
+            ("POS_Z", "+Z", _T("对齐至向上轴向")),
+            ("NEG_Z", "-Z", _T("对齐至向下轴向")),
+            ("POS_X", "+X", _T("对齐至正X轴向")),
+            ("NEG_X", "-X", _T("对齐至负X轴向")),
+            ("POS_Y", "+Y", _T("对齐至正Y轴向")),
+            ("NEG_Y", "-Y", _T("对齐至负Y轴向")),
+        ],
+        default="POS_Z",
+    )
+
+    space: bpy.props.EnumProperty(
+        name=_T("坐标空间"),
+        items=[
+            ("WORLD", _T("世界空间"), _T("依据场景世界坐标系的绝对轴向对齐")),
+            ("LOCAL", _T("局部空间"), _T("依据物体自身旋转与变换的局部轴向对齐")),
+        ],
+        default="WORLD",
+    )
+
+    selected_only: bpy.props.BoolProperty(
+        name=_T("仅限选中区域"),
+        description=_T("仅调整当前选中的面或顶点；未勾选则作用于整个模型"),
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        return bool(obj and obj.type == "MESH")
+
+    def execute(self, context):
+        obj = context.active_object or context.edit_object
+        if not obj or obj.type != "MESH":
+            self.report({"WARNING"}, _T("无效的网格物体"))
+            return {"CANCELLED"}
+
+        prev_mode = context.mode
+        selected_verts = set()
+        selected_faces = set()
+
+        if prev_mode == "EDIT_MESH":
+            obj.update_from_editmode()
+            bm = bmesh.from_edit_mesh(obj.data)
+            selected_verts = {v.index for v in bm.verts if v.select}
+            selected_faces = {f.index for f in bm.faces if f.select}
+            if not selected_verts and not selected_faces:
+                self.selected_only = False
+            bpy.ops.object.mode_set(mode="OBJECT")
+        elif prev_mode != "OBJECT":
+            try:
+                bpy.ops.object.mode_set(mode="OBJECT")
+            except Exception:
+                pass
+
+        context.view_layer.objects.active = obj
+        obj.select_set(True)
+
+        try:
+            me = obj.data
+            total_corners = len(me.loops)
+            if total_corners == 0:
+                self.report({"WARNING"}, _T("网格没有面拐数据"))
+                return {"CANCELLED"}
+
+            axis_map = {
+                "POS_Z": Vector((0.0, 0.0, 1.0)),
+                "NEG_Z": Vector((0.0, 0.0, -1.0)),
+                "POS_X": Vector((1.0, 0.0, 0.0)),
+                "NEG_X": Vector((-1.0, 0.0, 0.0)),
+                "POS_Y": Vector((0.0, 1.0, 0.0)),
+                "NEG_Y": Vector((0.0, -1.0, 0.0)),
+            }
+            raw_axis = axis_map.get(self.axis, Vector((0.0, 0.0, 1.0)))
+
+            if self.space == "WORLD":
+                mat_world = obj.matrix_world
+                try:
+                    # 将世界法向变换至局部空间：局部法向 = (M^T @ n_world).normalized()
+                    # 渲染器世界法向 = (M^-T @ n_local)，两者矩阵恰好完全互逆，在任意旋转与非均匀缩放下均能 100% 严格对齐世界坐标轴
+                    target_dir = (mat_world.to_3x3().transposed() @ raw_axis).normalized()
+                except Exception:
+                    target_dir = raw_axis
+            else:
+                target_dir = raw_axis
+
+            target_normal = tuple(target_dir)
+
+            curr_normals = _extract_mesh_corner_normals(me)
+            new_normals = list(curr_normals)
+
+            affected_vert_set = set()
+            if self.selected_only and (selected_verts or selected_faces):
+                affected_vert_set.update(selected_verts)
+                for f_idx in selected_faces:
+                    affected_vert_set.update(me.polygons[f_idx].vertices)
+            else:
+                affected_vert_set = set(range(len(me.vertices)))
+
+            for l_idx, loop in enumerate(me.loops):
+                if loop.vertex_index in affected_vert_set:
+                    new_normals[l_idx] = target_normal
+
+            _ensure_single_user_mesh(obj)
+            me = obj.data
+
+            for poly in me.polygons:
+                if any(v in affected_vert_set for v in poly.vertices):
+                    poly.use_smooth = True
+
+            me.normals_split_custom_set(new_normals)
+            me.update()
+
+            try:
+                _save_mesh_normal_snapshot(context, obj, silent=True)
+            except Exception:
+                pass
+
+            self.report({"INFO"}, f"{_T('已将法向对齐至')} {self.axis} ({self.space})")
+            return {"FINISHED"}
+        finally:
+            if prev_mode == "EDIT_MESH":
+                context.view_layer.objects.active = obj
+                obj.select_set(True)
+                bpy.ops.object.mode_set(mode="EDIT")
+            elif prev_mode != "OBJECT" and context.mode != prev_mode:
+                try:
+                    bpy.ops.object.mode_set(mode=prev_mode)
+                except Exception:
+                    pass
+
+
+class M8_OT_AverageNormals(bpy.types.Operator):
+    bl_idname = "m8.average_normals"
+    bl_label = _T("法向平均化")
+    bl_description = _T("将选中顶点相连的所有面拐法向取加权平均并统一赋值，彻底消除拼合接缝、对称缝隙处的高光硬切线 (Abnormal 范式)")
+    bl_options = {"REGISTER", "UNDO"}
+
+    selected_only: bpy.props.BoolProperty(
+        name=_T("仅限选中区域"),
+        description=_T("仅平滑处理当前选中的顶点/面；未勾选则作用于整个模型"),
+        default=True,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object or context.edit_object
+        return bool(obj and obj.type == "MESH")
+
+    def execute(self, context):
+        obj = context.active_object or context.edit_object
+        if not obj or obj.type != "MESH":
+            self.report({"WARNING"}, _T("无效的网格物体"))
+            return {"CANCELLED"}
+
+        prev_mode = context.mode
+        selected_verts = set()
+        selected_faces = set()
+
+        if prev_mode == "EDIT_MESH":
+            obj.update_from_editmode()
+            bm = bmesh.from_edit_mesh(obj.data)
+            selected_verts = {v.index for v in bm.verts if v.select}
+            selected_faces = {f.index for f in bm.faces if f.select}
+            if not selected_verts and not selected_faces:
+                self.selected_only = False
+            bpy.ops.object.mode_set(mode="OBJECT")
+        elif prev_mode != "OBJECT":
+            try:
+                bpy.ops.object.mode_set(mode="OBJECT")
+            except Exception:
+                pass
+
+        context.view_layer.objects.active = obj
+        obj.select_set(True)
+
+        try:
+            me = obj.data
+            total_corners = len(me.loops)
+            if total_corners == 0:
+                self.report({"WARNING"}, _T("网格没有面拐数据"))
+                return {"CANCELLED"}
+
+            curr_normals = _extract_mesh_corner_normals(me)
+            new_normals = list(curr_normals)
+
+            affected_vert_set = set()
+            if self.selected_only and (selected_verts or selected_faces):
+                affected_vert_set.update(selected_verts)
+                for f_idx in selected_faces:
+                    affected_vert_set.update(me.polygons[f_idx].vertices)
+            else:
+                affected_vert_set = set(range(len(me.vertices)))
+
+            vert_to_loops = {}
+            for l_idx, loop in enumerate(me.loops):
+                vid = loop.vertex_index
+                if vid in affected_vert_set:
+                    if vid not in vert_to_loops:
+                        vert_to_loops[vid] = []
+                    vert_to_loops[vid].append(l_idx)
+
+            for vid, l_indices in vert_to_loops.items():
+                sum_vec = Vector((0.0, 0.0, 0.0))
+                for li in l_indices:
+                    sum_vec += Vector(curr_normals[li])
+                if sum_vec.length_squared > 1e-8:
+                    avg_n = tuple(sum_vec.normalized())
+                else:
+                    avg_n = (0.0, 0.0, 1.0)
+                for li in l_indices:
+                    new_normals[li] = avg_n
+
+            _ensure_single_user_mesh(obj)
+            me = obj.data
+
+            for poly in me.polygons:
+                if any(v in affected_vert_set for v in poly.vertices):
+                    poly.use_smooth = True
+
+            me.normals_split_custom_set(new_normals)
+            me.update()
+
+            try:
+                _save_mesh_normal_snapshot(context, obj, silent=True)
+            except Exception:
+                pass
+
+            self.report({"INFO"}, f"{_T('已完成')} {len(vert_to_loops)} {_T('个顶点的法向平均化平滑')}")
+            return {"FINISHED"}
+        finally:
+            if prev_mode == "EDIT_MESH":
+                context.view_layer.objects.active = obj
+                obj.select_set(True)
+                bpy.ops.object.mode_set(mode="EDIT")
+            elif prev_mode != "OBJECT" and context.mode != prev_mode:
+                try:
+                    bpy.ops.object.mode_set(mode=prev_mode)
+                except Exception:
+                    pass
+
+
+
+
 
 

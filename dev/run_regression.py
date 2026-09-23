@@ -37,6 +37,8 @@ def _load_script(name, path):
 def _runtime_failed(result):
     if result.get("fatal"):
         return True
+    if result.get("ok") is False:
+        return True
     if not result.get("registered"):
         return True
     if not result.get("unregistered"):
@@ -44,10 +46,15 @@ def _runtime_failed(result):
     for key in ("registration_errors", "missing_operators", "missing_types", "duplicate_bl_idnames"):
         if result.get(key):
             return True
-    for key in ("health_check_result", "scene_audit_result"):
-        value = result.get(key)
-        if isinstance(value, str) and value.startswith("ERROR:"):
+    for key, value in result.items():
+        if isinstance(value, str) and (value.startswith("ERROR:") or value == "CANCELLED"):
             return True
+        if isinstance(value, (list, tuple, set)):
+            if "CANCELLED" in value:
+                return True
+            for item in value:
+                if isinstance(item, str) and item.startswith("ERROR:"):
+                    return True
     return False
 
 
@@ -60,7 +67,20 @@ def _failed(name, result):
         return _runtime_failed(result)
     if name == "keymaps":
         return _keymaps_failed(result)
-    return bool(result.get("fatal"))
+    if result.get("fatal") or result.get("failures"):
+        return True
+    if result.get("ok") is False:
+        return True
+    for key, value in result.items():
+        if isinstance(value, str) and (value.startswith("ERROR:") or value == "CANCELLED"):
+            return True
+        if isinstance(value, (list, tuple, set)):
+            if "CANCELLED" in value:
+                return True
+            for item in value:
+                if isinstance(item, str) and item.startswith("ERROR:"):
+                    return True
+    return False
 
 
 def run():

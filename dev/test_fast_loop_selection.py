@@ -1,4 +1,14 @@
-﻿import sys
+"""Test Fast Loop selection-locked mode using actual production API.
+
+Run via Blender:
+    blender --background --factory-startup --python dev/test_fast_loop_selection.py
+
+Uses the same MockFastLoop binding strategy as test_fast_loop_hidden_faces.py
+and test_fast_loop_edge_flow_uv.py to call real production methods without
+invoking the interactive modal.
+"""
+
+import sys
 import os
 import types
 import bpy
@@ -13,157 +23,226 @@ if parent_dir not in sys.path:
 if addon_dir not in sys.path:
     sys.path.insert(0, addon_dir)
 
+from M8.ops.misc.fast_loop import M8_OT_FastLoop
+from M8.property.preferences import SIZE_TOOL_Preferences
+
+
+class MockFastLoop:
+    """Mock container that binds all M8_OT_FastLoop helper methods for headless testing."""
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
+# Bind all operator helper methods to MockFastLoop (same pattern as hidden_faces test)
+for _attr_name, _attr_val in M8_OT_FastLoop.__dict__.items():
+    if (callable(_attr_val)
+            and not _attr_name.startswith("__")
+            and _attr_name not in ("poll", "invoke", "modal",
+                                   "draw_callback_2d", "draw_callback_3d")):
+        setattr(MockFastLoop, _attr_name, _attr_val)
+
+
+def _make_op(**kwargs):
+    """Build a minimal MockFastLoop instance with sensible defaults."""
+    defaults = dict(
+        segments=1,
+        mirrored=False,
+        vertex_mode=False,
+        guide_mode=False,
+        use_even=False,
+        flipped=False,
+        perpendicular=False,
+        use_curvature=False,
+        enable_edge_flow=False,
+        keep_selection=False,
+        selection_locked=False,
+        slide_offset=0.0,
+        snap_enabled=False,
+        snap_divisions=4,
+        scale_factor=1.0,
+        hovered_edge_idx=-1,
+    )
+    defaults.update(kwargs)
+    return MockFastLoop(**defaults)
+
+
 def run_test():
     print("=" * 60)
     print("M8 FAST LOOP SELECTION MODE TEST SUITE")
     print("=" * 60)
 
-    from M8.property.preferences import SIZE_TOOL_Preferences
-    from M8.ops.misc.fast_loop import M8_OT_FastLoop, get_prefs
-
     print("[PASS] Successfully imported SIZE_TOOL_Preferences and M8_OT_FastLoop.")
     has_annotations = (
-        'fast_loop_auto_selection_mode' in SIZE_TOOL_Preferences.__annotations__ and
-        'fast_loop_default_dual_offset' in SIZE_TOOL_Preferences.__annotations__ and
-        'fast_loop_default_offset_factor' in SIZE_TOOL_Preferences.__annotations__
+        'fast_loop_enable_edge_flow' in SIZE_TOOL_Preferences.__annotations__ and
+        'fast_loop_keep_selection' in SIZE_TOOL_Preferences.__annotations__ and
+        'fast_loop_reproject_uv_after_edge_flow' in SIZE_TOOL_Preferences.__annotations__
     )
-    print("SIZE_TOOL_Preferences has new properties in __annotations__:", has_annotations)
-    assert has_annotations, "Expected properties in SIZE_TOOL_Preferences.__annotations__"
+    print("SIZE_TOOL_Preferences has fast_loop properties:", has_annotations)
+    assert has_annotations, "Expected fast_loop properties in SIZE_TOOL_Preferences.__annotations__"
 
-    # 1. Setup Test Geometry (Cylinder with 16 segments)
+    # ------------------------------------------------------------------
+    # Test 1: Ring discovery via get_oriented_edge_ring on a cylinder
+    # ------------------------------------------------------------------
+    print("\n--- Test 1: get_oriented_edge_ring on cylinder ---")
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=1.0, depth=2.0)
+    bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=1.0, depth=2.0)
     obj = bpy.context.active_object
     bpy.ops.object.mode_set(mode='EDIT')
-    
     bm = bmesh.from_edit_mesh(obj.data)
     bm.edges.ensure_lookup_table()
     bm.verts.ensure_lookup_table()
-    bm.faces.ensure_lookup_table()
 
-    # Subdivide cylinder once horizontally to create an edge loop in the middle
-    bmesh.ops.subdivide_edges(bm, edges=[e for e in bm.edges if not e.is_boundary and e.calc_length() > 1.5], cuts=1)
-    bmesh.update_edit_mesh(obj.data)
+    # Pick any lateral (non-cap) edge as start
+    lateral = [e for e in bm.edges if not e.is_boundary
+               and e.calc_length() < 1.5]
+    assert lateral, "No lateral edges found on cylinder"
+    start_edge = lateral[0]
 
+    op = MockFastLoop()
+    ring_map = op.get_oriented_edge_ring(bm, start_edge)
+    assert len(ring_map) > 0, "Expected ring to contain edges"
+    print(f"  Ring edges: {len(ring_map)}")
+    print("[PASS] Test 1: get_oriented_edge_ring returned a non-empty ring.")
+
+    # ------------------------------------------------------------------
+    # Test 2: update_ring_and_preview — non-locked mode
+    # ------------------------------------------------------------------
+    print("\n--- Test 2: update_ring_and_preview (normal mode) ---")
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.mesh.primitive_grid_add(x_subdivisions=4, y_subdivisions=4, size=4.0)
+    bpy.ops.object.mode_set(mode='EDIT')
+    obj = bpy.context.active_object
     bm = bmesh.from_edit_mesh(obj.data)
     bm.edges.ensure_lookup_table()
-    bm.verts.ensure_lookup_table()
-    bm.faces.ensure_lookup_table()
 
-    # Select the middle loop (where z is near 0)
-    for e in bm.edges:
-        e.select = False
-    
-    mid_edges = [e for e in bm.edges if abs(e.verts[0].co.z) < 0.05 and abs(e.verts[1].co.z) < 0.05]
-    print(f"Selected middle loop edges count: {len(mid_edges)}")
-    for e in mid_edges:
-        e.select = True
+    vert_edges = [e for e in bm.edges if not e.hide
+                  and abs(e.verts[0].co.x - e.verts[1].co.x) < 0.01]
+    assert vert_edges, "No vertical edges found on grid"
+    start_edge = vert_edges[len(vert_edges) // 2]
+
+    op2 = _make_op(
+        target_object=obj,
+        bm=bm,
+        bms={obj.name: bm},
+        hovered_edge_idx=start_edge.index,
+    )
+    op2.update_ring_and_preview(bpy.context, start_edge.index,
+                                (start_edge.verts[0].co + start_edge.verts[1].co) * 0.5)
+    assert hasattr(op2, 'edge_ring_edges'), "update_ring_and_preview must set edge_ring_edges"
+    assert len(op2.edge_ring_edges) > 0, "Expected ring edges after update_ring_and_preview"
+    print(f"  Edge ring edges: {len(op2.edge_ring_edges)}")
+    print("[PASS] Test 2: update_ring_and_preview populated edge_ring_edges.")
+
+    # ------------------------------------------------------------------
+    # Test 3: perform_cut (normal mode) increases vertex/face count
+    # ------------------------------------------------------------------
+    print("\n--- Test 3: perform_cut (normal mode) on grid ---")
+    initial_verts = len(bm.verts)
+    initial_faces = len(bm.faces)
+    op2.perform_cut(bpy.context, shift=False)
     bmesh.update_edit_mesh(obj.data)
 
-    # 2. Test Topology Analysis (analyze_selection)
-    op = types.SimpleNamespace()
-    op.target_object = obj
-    op.edit_objects = [obj]
-    op.bm = bmesh.from_edit_mesh(obj.data)
-    op.bms = {obj.name: op.bm}
-    op.offset_factor = 0.2
-    op.dual_offset = True
-    op.use_curvature = False
-    op.keep_selection = False
-    op.snap_enabled = False
-    op.snap_divisions = 8
-    op.selection_face_cuts = []
-    op.selection_transverse_map = {}
-    op.dimension_draws = []
-    op.preview_points = []
-    op.preview_lines = []
-
-    # Run analyze_selection
-    M8_OT_FastLoop.analyze_selection(op, bpy.context)
-    print(f"[PASS] analyze_selection executed:")
-    print(f"  - selection_face_cuts count: {len(op.selection_face_cuts)}")
-    print(f"  - selection_transverse_map size: {len(op.selection_transverse_map)}")
-    assert len(op.selection_face_cuts) > 0, "Expected face cuts to be detected"
-    assert len(op.selection_transverse_map) > 0, "Expected transverse edges to be mapped"
-
-    # 3. Test Preview Calculation (update_selection_preview)
-    M8_OT_FastLoop.update_selection_preview(op, bpy.context)
-    print(f"[PASS] update_selection_preview executed:")
-    print(f"  - preview_lines count: {len(op.preview_lines)}")
-    print(f"  - preview_points count: {len(op.preview_points)}")
-    print(f"  - dimension_draws count: {len(op.dimension_draws)}")
-    assert len(op.preview_lines) > 0, "Expected preview lines to be generated"
-    assert len(op.preview_points) > 0, "Expected preview points to be generated"
-
-    # 4. Test Cut Execution (Dual Offset)
-    initial_verts = len(op.bm.verts)
-    initial_faces = len(op.bm.faces)
-    initial_edges = len(op.bm.edges)
-    print(f"Initial cylinder mesh: verts={initial_verts}, edges={initial_edges}, faces={initial_faces}")
-
-    M8_OT_FastLoop.perform_selection_cut(op, bpy.context, shift=False)
-    bmesh.update_edit_mesh(obj.data)
-
-    bm_after = bmesh.from_edit_mesh(obj.data)
-    new_verts = len(bm_after.verts)
-    new_faces = len(bm_after.faces)
-    new_edges = len(bm_after.edges)
-    print(f"[PASS] perform_selection_cut (Dual Offset) executed successfully:")
-    print(f"  - Mesh after cut: verts={new_verts}, edges={new_edges}, faces={new_faces}")
+    bm2 = bmesh.from_edit_mesh(obj.data)
+    new_verts = len(bm2.verts)
+    new_faces = len(bm2.faces)
+    print(f"  Before cut: verts={initial_verts}, faces={initial_faces}")
+    print(f"  After  cut: verts={new_verts}, faces={new_faces}")
     assert new_verts > initial_verts, f"Verts should increase: {new_verts} > {initial_verts}"
     assert new_faces > initial_faces, f"Faces should increase: {new_faces} > {initial_faces}"
+    print("[PASS] Test 3: perform_cut correctly subdivided the mesh.")
 
-    # 5. Test Single Offset Cut on fresh cube
-    bpy.ops.mesh.primitive_cube_add(size=2.0)
-    cube = bpy.context.active_object
+    # ------------------------------------------------------------------
+    # Test 4: selection_locked mode preserves selected edge ring geometry
+    # ------------------------------------------------------------------
+    print("\n--- Test 4: selection_locked mode — perpendicular cut across selected loop ---")
+    # Must switch to OBJECT mode before add_primitive creates a second object
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.ops.mesh.primitive_grid_add(x_subdivisions=4, y_subdivisions=4, size=4.0)
     bpy.ops.object.mode_set(mode='EDIT')
+    cube = bpy.context.active_object
     bm_c = bmesh.from_edit_mesh(cube.data)
     bm_c.edges.ensure_lookup_table()
-    
-    # Subdivide cube once
-    bmesh.ops.subdivide_edges(bm_c, edges=bm_c.edges[:], cuts=1)
-    bmesh.update_edit_mesh(cube.data)
-    
-    bm_c = bmesh.from_edit_mesh(cube.data)
-    bm_c.edges.ensure_lookup_table()
+    bm_c.faces.ensure_lookup_table()
+
+    # Select a horizontal equatorial edge loop (y near 0)
     for e in bm_c.edges:
         e.select = False
-    # Select loop around middle equator
-    eq_edges = [e for e in bm_c.edges if abs(e.verts[0].co.z) < 0.05 and abs(e.verts[1].co.z) < 0.05]
-    for e in eq_edges:
+    sel_edges = [
+        e for e in bm_c.edges
+        if not e.hide
+        and abs(e.verts[0].co.y - e.verts[1].co.y) < 0.01
+        and abs((e.verts[0].co.y + e.verts[1].co.y) * 0.5) < 0.1
+    ]
+    for e in sel_edges:
         e.select = True
     bmesh.update_edit_mesh(cube.data)
 
-    op_c = types.SimpleNamespace()
-    op_c.target_object = cube
-    op_c.edit_objects = [cube]
-    op_c.bm = bmesh.from_edit_mesh(cube.data)
-    op_c.bms = {cube.name: op_c.bm}
-    op_c.offset_factor = 0.3
-    op_c.dual_offset = False # Single offset
-    op_c.use_curvature = True
-    op_c.keep_selection = True
-    op_c.snap_enabled = False
-    op_c.snap_divisions = 8
-    op_c.selection_face_cuts = []
-    op_c.selection_transverse_map = {}
-    op_c.dimension_draws = []
-    op_c.preview_points = []
-    op_c.preview_lines = []
+    assert len(sel_edges) > 0, "No edges selected for locked-mode test"
+    print(f"  Selected {len(sel_edges)} edges for locked loop")
 
-    M8_OT_FastLoop.analyze_selection(op_c, bpy.context)
-    M8_OT_FastLoop.update_selection_preview(op_c, bpy.context)
-    M8_OT_FastLoop.perform_selection_cut(op_c, bpy.context, shift=False)
+    op_locked = _make_op(
+        target_object=cube,
+        bm=bm_c,
+        bms={cube.name: bm_c},
+        selection_locked=True,
+        keep_selection=True,
+        slide_offset=0.0,
+        hovered_edge_idx=sel_edges[0].index,
+        edge_ring_edge_indices=[e.index for e in sel_edges],
+        edge_ring_edges=sel_edges,
+        edge_ring_orientations={e.index: False for e in sel_edges},
+    )
+
+    # update_ring_and_preview in locked mode should respect the pre-selected edges
+    op_locked.update_ring_and_preview(bpy.context, op_locked.hovered_edge_idx, None)
+
+    initial_verts_c = len(bm_c.verts)
+    initial_faces_c = len(bm_c.faces)
+    op_locked.perform_cut(bpy.context, shift=False)
     bmesh.update_edit_mesh(cube.data)
 
-    bm_c_after = bmesh.from_edit_mesh(cube.data)
-    print(f"[PASS] perform_selection_cut (Single Offset + Curvature) executed successfully:")
-    print(f"  - Cube after cut: verts={len(bm_c_after.verts)}, faces={len(bm_c_after.faces)}")
-    assert len(bm_c_after.verts) > 26
+    bm_c2 = bmesh.from_edit_mesh(cube.data)
+    new_verts_c = len(bm_c2.verts)
+    new_faces_c = len(bm_c2.faces)
+    print(f"  Before locked cut: verts={initial_verts_c}, faces={initial_faces_c}")
+    print(f"  After  locked cut: verts={new_verts_c}, faces={new_faces_c}")
+    assert new_verts_c > initial_verts_c, \
+        f"Locked cut should add verts: {new_verts_c} > {initial_verts_c}"
+    assert new_faces_c > initial_faces_c, \
+        f"Locked cut should add faces: {new_faces_c} > {initial_faces_c}"
+
+    # keep_selection=True: the original selected edges should still be selected
+    bm_c2.edges.ensure_lookup_table()
+    still_selected = [e for e in bm_c2.edges if e.select]
+    assert len(still_selected) > 0, \
+        "keep_selection=True: at least some edges should remain selected after cut"
+    print(f"  Edges still selected after cut: {len(still_selected)}")
+    print("[PASS] Test 4: selection_locked cut added geometry and preserved selection.")
+
+    # ------------------------------------------------------------------
+    # Test 5: get_oriented_loop_selection — derives consistent orientations
+    # ------------------------------------------------------------------
+    print("\n--- Test 5: get_oriented_loop_selection orientation consistency ---")
+    bm_c2.edges.ensure_lookup_table()
+    sel_after = [e for e in bm_c2.edges if e.select and not e.hide]
+    assert len(sel_after) > 0, (
+        "Test 5 requires selected edges after locked cut (keep_selection=True must preserve selection); "
+        f"found 0 selected edges. Check that perform_cut with keep_selection=True restores selection."
+    )
+    op5 = MockFastLoop()
+    orientations = op5.get_oriented_loop_selection(bm_c2, sel_after)
+    assert len(orientations) == len(sel_after), \
+        f"Orientation map size mismatch: {len(orientations)} vs {len(sel_after)}"
+    print(f"  Orientation map has {len(orientations)} entries.")
+    print("[PASS] Test 5: get_oriented_loop_selection returns a complete orientation map.")
+
+    bpy.ops.object.mode_set(mode='OBJECT')
 
     print("=" * 60)
     print("ALL FAST LOOP SELECTION MODE TESTS PASSED! 100% SUCCESS")
     print("=" * 60)
+
 
 if __name__ == '__main__':
     run_test()

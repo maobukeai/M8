@@ -283,20 +283,28 @@ class M8_OT_AI_TestConnection(bpy.types.Operator):
 
         def _on_result(success, message):
             import time
-            cur_prefs = _get_addon_prefs()
-            if cur_prefs and cur_prefs.ai_providers:
-                for p in cur_prefs.ai_providers:
-                    if p.id == p_id:
-                        p.is_testing_connection = False
-                        p.test_status = "SUCCESS" if success else "ERROR"
-                        p.test_message = message
-                        p.test_time = time.strftime("%H:%M:%S")
-                        break
+            from . import ops_generate as _gen
+            if _gen._is_unregistered:
+                return
+            try:
+                cur_prefs = _get_addon_prefs()
+                if cur_prefs and cur_prefs.ai_providers:
+                    for p in cur_prefs.ai_providers:
+                        if p.id == p_id:
+                            p.is_testing_connection = False
+                            p.test_status = "SUCCESS" if success else "ERROR"
+                            p.test_message = message
+                            p.test_time = time.strftime("%H:%M:%S")
+                            break
 
-            scene = bpy.context.scene
-            if hasattr(scene, "m8_ai"):
-                scene.m8_ai.status_message = message
-            tag_redraw_all_areas({'TEXT_EDITOR', 'PREFERENCES'})
+                scene = getattr(bpy.context, "scene", None)
+                if scene and hasattr(scene, "m8_ai"):
+                    scene.m8_ai.status_message = message
+                tag_redraw_all_areas({'TEXT_EDITOR', 'PREFERENCES'})
+            except (ReferenceError, AttributeError):
+                pass
+            except Exception:
+                pass
 
         test_api_connection(
             base_url=target_p.base_url,
@@ -359,49 +367,65 @@ class M8_OT_AI_FetchModels(bpy.types.Operator):
 
         def _on_success(models):
             import time
-            cur_prefs = _get_addon_prefs()
-            if not cur_prefs or not cur_prefs.ai_providers:
+            from . import ops_generate as _gen
+            if _gen._is_unregistered:
                 return
+            try:
+                cur_prefs = _get_addon_prefs()
+                if not cur_prefs or not cur_prefs.ai_providers:
+                    return
 
-            p_obj = None
-            for p in cur_prefs.ai_providers:
-                if p.id == p_id:
-                    p_obj = p
-                    break
+                p_obj = None
+                for p in cur_prefs.ai_providers:
+                    if p.id == p_id:
+                        p_obj = p
+                        break
 
-            if p_obj:
-                p_obj.is_fetching_models = False
-                p_obj.fetched_models = ", ".join(models)
-                p_obj.fetch_status = "SUCCESS"
-                p_obj.fetch_time = time.strftime("%H:%M:%S")
-                p_obj.fetch_message = f"{_T('成功获取')} {len(models)} {_T('个可用模型，请在下方选择添加')}"
+                if p_obj:
+                    p_obj.is_fetching_models = False
+                    p_obj.fetched_models = ", ".join(models)
+                    p_obj.fetch_status = "SUCCESS"
+                    p_obj.fetch_time = time.strftime("%H:%M:%S")
+                    p_obj.fetch_message = f"{_T('成功获取')} {len(models)} {_T('个可用模型，请在下方选择添加')}"
 
-            scene = bpy.context.scene
-            if hasattr(scene, "m8_ai"):
-                scene.m8_ai.status_message = f"{_T('成功获取')} {len(models)} {_T('个可用模型')}"
+                scene = getattr(bpy.context, "scene", None)
+                if scene and hasattr(scene, "m8_ai"):
+                    scene.m8_ai.status_message = f"{_T('成功获取')} {len(models)} {_T('个可用模型')}"
 
-            tag_redraw_all_areas({'PREFERENCES', 'TEXT_EDITOR'})
+                tag_redraw_all_areas({'PREFERENCES', 'TEXT_EDITOR'})
+            except (ReferenceError, AttributeError):
+                pass
+            except Exception:
+                pass
 
         def _on_error(err):
             import time
-            cur_prefs = _get_addon_prefs()
-            if cur_prefs and cur_prefs.ai_providers:
-                for p in cur_prefs.ai_providers:
-                    if p.id == p_id:
-                        p.is_fetching_models = False
-                        p.fetch_status = "ERROR"
-                        p.fetch_time = time.strftime("%H:%M:%S")
-                        clean_err = str(err).strip().replace("\r", " ").replace("\n", " ")
-                        if len(clean_err) > 80:
-                            clean_err = clean_err[:80] + "..."
-                        p.fetch_message = f"{_T('获取失败')}: {clean_err}"
-                        break
+            from . import ops_generate as _gen
+            if _gen._is_unregistered:
+                return
+            try:
+                cur_prefs = _get_addon_prefs()
+                if cur_prefs and cur_prefs.ai_providers:
+                    for p in cur_prefs.ai_providers:
+                        if p.id == p_id:
+                            p.is_fetching_models = False
+                            p.fetch_status = "ERROR"
+                            p.fetch_time = time.strftime("%H:%M:%S")
+                            clean_err = str(err).strip().replace("\r", " ").replace("\n", " ")
+                            if len(clean_err) > 80:
+                                clean_err = clean_err[:80] + "..."
+                            p.fetch_message = f"{_T('获取失败')}: {clean_err}"
+                            break
 
-            scene = bpy.context.scene
-            if hasattr(scene, "m8_ai"):
-                scene.m8_ai.status_message = f"{_T('获取模型失败')}: {err}"
+                scene = getattr(bpy.context, "scene", None)
+                if scene and hasattr(scene, "m8_ai"):
+                    scene.m8_ai.status_message = f"{_T('获取模型失败')}: {err}"
 
-            tag_redraw_all_areas({'PREFERENCES', 'TEXT_EDITOR'})
+                tag_redraw_all_areas({'PREFERENCES', 'TEXT_EDITOR'})
+            except (ReferenceError, AttributeError):
+                pass
+            except Exception:
+                pass
 
         fetch_models_async(
             base_url=target_p.base_url,

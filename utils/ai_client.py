@@ -103,13 +103,8 @@ def split_markdown_response(text: str):
 
 
 def _create_ssl_context():
-    """Create SSL context with fallback for local self-signed or enterprise proxies."""
-    try:
-        ctx = ssl.create_default_context()
-        return ctx
-    except Exception:
-        ctx = ssl._create_unverified_context()
-        return ctx
+    """Create default verified SSL context."""
+    return ssl.create_default_context()
 
 
 def request_chat_completion_async(
@@ -125,6 +120,16 @@ def request_chat_completion_async(
     on_error=None,
 ):
     """Send async Chat Completion request in a background thread with SSE streaming support."""
+    is_online = getattr(getattr(bpy, "app", None), "online_access", True)
+    if not is_online:
+        from .i18n import _T
+        err_msg = _T("Blender 处于离线模式，已禁止网络访问")
+        if on_error:
+            try:
+                on_error(err_msg)
+            except Exception:
+                pass
+        return None
 
     def _worker():
         try:
@@ -413,6 +418,31 @@ def fetch_models_async(
     on_error=None,
 ):
     """Fetch available models from OpenAI-compatible /models endpoint or Ollama."""
+    # Normalize positional vs keyword calling conventions:
+    # Supports (base_url, api_key, on_success, on_error) or (base_url, api_key, timeout, on_success, on_error)
+    if callable(timeout):
+        if on_error is None:
+            on_error = on_success
+        on_success = timeout
+        timeout = 15
+    elif timeout is None and on_error is None and callable(on_success):
+        on_error = on_success
+        on_success = None
+        timeout = 15
+    elif not isinstance(timeout, (int, float)):
+        timeout = 15
+
+    is_online = getattr(getattr(bpy, "app", None), "online_access", True)
+    if not is_online:
+        from .i18n import _T
+        err_msg = _T("Blender 处于离线模式，已禁止网络访问")
+        if on_error:
+            try:
+                on_error(err_msg)
+            except Exception:
+                pass
+        return None
+
     def _worker():
         try:
             url = base_url.strip()
@@ -454,13 +484,6 @@ def fetch_models_async(
                     raise RuntimeError("该 API 端点不支持自动查询模型列表 (HTTP 404)，请点击下方【+ 手动添加】输入模型名称")
                 else:
                     raise http_err
-            except urllib.error.URLError as ssl_err:
-                if "CERTIFICATE_VERIFY_FAILED" in str(ssl_err):
-                    ctx_unverified = ssl._create_unverified_context()
-                    with urllib.request.urlopen(req, context=ctx_unverified, timeout=timeout) as resp:
-                        raw_body = resp.read().decode("utf-8")
-                else:
-                    raise
 
             if not raw_body:
                 raise RuntimeError("API 返回内容为空")

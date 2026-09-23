@@ -47,14 +47,16 @@ def serialize_all_settings(settings) -> dict:
             "categories": []
         }
         for cat in cat_prop:
+            valid_tabs = [
+                {"name": t.name, "custom_name": getattr(t, "custom_name", "")}
+                if getattr(t, "custom_name", "") else t.name
+                for t in cat.tabs
+                if t.name and not classifier.is_category_tab_name(t.name) and not classifier.is_system_excluded(t.name)
+            ]
             space_data["categories"].append({
                 "name": cat.name,
                 "icon": getattr(cat, "icon", "") or "OUTLINER_COLLECTION",
-                "tabs": [
-                    {"name": t.name, "custom_name": getattr(t, "custom_name", "")}
-                    if getattr(t, "custom_name", "") else t.name
-                    for t in cat.tabs
-                ]
+                "tabs": valid_tabs
             })
         data["spaces"][space_type] = space_data
 
@@ -66,7 +68,7 @@ def serialize_all_settings(settings) -> dict:
 
 
 def deserialize_all_settings(settings, data: dict):
-    """反序列化配置至 settings（向下兼容 1.0 格式与 2.0 多编辑器格式）"""
+    """反序列化配置至 settings（向下兼容 1.0 格式与 2.0 多编辑器格式，严格净化虚假大分类标签）"""
     settings.enabled = data.get("enabled", False)
     settings.show_subtabs_header = data.get("show_subtabs_header", False)
     settings.workspace_auto_switch = data.get("workspace_auto_switch", True)
@@ -89,17 +91,26 @@ def deserialize_all_settings(settings, data: dict):
             }
         }
 
-    # 1. VIEW_3D
-    v3d_data = spaces.get("VIEW_3D", {})
-    if v3d_data:
-        settings.hide_unassigned = v3d_data.get("hide_unassigned", False)
-        settings.excluded_tabs = v3d_data.get("excluded_tabs", "")
-        settings.categories.clear()
-        for cat_data in v3d_data.get("categories", []):
-            cat = settings.categories.add()
-            cat.name = cat_data.get("name", "分类")
+    def _populate_categories(target_collection, cat_list_data):
+        target_collection.clear()
+        for cat_data in cat_list_data:
+            cat_name = cat_data.get("name", "分类")
+            raw_tabs = cat_data.get("tabs", [])
+            valid_tabs = []
+            for tab_info in raw_tabs:
+                t_name = tab_info.get("name", "") if isinstance(tab_info, dict) else str(tab_info)
+                if not t_name or classifier.is_category_tab_name(t_name) or classifier.is_system_excluded(t_name):
+                    continue
+                valid_tabs.append(tab_info)
+
+            # 排除没有任何真实子标签的幽灵空分类
+            if not valid_tabs:
+                continue
+
+            cat = target_collection.add()
+            cat.name = cat_name
             cat.icon = cat_data.get("icon", "") or "OUTLINER_COLLECTION"
-            for i, tab_info in enumerate(cat_data.get("tabs", [])):
+            for i, tab_info in enumerate(valid_tabs):
                 t = cat.tabs.add()
                 if isinstance(tab_info, dict):
                     t.name = tab_info.get("name", "")
@@ -108,6 +119,13 @@ def deserialize_all_settings(settings, data: dict):
                     t.name = str(tab_info)
                     t.custom_name = classifier.get_tab_display_label(t.name)
                 t.is_active = (i == 0)
+
+    # 1. VIEW_3D
+    v3d_data = spaces.get("VIEW_3D", {})
+    if v3d_data:
+        settings.hide_unassigned = v3d_data.get("hide_unassigned", False)
+        settings.excluded_tabs = v3d_data.get("excluded_tabs", "")
+        _populate_categories(settings.categories, v3d_data.get("categories", []))
 
     # 2. IMAGE_EDITOR
     img_data = spaces.get("IMAGE_EDITOR", {})
@@ -115,20 +133,7 @@ def deserialize_all_settings(settings, data: dict):
         settings.enabled_image_editor = img_data.get("enabled", True)
         settings.hide_unassigned_image_editor = img_data.get("hide_unassigned", False)
         settings.excluded_tabs_image_editor = img_data.get("excluded_tabs", "Image, Tool, View, 图像, 工具, 视图")
-        settings.categories_image_editor.clear()
-        for cat_data in img_data.get("categories", []):
-            cat = settings.categories_image_editor.add()
-            cat.name = cat_data.get("name", "分类")
-            cat.icon = cat_data.get("icon", "") or "OUTLINER_COLLECTION"
-            for i, tab_info in enumerate(cat_data.get("tabs", [])):
-                t = cat.tabs.add()
-                if isinstance(tab_info, dict):
-                    t.name = tab_info.get("name", "")
-                    t.custom_name = tab_info.get("custom_name", "") or classifier.get_tab_display_label(t.name)
-                else:
-                    t.name = str(tab_info)
-                    t.custom_name = classifier.get_tab_display_label(t.name)
-                t.is_active = (i == 0)
+        _populate_categories(settings.categories_image_editor, img_data.get("categories", []))
 
     # 3. NODE_EDITOR
     node_data = spaces.get("NODE_EDITOR", {})
@@ -136,20 +141,7 @@ def deserialize_all_settings(settings, data: dict):
         settings.enabled_node_editor = node_data.get("enabled", True)
         settings.hide_unassigned_node_editor = node_data.get("hide_unassigned", False)
         settings.excluded_tabs_node_editor = node_data.get("excluded_tabs", "Node, Tool, View, Options, 节点, 工具, 视图, 选项")
-        settings.categories_node_editor.clear()
-        for cat_data in node_data.get("categories", []):
-            cat = settings.categories_node_editor.add()
-            cat.name = cat_data.get("name", "分类")
-            cat.icon = cat_data.get("icon", "") or "OUTLINER_COLLECTION"
-            for i, tab_info in enumerate(cat_data.get("tabs", [])):
-                t = cat.tabs.add()
-                if isinstance(tab_info, dict):
-                    t.name = tab_info.get("name", "")
-                    t.custom_name = tab_info.get("custom_name", "") or classifier.get_tab_display_label(t.name)
-                else:
-                    t.name = str(tab_info)
-                    t.custom_name = classifier.get_tab_display_label(t.name)
-                t.is_active = (i == 0)
+        _populate_categories(settings.categories_node_editor, node_data.get("categories", []))
 
 
 def clear_presets_on_disk() -> bool:
@@ -188,13 +180,47 @@ def save_presets_to_disk(context) -> bool:
         return False
 
 
+def sanitize_settings_categories(settings) -> bool:
+    """清理内存中所有被大分类名称污染的子标签项与空分类，若有变动返回 True"""
+    if not settings:
+        return False
+    changed = False
+    space_lists = [
+        settings.categories,
+        settings.categories_image_editor,
+        settings.categories_node_editor,
+    ]
+    for cat_list in space_lists:
+        cats_to_remove = []
+        for c_idx, cat in enumerate(cat_list):
+            tabs_to_remove = []
+            for t_idx, tab in enumerate(cat.tabs):
+                if classifier.is_category_tab_name(tab.name) or classifier.is_system_excluded(tab.name):
+                    tabs_to_remove.append(t_idx)
+            if tabs_to_remove:
+                changed = True
+                for t_idx in reversed(tabs_to_remove):
+                    cat.tabs.remove(t_idx)
+            if len(cat.tabs) == 0:
+                cats_to_remove.append(c_idx)
+        if cats_to_remove:
+            changed = True
+            for c_idx in reversed(cats_to_remove):
+                cat_list.remove(c_idx)
+    return changed
+
+
 def load_presets_from_disk(context, force: bool = False) -> bool:
-    """从磁盘加载用户持久化分类预设"""
+    """从磁盘加载用户持久化分类预设（自动净化并自愈脏配置）"""
     if not context or not hasattr(context, "scene"):
         return False
     settings = getattr(context.scene, "m8_npanel", None)
     if not settings:
         return False
+
+    # 若内存中已有配置，先自愈清理可能残留的大分类假标签
+    if sanitize_settings_categories(settings):
+        save_presets_to_disk(context)
 
     # 若非强制模式，且当前场景已经有配置数据，则不覆盖
     if not force and (len(settings.categories) > 0 or len(settings.categories_image_editor) > 0 or len(settings.categories_node_editor) > 0):
@@ -208,6 +234,9 @@ def load_presets_from_disk(context, force: bool = False) -> bool:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         deserialize_all_settings(settings, data)
+        # 加载后若有自愈或净化，同步回写磁盘
+        if sanitize_settings_categories(settings):
+            save_presets_to_disk(context)
         return True
     except Exception as e:
         print(f"[M8 NPanel] Failed to load presets: {e}")

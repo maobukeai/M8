@@ -228,7 +228,7 @@ class TEXT_PT_M8_AI_Assistant(bpy.types.Panel):
                         box_code = box_a.box()
                         code_lines = code.strip().splitlines()
                         row_c_head = box_code.row(align=True)
-                        row_c_head.label(text=f"🐍 Python 代码 ({len(code_lines)} 行)", icon=_ICON("FILE_SCRIPT"))
+                        row_c_head.label(text=_T("🐍 Python 代码 (%d 行)") % len(code_lines), icon=_ICON("FILE_SCRIPT"))
 
                         col_c_preview = box_code.column(align=True)
                         show_full = getattr(msg, "show_full_code", False)
@@ -237,7 +237,7 @@ class TEXT_PT_M8_AI_Assistant(bpy.types.Panel):
                             col_c_preview.label(text=cl[:34])
                         if len(code_lines) > 4:
                             row_tog = col_c_preview.row(align=True)
-                            tog_text = _T("🔼 折叠代码") if show_full else f"... ({_T('展开剩余')} {len(code_lines) - 4} {_T('行')})"
+                            tog_text = _T("🔼 折叠代码") if show_full else (_T("... (展开剩余 %d 行)") % (len(code_lines) - 4))
                             tog_icon = _ICON("TRIA_UP") if show_full else _ICON("TRIA_DOWN")
                             op_tog = row_tog.operator("m8.ai_toggle_full_code", text=tog_text, icon=tog_icon, emboss=False)
                             op_tog.msg_index = idx

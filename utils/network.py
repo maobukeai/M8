@@ -336,12 +336,28 @@ def _show_modal_update_dialog():
             pass
 
 def check_for_updates_async(is_manual=False):
+    is_online = getattr(getattr(bpy, "app", None), "online_access", True)
+    if not is_online:
+        wm = getattr(bpy.context, "window_manager", None)
+        m8 = getattr(wm, "m8", None) if wm else None
+        if m8:
+            m8.update_status = "error"
+            m8.update_checked = True
+        if is_manual and wm:
+            def draw_offline(self, context):
+                self.layout.label(text=_T("Blender 处于离线模式，已禁止网络访问"), icon="CANCEL")
+            try:
+                wm.popup_menu(draw_offline, title=_T("离线模式"), icon="INFO")
+            except Exception:
+                pass
+        return
+
     global _update_result
     with _update_lock:
         _update_result = None
 
-    wm = bpy.context.window_manager
-    m8 = getattr(wm, "m8", None)
+    wm = getattr(bpy.context, "window_manager", None)
+    m8 = getattr(wm, "m8", None) if wm else None
     if m8:
         m8.update_status = "checking"
 
@@ -452,7 +468,7 @@ def _apply_install_results():
         zip_path = res["zip_path"]
         try:
             if not install_downloaded_zip(zip_path):
-                raise RuntimeError("Update installer reported failure")
+                raise RuntimeError(_T("更新安装未完成或已被取消"))
             res = {"success": True}
         except Exception as exc:
             res = {"error": str(exc)}
@@ -480,12 +496,25 @@ def _apply_install_results():
     return None
 
 def download_and_install_update_async():
+    is_online = getattr(getattr(bpy, "app", None), "online_access", True)
+    wm = getattr(bpy.context, "window_manager", None)
+    m8 = getattr(wm, "m8", None) if wm else None
+    if not is_online:
+        if m8:
+            m8.update_status = "idle"
+        if wm:
+            def draw_offline(self, context):
+                self.layout.label(text=_T("Blender 处于离线模式，已禁止网络访问"), icon="CANCEL")
+            try:
+                wm.popup_menu(draw_offline, title=_T("离线模式"), icon="ERROR")
+            except Exception:
+                pass
+        return
+
     global _install_result
     with _install_lock:
         _install_result = None
 
-    wm = bpy.context.window_manager
-    m8 = getattr(wm, "m8", None)
     if m8:
         m8.update_status = "updating"
 
@@ -573,10 +602,17 @@ def install_downloaded_zip(zip_path):
     if hasattr(bpy.ops, "extensions") and hasattr(bpy.ops.extensions, "user_install"):
         try:
             print("[M8] Installing update via Blender Extensions API...")
-            bpy.ops.extensions.user_install(filepath=zip_path)
-            print("[M8] Update installed successfully via Extensions API.")
-            remove_duplicate_installations()
-            return True
+            res = bpy.ops.extensions.user_install(filepath=zip_path)
+            if res == {'FINISHED'}:
+                print("[M8] Update installed successfully via Extensions API.")
+                remove_duplicate_installations()
+                return True
+            elif res == {'CANCELLED'}:
+                print("[M8] Extensions user_install cancelled by user.")
+                return False
+            else:
+                print(f"[M8] Extensions user_install returned {res}.")
+                return False
         except Exception as e:
             print(f"[M8] Extensions user_install failed: {e}. Falling back to manual extraction.")
 

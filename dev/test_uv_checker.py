@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 =============================================================================
               M8 UV 棋盘格系统 (v3.0) 专项自动化验证套件
@@ -15,18 +15,43 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 
+import addon_utils
+
+
+def _ensure_addon_enabled():
+    addon_name = "M8"
+    for mod in addon_utils.modules():
+        name = mod.__name__
+        if name == "M8" or name.endswith(".M8"):
+            addon_name = name
+            break
+    addon_utils.enable(addon_name, default_set=False)
+    return addon_name
+
+
 def run_tests():
     print("\n" + "=" * 75)
     print("  [M8 TEST] 开始执行 UV 棋盘格系统 (v3.0 双轨覆盖架构) 专项验证套件")
     print("=" * 75)
 
-    from M8.ops.mesh.uv_checker import (
-        build_or_update_uv_checker_material,
-        is_uv_checker_active,
-        _backup_and_apply_slots,
-        _restore_slots,
-        _check_objects_uv_status,
-    )
+    addon_name = _ensure_addon_enabled()
+
+    try:
+        from ..ops.mesh.uv_checker import (
+            build_or_update_uv_checker_material,
+            is_uv_checker_active,
+            _backup_and_apply_slots,
+            _restore_slots,
+            _check_objects_uv_status,
+        )
+    except Exception:
+        from M8.ops.mesh.uv_checker import (
+            build_or_update_uv_checker_material,
+            is_uv_checker_active,
+            _backup_and_apply_slots,
+            _restore_slots,
+            _check_objects_uv_status,
+        )
 
     # -------------------------------------------------------------------------
     # TEST 1: 验证 4 种网格类型材质与着色器节点树构建
@@ -153,6 +178,7 @@ def run_tests():
     bpy.data.meshes.remove(mesh_b)
     bpy.data.meshes.remove(mesh_c)
     bpy.data.materials.remove(mat_orig_a)
+    addon_utils.disable(addon_name, default_set=False)
 
     print("\n" + "=" * 75)
     print("  >>> 全部 5 组专项测试深度通过！双轨制覆盖、局部隔离、免UV三向与无损还原成功！ <<<")

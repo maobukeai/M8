@@ -245,7 +245,7 @@ class M8_NPanelSettings(bpy.types.PropertyGroup):
     filter_addons_only: bpy.props.BoolProperty(
         name=_T("仅第三方插件"),
         description=_T("在可用标签池中仅显示第三方插件标签，隐藏 Blender 原生系统基础标签（条目/工具/视图/动画）"),
-        default=False
+        default=True
     )
 
     def get_categories(self, space_type: str = ""):

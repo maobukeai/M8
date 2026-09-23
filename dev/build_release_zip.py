@@ -17,7 +17,7 @@ def get_manifest_version():
         match = re.search(r'^version\s*=\s*["\']([^"\']+)["\']', content, re.MULTILINE)
         if match:
             return match.group(1)
-    return "3.8.7"
+    return "3.8.8"
  
 EXCLUDE_DIRS = {
     ".git",
@@ -27,6 +27,11 @@ EXCLUDE_DIRS = {
     ".vscode",
     ".idea",
     "dist",
+    "logs",
+    "temp",
+    ".mission",
+    "artifacts",
+    "dev",
 }
 
 EXCLUDE_EXTENSIONS = {
@@ -34,6 +39,10 @@ EXCLUDE_EXTENSIONS = {
     ".pyo",
     ".zip",
     ".DS_Store",
+    ".log",
+    ".bak",
+    ".fbx",
+    ".tmp",
 }
 
 def should_exclude(rel_path: Path):
@@ -56,11 +65,12 @@ def update_version_json(version, sha256_hash):
         "sha256": sha256_hash,
         "changelog": (
             f"### M8 全能工具箱 v{version} 发布\n\n"
-            "1. 🚀 智能硬表面法向传递系统 (Smart Normal Transfer) 全面进阶：优化凹凸曲面、沉头孔与多孔群几何分治投影精度，增强软羽化梯度过渡与锐边平滑防护。\n"
-            "2. 💎 UV 棋盘格 (UV Checker) 架构重构：优化材质覆盖管线与动态节点映射机制，提升视图重绘性能与拉伸检测精度。\n"
-            "3. 📂 N 面板管理系统深度调优：增强插件智能分类与识别机制，优化二级标签折叠、图标自选及配置备份导入导出体验。\n"
-            "4. 📐 对齐与测量工具增强：修复复杂局部变换与多物体边界下的接地 (To Ground) 与测量轴向对齐精度。\n"
-            "5. 🌐 全面通过 237 个 Python 文件语法检查与硬表面全场景自动化测试套件。"
+            "1. 🔒 扩展清单与合规强化：精简 Extension Manifest Tagline 至合规长度，规范声明网络、文件及剪贴板权限与用途说明。\n"
+            "2. 🛡️ 网络安全与离线模式遵从：严格校验 HTTPS SSL 证书（拒绝非受信任重试），全面遵从 Blender 离线模式 (online_access=False)。\n"
+            "3. 🤖 AI 助手生命周期与健壮性：修复请求异常终止时打字机定时器残留，完善插件卸载/重载/场景切换时的状态隔离与资源注销。\n"
+            "4. 📐 Unity FBX 导出缩放修复：移除旧版逆向缩放覆盖，新增 v2 平滑迁移自动纠正历史错误默认值 100.0 并保留用户自定义数值。\n"
+            "5. 📦 插件安装与更新流程优化：明确区分用户取消与安装失败状态，避免更新被取消时触发误报或多余回退。\n"
+            "6. 🧪 全套回归与自动化质检增强：全套 238 个 Python 文件语法通过，增强对齐、材质、棋盘格、法向与骨骼镜像的自动化断言验证。"
         ),
     }
     version_json_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

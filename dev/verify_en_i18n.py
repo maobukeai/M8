@@ -112,6 +112,8 @@ class MockLayout:
         if text: self.rendered_texts.append(("prop", prop_name, text))
     def operator(self, op_name, text="", **kwargs):
         if text: self.rendered_texts.append(("operator", op_name, text))
+        import types
+        return types.SimpleNamespace()
     def separator(self, factor=1.0): pass
     def menu(self, *args, **kwargs): pass
 

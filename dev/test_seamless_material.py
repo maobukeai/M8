@@ -15,30 +15,67 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 
+import addon_utils
+
+
+def _ensure_addon_enabled():
+    addon_name = "M8"
+    for mod in addon_utils.modules():
+        name = mod.__name__
+        if name == "M8" or name.endswith(".M8"):
+            addon_name = name
+            break
+    addon_utils.enable(addon_name, default_set=False)
+    return addon_name
+
+
 def run_tests():
     print("\n" + "=" * 75)
     print("  [M8 TEST] 开始执行材质无缝化与六边形抗平铺 (Dual-Mode v2.0) 深度验证套件")
     print("=" * 75)
 
-    from M8.ops.material.seamless_material import (
-        get_or_create_fast_helper_group,
-        get_or_create_hex_helper_group,
-        get_or_create_variance_preserve_group,
-        get_or_create_normal_normalize_group,
-        make_material_seamless,
-        revert_material_seamless,
-        is_material_seamless,
-        get_material_seamless_mode,
-        HELPER_GROUP_FAST,
-        HELPER_GROUP_HEX,
-        TAG_LAYER2,
-        TAG_LAYER3,
-        TAG_MIX,
-        TAG_MIX_2,
-        TAG_MIX_ALPHA,
-        TAG_VARIANCE,
-        TAG_NORMAL_NORM,
-    )
+    addon_name = _ensure_addon_enabled()
+
+    try:
+        from ..ops.material.seamless_material import (
+            get_or_create_fast_helper_group,
+            get_or_create_hex_helper_group,
+            get_or_create_variance_preserve_group,
+            get_or_create_normal_normalize_group,
+            make_material_seamless,
+            revert_material_seamless,
+            is_material_seamless,
+            get_material_seamless_mode,
+            HELPER_GROUP_FAST,
+            HELPER_GROUP_HEX,
+            TAG_LAYER2,
+            TAG_LAYER3,
+            TAG_MIX,
+            TAG_MIX_2,
+            TAG_MIX_ALPHA,
+            TAG_VARIANCE,
+            TAG_NORMAL_NORM,
+        )
+    except Exception:
+        from M8.ops.material.seamless_material import (
+            get_or_create_fast_helper_group,
+            get_or_create_hex_helper_group,
+            get_or_create_variance_preserve_group,
+            get_or_create_normal_normalize_group,
+            make_material_seamless,
+            revert_material_seamless,
+            is_material_seamless,
+            get_material_seamless_mode,
+            HELPER_GROUP_FAST,
+            HELPER_GROUP_HEX,
+            TAG_LAYER2,
+            TAG_LAYER3,
+            TAG_MIX,
+            TAG_MIX_2,
+            TAG_MIX_ALPHA,
+            TAG_VARIANCE,
+            TAG_NORMAL_NORM,
+        )
 
     # 准备测试贴图
     test_img = bpy.data.images.get("M8_Test_Tex")
@@ -254,6 +291,7 @@ def run_tests():
     bpy.data.materials.remove(mat_fast)
     bpy.data.materials.remove(mat_hex)
     bpy.data.images.remove(test_img)
+    addon_utils.disable(addon_name, default_set=False)
 
     print("\n" + "=" * 75)
     print("  >>> 全部 10 项测试深度通过！双模架构、边界回退、UI注册与防残留清理验证成功！ <<<")

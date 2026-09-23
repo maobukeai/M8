@@ -34,7 +34,7 @@ if (-not $Foreground) {
 if (-not $KeepUserPrefs) {
     $BlenderArgs += "--factory-startup"
 }
-$BlenderArgs += @("--python", $RegressionScript)
+$BlenderArgs += @("--python-exit-code", "1", "--python", $RegressionScript)
 
 Push-Location $Root
 try {

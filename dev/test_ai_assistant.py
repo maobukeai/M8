@@ -315,7 +315,52 @@ assert "a_msg.show_thinking = False" in fix_error_code, "ops_fix_error must rese
 assert "a_msg.show_full_thinking = False" in fix_error_code, "ops_fix_error must reset show_full_thinking on error"
 print("  -> PASS: ops_fix_error error state cleanup verified!")
 
+# Test 19: SSL context strictly verified (no unverified context)
+print("\n[TEST 19] Testing SSL context strict verification...")
+import ssl
+ctx = ai_client._create_ssl_context()
+assert isinstance(ctx, ssl.SSLContext), "Expected SSLContext"
+assert ctx.verify_mode == ssl.CERT_REQUIRED or ctx.verify_mode == ssl.CERT_OPTIONAL, "SSL must verify certificates"
+assert ctx.check_hostname is True, "SSL must check hostname"
+print("  -> PASS: SSL context strictly enforces certificate validation and check_hostname!")
+
+# Test 20: Offline mode respects bpy.app.online_access
+print("\n[TEST 20] Testing bpy.app.online_access enforcement...")
+bpy.app.online_access = False
+offline_errors = []
+def mock_error_cb(err):
+    offline_errors.append(err)
+
+ai_client.fetch_models_async("https://api.openai.com", "fake-key", None, mock_error_cb)
+assert len(offline_errors) == 1, f"Expected 1 offline error, got: {offline_errors}"
+assert "offline" in offline_errors[0].lower() or "离线" in offline_errors[0], f"Expected offline error message, got: {offline_errors[0]}"
+print(f"  Offline error caught: {offline_errors[0]}")
+print("  -> PASS: Offline mode strictly blocks requests and reports sanitized offline error!")
+
+# Reset online_access
+bpy.app.online_access = True
+
+# Test 21: Verify fetch_models_async argument normalization conventions
+print("\n[TEST 21] Testing fetch_models_async argument normalization...")
+bpy.app.online_access = False
+
+# Case A: 3 positional args (url, key, success_cb) -> offline error should not crash
+errs_a = []
+ai_client.fetch_models_async("https://api.openai.com", "fake-key", lambda m: None)
+# Case B: 4 positional args (url, key, success_cb, error_cb)
+errs_b = []
+ai_client.fetch_models_async("https://api.openai.com", "fake-key", lambda m: None, lambda e: errs_b.append(e))
+assert len(errs_b) == 1, f"Expected error in 4-arg call, got {errs_b}"
+# Case C: 5 positional args (url, key, timeout, success_cb, error_cb)
+errs_c = []
+ai_client.fetch_models_async("https://api.openai.com", "fake-key", 20, lambda m: None, lambda e: errs_c.append(e))
+assert len(errs_c) == 1, f"Expected error in 5-arg call, got {errs_c}"
+
+bpy.app.online_access = True
+print("  -> PASS: All argument calling conventions for fetch_models_async normalized properly!")
+
 print("\n" + "=" * 60)
-print("All 18 M8 AI Assistant Unit Tests Passed Successfully!")
+print("All 21 M8 AI Assistant Unit Tests Passed Successfully!")
 print("=" * 60)
+
 

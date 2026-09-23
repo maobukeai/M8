@@ -112,35 +112,57 @@ def get_panel_root(panel: Type[bpy.types.Panel]) -> Type[bpy.types.Panel]:
 
 
 def get_panel_original_tab(panel: Type[bpy.types.Panel]) -> str:
-    """获取面板的原始标签名称（若为子面板，向上递归继承根面板标签，并规范化同源别名）"""
+    """获取面板的原始标签名称（若为子面板，向上递归继承根面板标签，严格排除大分类名称污染）"""
+    def _is_clean(c: Optional[str]) -> bool:
+        return bool(c and c not in ("M8_HIDDEN", "NSUBHIDE", "Misc") and not classifier.is_category_tab_name(c))
+
+    # 0. 优先从类对象永久固化属性中读取
+    pinned = getattr(panel, "_m8_original_category", None)
+    if _is_clean(pinned):
+        return classifier.resolve_canonical_tab(pinned)
+
+    # 1. 检查面板自身快照
     if PanelStateManager.has_snapshot(panel):
         cat = PanelStateManager.get_original_category(panel)
-        if cat:
+        if _is_clean(cat):
             return classifier.resolve_canonical_tab(cat)
 
+    # 2. 向上递归追溯根面板
     root = get_panel_root(panel)
     if root and root is not panel:
+        root_pinned = getattr(root, "_m8_original_category", None)
+        if _is_clean(root_pinned):
+            return classifier.resolve_canonical_tab(root_pinned)
         if PanelStateManager.has_snapshot(root):
             root_cat = PanelStateManager.get_original_category(root)
-            if root_cat:
+            if _is_clean(root_cat):
                 return classifier.resolve_canonical_tab(root_cat)
         root_cat = getattr(root, "bl_category", None)
-        if root_cat:
+        if _is_clean(root_cat):
             return classifier.resolve_canonical_tab(root_cat)
 
+    # 3. 检查当前内存属性
     cat = getattr(panel, "bl_category", None)
-    if cat:
+    if _is_clean(cat):
         return classifier.resolve_canonical_tab(cat)
+
+    # 4. 兜底：若内存已脏或被分类篡改，从类定义源码中提取真实原始分类
+    from . import state
+    src_cat, _ = state.get_source_attributes(panel)
+    if _is_clean(src_cat):
+        return classifier.resolve_canonical_tab(src_cat)
+
+    # 5. 若子面板源码无 bl_category，提取根父级源码中的真实分类
+    if root and root is not panel:
+        root_src_cat, _ = state.get_source_attributes(root)
+        if _is_clean(root_src_cat):
+            return classifier.resolve_canonical_tab(root_src_cat)
+
     return "Misc"
 
 
-def is_valid_user_panel(panel: Type[bpy.types.Panel], space_type: str = "VIEW_3D") -> bool:
-    """过滤判定是否为合法的待整理侧边栏面板（严格排除系统原生与未注册残留）"""
-    if getattr(panel, "bl_space_type", None) != space_type:
-        return False
-    if getattr(panel, "bl_region_type", None) != "UI":
-        return False
-
+def is_valid_user_panel(panel: Type[bpy.types.Panel], space_type: str = "VIEW_3D", visited: Optional[Set[Type[bpy.types.Panel]]] = None) -> bool:
+    """过滤判定是否为合法的待整理侧边栏面板（严格排除系统原生与未注册残留，支持子面板自动继承父级 space_type）"""
     # 忽略自身的隐藏面板与动态置顶面板
     idname = get_panel_idname(panel)
     name = getattr(panel, "__name__", "")
@@ -148,10 +170,35 @@ def is_valid_user_panel(panel: Type[bpy.types.Panel], space_type: str = "VIEW_3D
         idname.startswith("M8_PT_HiddenPanel") or idname.startswith("M8_PT_SubTabs")):
         return False
 
+    # 忽略 M8 自身的任何业务面板（M8 面板保持独立原生状态，绝不自我接管）
+    mod = get_panel_module(panel)
+    if mod.endswith(".M8") or mod == "M8" or "bl_ext.user_default.M8" in mod:
+        return False
+
     # 忽略未注册或基础类（在 Blender 注册后必有 bl_rna，且在 bpy.types 中可通过 bl_idname 或 __name__ 查询）
     if "bl_rna" not in panel.__dict__:
         return False
     if not hasattr(bpy.types, idname) and not hasattr(bpy.types, name):
+        return False
+
+    # 核心继承规则（对齐 n_panel_sub_tabs）:
+    # 若存在 bl_parent_id 且非 M8 隐藏宿主，说明是嵌套子面板；
+    # Blender 引擎完全允许子面板省略自身 bl_space_type 与 bl_region_type（自动继承自父级）。
+    # 递归向上验证其真实父面板是否属于目标 space_type 与 UI 区域！
+    curr_parent = getattr(panel, "bl_parent_id", None)
+    if curr_parent and not curr_parent.startswith("M8_PT_HiddenPanel"):
+        if visited is None:
+            visited = set()
+        if panel in visited:
+            return False
+        visited.add(panel)
+        parent_cls = getattr(bpy.types, curr_parent, None)
+        if parent_cls and parent_cls is not panel:
+            return is_valid_user_panel(parent_cls, space_type, visited)
+
+    if getattr(panel, "bl_space_type", None) != space_type:
+        return False
+    if getattr(panel, "bl_region_type", None) != "UI":
         return False
 
     return True
@@ -171,13 +218,34 @@ def scan_panels(space_type: str = "VIEW_3D") -> List[Type[bpy.types.Panel]]:
     return matched
 
 
+def is_panel_root_declaration(p: Type[bpy.types.Panel]) -> bool:
+    """判定面板在原始声明中是否为顶层根面板（非嵌套子面板，哪怕当前处于受控隐藏挂载状态）"""
+    if PanelStateManager.has_snapshot(p):
+        orig_parent = PanelStateManager.get_original_parent_id(p)
+        if orig_parent and not orig_parent.startswith("M8_PT_HiddenPanel"):
+            return False
+        return True
+
+    from . import state
+    _, src_parent = state.get_source_attributes(p)
+    if src_parent:
+        return False
+
+    curr_parent = getattr(p, "bl_parent_id", None)
+    return not curr_parent or curr_parent.startswith("M8_PT_HiddenPanel")
+
+
 def scan_all_tabs(space_type: str = "VIEW_3D") -> Tuple[List[str], Dict[str, str]]:
     """扫描所有有效的第三方侧边栏标签名称及其对应模块（严格排除系统原生标签并规范化同源别名）"""
     panels = scan_panels(space_type)
     tabs_set: Set[str] = set()
     tab_modules: Dict[str, str] = {}
 
-    for p in panels:
+    # 关键机制：侧边栏标签完全由顶层根面板 (Root Panel) 声明！
+    # 嵌套子面板 (bl_parent_id 存在) 嵌套在父级内部，绝不能独立引入伪标签。
+    root_panels = [p for p in panels if is_panel_root_declaration(p)]
+
+    for p in root_panels:
         orig_tab = get_panel_original_tab(p)
         if not orig_tab or orig_tab in ("M8_HIDDEN", "NSUBHIDE"):
             continue
@@ -194,58 +262,126 @@ def scan_all_tabs(space_type: str = "VIEW_3D") -> Tuple[List[str], Dict[str, str
     return sorted_tabs, tab_modules
 
 
+def get_space_context_override(space_type: str = "VIEW_3D") -> dict:
+    """
+    为指定编辑器类型构建精准的 Context Override 字典，解决弹窗或非主视口环境下 poll(context) 缺乏 space_data 的问题
+    """
+    try:
+        wm = getattr(bpy.context, "window_manager", None)
+        if not wm or not wm.windows:
+            return {}
+        win = wm.windows[0]
+        screen = win.screen
+        for area in screen.areas:
+            if area.type == space_type:
+                ui_reg = None
+                for reg in area.regions:
+                    if reg.type == 'UI':
+                        ui_reg = reg
+                        break
+                return {
+                    "window": win,
+                    "screen": screen,
+                    "area": area,
+                    "space_data": area.spaces.active,
+                    "region": ui_reg
+                }
+    except Exception:
+        pass
+    return {}
+
+
 def is_panel_live_in_context(panel: Type[bpy.types.Panel], context: Optional[bpy.types.Context] = None) -> bool:
     """
     检测面板在当前上下文（视口模式、选中项、激活状态）下是否处于物理渲染/可见状态。
     结合 bl_region_type、bl_context 与 poll(context) 多重裁决。
+    自动通过 Context Override 注入真实的视口 Space/Region，确保在弹窗环境下 100% 准确评估。
     """
     if getattr(panel, "bl_region_type", None) != "UI":
         return False
 
+    sp_type = getattr(panel, "bl_space_type", "VIEW_3D")
+    need_override = False
     if context is None:
         context = getattr(bpy, "context", None)
-    if not context:
+        need_override = True
+    elif isinstance(context, getattr(bpy.types, "Context", type(None))):
+        if not getattr(context, "space_data", None) or getattr(context.space_data, "type", "") != sp_type:
+            need_override = True
+
+    ov = get_space_context_override(sp_type) if need_override else {}
+
+    def _eval(ctx):
+        # 1. 模式限制 (bl_context) 检查
+        bl_ctx = getattr(panel, "bl_context", None)
+        if bl_ctx:
+            mode = getattr(ctx, "mode", "OBJECT")
+            clean_ctx = bl_ctx.lstrip(".").lower()
+            mode_map = {
+                "objectmode": ["OBJECT"],
+                "mesh_edit": ["EDIT_MESH"],
+                "curve_edit": ["EDIT_CURVE"],
+                "armature_edit": ["EDIT_ARMATURE"],
+                "posemode": ["POSE"],
+                "sculpt": ["SCULPT"],
+                "sculpt_mode": ["SCULPT"],
+                "curves_sculpt": ["SCULPT_CURVES"],
+                "weightpaint": ["PAINT_WEIGHT"],
+                "paint_weight": ["PAINT_WEIGHT"],
+                "vertexpaint": ["PAINT_VERTEX"],
+                "paint_vertex": ["PAINT_VERTEX"],
+                "imagepaint": ["PAINT_TEXTURE"],
+                "paint_texture": ["PAINT_TEXTURE"],
+                "particlemode": ["PARTICLE_EDIT"],
+                "particle": ["PARTICLE_EDIT"],
+                "grease_pencil_paint": ["PAINT_GPENCIL"],
+                "grease_pencil_sculpt": ["SCULPT_GPENCIL"],
+                "greasepencil_vertex": ["VERTEX_GPENCIL"],
+                "greasepencil_weight": ["WEIGHT_GPENCIL"],
+            }
+            allowed = mode_map.get(clean_ctx, [clean_ctx])
+            if mode not in allowed:
+                return False
+
+        # 2. poll(context) 检查
+        poll_fn = getattr(panel, "poll", None)
+        if poll_fn:
+            try:
+                if not poll_fn(ctx):
+                    return False
+            except Exception:
+                return False
+
+        # 3. 渲染引擎限制 (COMPAT_ENGINES) 检查（严格对齐 Blender C 引擎 ED_panel_type_poll）
+        compat = getattr(panel, "COMPAT_ENGINES", None)
+        if compat:
+            scene = getattr(ctx, "scene", None)
+            if scene and hasattr(scene, "render"):
+                curr_engine = getattr(scene.render, "engine", "")
+                if curr_engine and curr_engine not in compat:
+                    return False
+
         return True
 
-    # 1. 模式限制 (bl_context) 检查
-    bl_ctx = getattr(panel, "bl_context", None)
-    if bl_ctx:
-        mode = getattr(context, "mode", "OBJECT")
-        mode_map = {
-            "objectmode": ["OBJECT"],
-            "mesh_edit": ["EDIT_MESH"],
-            "curve_edit": ["EDIT_CURVE"],
-            "armature_edit": ["EDIT_ARMATURE"],
-            "posemode": ["POSE"],
-            "sculpt": ["SCULPT"],
-            "paint_weight": ["PAINT_WEIGHT"],
-            "paint_vertex": ["PAINT_VERTEX"],
-            "paint_texture": ["PAINT_TEXTURE"],
-            "particle": ["PARTICLE_EDIT"],
-        }
-        allowed = mode_map.get(bl_ctx, [bl_ctx])
-        if mode not in allowed:
-            return False
-
-    # 2. poll(context) 检查
-    poll_fn = getattr(panel, "poll", None)
-    if poll_fn:
+    if ov:
         try:
-            if not poll_fn(context):
-                return False
+            with bpy.context.temp_override(**ov):
+                return _eval(bpy.context)
         except Exception:
-            return False
-
-    return True
+            return _eval(context or getattr(bpy, "context", None))
+    else:
+        return _eval(context or getattr(bpy, "context", None))
 
 
 def is_tab_live(tab_name: str, context: Optional[bpy.types.Context] = None, space_type: str = "VIEW_3D") -> bool:
     """
-    检测指定标签在当前视口模式下是否物理渲染（只要该标签下有任意一个面板处于活跃可见状态即为可见）
+    检测指定标签在当前视口模式下是否物理渲染（只要该标签下有任意一个顶层根面板处于活跃可见状态即为可见）
+    Blender 侧边栏标签渲染完全由根面板驱动，子面板绝不可能单独唤醒侧边栏标签。
     """
     canon = classifier.resolve_canonical_tab(tab_name)
     panels = scan_panels(space_type)
-    for p in panels:
+    root_panels = [p for p in panels if is_panel_root_declaration(p)]
+    for p in root_panels:
         p_tab = classifier.resolve_canonical_tab(get_panel_original_tab(p))
         if p_tab == canon:
             if is_panel_live_in_context(p, context):
@@ -293,15 +429,22 @@ def get_tab_origin_badge(tab_name: str, space_type: str = "VIEW_3D") -> Tuple[st
                 contexts.add(bl_ctx)
 
     # 1. 常见知名插件与内置子模块特异性指纹
-    if canon == "Hardflow":
+    clean_orig = (tab_name or "").strip().lower()
+    if canon == "Hardflow" or clean_orig in ("hardflow", "hard_flow"):
         return _T("HardOps 内置模块"), True
-    if canon.lower() == "rigify":
+    if canon == "HardOps" or clean_orig in ("hardops", "hops"):
+        return _T("HardOps"), True
+    if canon.lower() == "rigify" or clean_orig == "rigify":
         return _T("Rigify · 需骨骼/姿态模式"), True
-    if canon == "Edit":
-        return _T("Bool Tool / LoopTools · 仅编辑模式"), True
+    if canon == "Edit" or clean_orig in ("edit", "编辑"):
+        return _T("Bool Tool / LoopTools"), True
 
-    # 2. 纯系统原生面板
-    if not mods or mods == {"bl_ui"}:
+    # 2. 系统原生基础标签（即使有第三方插件向其注入了辅助面板，标签主体仍属于系统原生）
+    native_system_tabs = {"Item", "Tool", "View", "Animation", "Display"}
+    if canon in native_system_tabs or not mods or mods == {"bl_ui"}:
+        addon_mods = [m for m in mods if m != "bl_ui"]
+        if addon_mods:
+            return _T("Blender 原生系统 · 含扩展"), False
         return _T("Blender 原生系统"), False
 
     # 3. 提取插件友好展示名
@@ -333,43 +476,156 @@ def get_panel_idname(panel: Type[bpy.types.Panel]) -> str:
     return getattr(panel, "bl_idname", None) or getattr(panel, "__name__", "")
 
 
-def sort_panels_by_generation(panels: List[Type[bpy.types.Panel]]) -> List[Type[bpy.types.Panel]]:
+# -------------------------------------------------------------------------
+# 2.1 官方推荐根面板黄金显示顺序与特殊插件首选项同步
+# -------------------------------------------------------------------------
+HARD_OPS_PANELS_ORDER_REFERENCE = [
+    'HOPS_PT_Button',
+    'HOPS_PT_material_hops',
+    'HARDFLOW_PT_display_miscs',
+    'HARDFLOW_PT_display_smartshapes',
+    'HARDFLOW_PT_display_modifiers',
+    'HOPS_PT_settings',
+    'HARDFLOW_PT_settings'
+]
+
+BOX_CUTTER_PANELS_ORDER_REFERENCE = [
+    'BC_PT_help_npanel',
+    'BC_PT_mode',
+    'BC_PT_shape',
+    'BC_PT_set_origin',
+    'BC_PT_operation',
+    'BC_PT_surface',
+    'BC_PT_snap',
+    'BC_PT_settings'
+]
+
+
+def sort_by_order_reference(panels: List[Type[bpy.types.Panel]], order_reference: List[str]) -> List[Type[bpy.types.Panel]]:
+    """按官方推荐参考顺序对面板列表重排"""
+    sorted_panels = []
+    panels_copy = list(panels)
+    for idna in order_reference:
+        for p in panels_copy[:]:
+            if get_panel_idname(p) == idna or getattr(p, "__name__", "") == idna:
+                sorted_panels.append(p)
+                panels_copy.remove(p)
+                break
+    sorted_panels.extend(panels_copy)
+    return sorted_panels
+
+
+def normalize_bl_order(panels: List[Type[bpy.types.Panel]]):
+    """
+    规范化面板 bl_order，保证所有第三方面板的 bl_order >= 1，
+    从而确保 bl_order=0 的 M8 动态置顶子标签条（M8_PT_SubTabs）永远在最顶部！
+    使用原始快照 bl_order 计算幂等偏移量，彻底杜绝多次调用导致的 order 无限漂移！
+    """
+    all_names = {get_panel_idname(p) for p in panels if get_panel_idname(p)} | {getattr(p, "__name__", "") for p in panels if getattr(p, "__name__", "")}
+    min_order = None
+    for p in panels:
+        pid = getattr(p, "bl_parent_id", None)
+        if not pid or pid not in all_names or pid.startswith("M8_PT_HiddenPanel"):
+            orig = PanelStateManager.get_original_order(p) if PanelStateManager.has_snapshot(p) else getattr(p, "bl_order", 0)
+            if min_order is None or orig < min_order:
+                min_order = orig
+    if min_order is None:
+        min_order = 0
+    # 确保根面板的最小 order >= 1（若 min_order <= 0，整体向右偏移 1 - min_order）
+    shift = max(0, 1 - min_order)
+    for p in panels:
+        orig = PanelStateManager.get_original_order(p) if PanelStateManager.has_snapshot(p) else getattr(p, "bl_order", 0)
+        try:
+            p.bl_order = orig + shift
+        except Exception:
+            pass
+
+
+def sync_special_addon_preferences(tab_name: str, target_category: str):
+    """
+    当切换或启用 HardOps / BoxCutter 标签时，同步更新其插件内部首选项中的分类位置属性，
+    彻底杜绝其插件内部 update 回调将 bl_category 还原重置导致的面板丢失问题。
+    """
+    canon = classifier.resolve_canonical_tab(tab_name).lower()
+    clean = (tab_name or "").strip().lower()
+    try:
+        # 1. HardOps 偏好设置同步
+        if canon == "hardops" or clean in ("hardops", "hops", "hardflow"):
+            for name, addon_obj in bpy.context.preferences.addons.items():
+                if "hardops" in name.lower() or name.lower() == "hops":
+                    prefs = getattr(addon_obj, "preferences", None)
+                    if prefs and hasattr(prefs, "ui") and hasattr(prefs.ui, "Hops_panel_location"):
+                        if prefs.ui.Hops_panel_location != target_category:
+                            prefs.ui.Hops_panel_location = target_category
+                    break
+
+        # 2. BoxCutter 偏好设置同步
+        elif canon == "boxcutter" or clean in ("boxcutter", "bc"):
+            for name, addon_obj in bpy.context.preferences.addons.items():
+                if "boxcutter" in name.lower():
+                    prefs = getattr(addon_obj, "preferences", None)
+                    if prefs and hasattr(prefs, "display") and hasattr(prefs.display, "tab"):
+                        if prefs.display.tab != target_category:
+                            prefs.display.tab = target_category
+                    break
+    except Exception:
+        pass
+
+
+def sort_panels_by_generation(
+    panels: List[Type[bpy.types.Panel]],
+    target_parents: Optional[Dict[Type[bpy.types.Panel], Optional[str]]] = None
+) -> List[Type[bpy.types.Panel]]:
     """
     按父子继承代数对面板进行拓扑分代排序：
     Gen 0 (根面板) -> Gen 1 (子面板) -> Gen 2 (孙面板) ...
-    确保 register 时父级必定先于子级注册；unregister 时逆序操作。
+    当指定 target_parents 时，基于目标注册父级进行正向拓扑排序（确保父级先注册）；
+    未指定时基于当前 bl_parent_id 排序（用于安全逆序注销）。
     """
     if not panels:
         return []
 
     unique_panels = list(dict.fromkeys(panels))
-    all_names = {get_panel_idname(p) for p in unique_panels if get_panel_idname(p)}
+    all_names = {get_panel_idname(p) for p in unique_panels if get_panel_idname(p)} | {getattr(p, "__name__", "") for p in unique_panels if getattr(p, "__name__", "")}
+
+    def get_pid(p):
+        if target_parents is not None and p in target_parents:
+            return target_parents[p]
+        return getattr(p, "bl_parent_id", None)
 
     sorted_result: List[Type[bpy.types.Panel]] = []
 
     # 提取根面板（无父级或其父级不在此次待更新列表中）
     current_gen = []
     for p in unique_panels:
-        pid = getattr(p, "bl_parent_id", None)
+        pid = get_pid(p)
         if not pid or pid not in all_names or pid.startswith("M8_PT_HiddenPanel"):
             current_gen.append(p)
 
+    # 对根面板按官方黄金顺序（HardOps / BoxCutter）进行优先重排
+    all_root_names = {get_panel_idname(p) for p in current_gen} | {getattr(p, "__name__", "") for p in current_gen}
+    if any(k in all_root_names for k in HARD_OPS_PANELS_ORDER_REFERENCE) and any(k in all_root_names for k in BOX_CUTTER_PANELS_ORDER_REFERENCE):
+        current_gen = sort_by_order_reference(current_gen, HARD_OPS_PANELS_ORDER_REFERENCE + BOX_CUTTER_PANELS_ORDER_REFERENCE)
+    elif any(k in all_root_names for k in HARD_OPS_PANELS_ORDER_REFERENCE):
+        current_gen = sort_by_order_reference(current_gen, HARD_OPS_PANELS_ORDER_REFERENCE)
+    elif any(k in all_root_names for k in BOX_CUTTER_PANELS_ORDER_REFERENCE):
+        current_gen = sort_by_order_reference(current_gen, BOX_CUTTER_PANELS_ORDER_REFERENCE)
+
     sorted_result.extend(current_gen)
 
-    # 逐代向下推导子孙面板
-    prev_gen_names = {get_panel_idname(p) for p in current_gen if get_panel_idname(p)}
+    # 逐代向下推导子孙面板（基于累计已就绪父级集合）
+    all_sorted_names = {get_panel_idname(p) for p in current_gen if get_panel_idname(p)} | {getattr(p, "__name__", "") for p in current_gen if getattr(p, "__name__", "")}
     while len(sorted_result) < len(unique_panels):
         next_gen = [
             p for p in unique_panels
-            if p not in sorted_result and getattr(p, "bl_parent_id", None) in prev_gen_names
+            if p not in sorted_result and get_pid(p) in all_sorted_names
         ]
         if not next_gen:
-            # 存在外部依赖或非闭环依赖，安全追加剩余面板
             remaining = [p for p in unique_panels if p not in sorted_result]
             sorted_result.extend(remaining)
             break
         sorted_result.extend(next_gen)
-        prev_gen_names = {get_panel_idname(p) for p in next_gen if get_panel_idname(p)}
+        all_sorted_names |= {get_panel_idname(p) for p in next_gen if get_panel_idname(p)} | {getattr(p, "__name__", "") for p in next_gen if getattr(p, "__name__", "")}
 
     return sorted_result
 
@@ -479,6 +735,20 @@ def create_category_title_panel(category_name: str, space_type: str = "VIEW_3D",
                 op.tab_name = tab.name
                 op.space_type = space_type
 
+        # 体验优化：若当前激活的子标签在当前视口模式下处于休眠状态（如 Rigify 需骨骼/姿态模式，LoopTools 需编辑模式），
+        # 在子标签栏底部展示温和提示，彻底消除用户关于“分类后插件内容未显示/不见了”的疑惑！
+        active_tab_obj = next((t for t in tabs_list if t.is_active), None)
+        if active_tab_obj and not is_tab_live(active_tab_obj.name, context, space_type=space_type):
+            badge_text, _ = get_tab_origin_badge(active_tab_obj.name, space_type=space_type)
+            disp_name = classifier.get_tab_display_label(active_tab_obj.name)
+            sub_box = layout.box()
+            sub_box.scale_y = 0.8
+            sub_row = sub_box.row(align=True)
+            sub_row.label(
+                text=_T("提示: [%s] 当前模式休眠 (%s)") % (disp_name, badge_text),
+                icon="INFO"
+            )
+
     panel_cls_name = f"M8_PT_SubTabs_{space_type}_{uuid.uuid4().hex[:8]}"
     panel_dict = {
         "bl_idname": panel_cls_name,
@@ -531,9 +801,11 @@ def apply_organization(context: bpy.types.Context, space_type: str = "VIEW_3D"):
             bpy.utils.register_class(title_cls)
             PanelStateManager.register_title_panel(title_cls)
 
-        # 2. 梳理分类与标签映射表
+        # 2. 梳理分类与标签映射表（建立全别名双向不区分大小写索引）
         active_tabs: Dict[str, str] = {}
+        active_tabs_lower: Dict[str, str] = {}
         hidden_tabs: Set[str] = set()
+        hidden_tabs_lower: Set[str] = set()
         categorized_tabs: Set[str] = set()
 
         for cat in categories:
@@ -546,12 +818,21 @@ def apply_organization(context: bpy.types.Context, space_type: str = "VIEW_3D"):
                 canon_name = classifier.resolve_canonical_tab(tab.name)
                 categorized_tabs.add(canon_name)
                 categorized_tabs.add(tab.name)
+
+                # 同步收集该主标签名下所有的同源附生别名（如 HardOps -> hops, hardflow）
+                all_aliases = {tab.name, canon_name}
+                for alias_k, alias_v in classifier.TAB_CANONICAL_MAP.items():
+                    if alias_v.lower() == canon_name.lower() or alias_v.lower() == tab.name.lower():
+                        all_aliases.add(alias_k)
+
                 if tab.is_active:
-                    active_tabs[canon_name] = cat.name
-                    active_tabs[tab.name] = cat.name
+                    for a in all_aliases:
+                        active_tabs[a] = cat.name
+                        active_tabs_lower[a.lower()] = cat.name
                 else:
-                    hidden_tabs.add(canon_name)
-                    hidden_tabs.add(tab.name)
+                    for a in all_aliases:
+                        hidden_tabs.add(a)
+                        hidden_tabs_lower.add(a.lower())
 
         # 白名单排除列表与隐藏配置
         excluded_list = {x.strip().lower() for x in settings.get_excluded_tabs(space_type).split(",") if x.strip()}
@@ -579,18 +860,50 @@ def apply_organization(context: bpy.types.Context, space_type: str = "VIEW_3D"):
             canon_tab = classifier.resolve_canonical_tab(root_cat or orig_cat)
             orig_tab = root_cat or orig_cat
 
-            is_root = (panel is root) or (not orig_parent) or (orig_parent not in panel_names) or orig_parent.startswith("M8_PT_HiddenPanel")
+            is_root = is_panel_root_declaration(panel)
+
+            is_active_tab = (
+                canon_tab in active_tabs or
+                orig_tab in active_tabs or
+                canon_tab.lower() in active_tabs_lower or
+                orig_tab.lower() in active_tabs_lower
+            )
+
+            is_hidden_tab = (
+                canon_tab in hidden_tabs or
+                orig_tab in hidden_tabs or
+                canon_tab.lower() in hidden_tabs_lower or
+                orig_tab.lower() in hidden_tabs_lower
+            )
 
             # 判定目标 category 与 parent_id
-            # A. 用户已显式归入分类（最高优先级，即使包含在排除名单中也按用户意图接管）
-            if canon_tab in active_tabs or orig_tab in active_tabs:
-                target_cat = active_tabs.get(canon_tab) or active_tabs.get(orig_tab)
+            # 核心机制（借鉴 n_panel_sub_tabs）：
+            # 1. 子面板 (Subpanel) 绝对不改变 bl_parent_id！始终保留指向真实父级的原始 parent_id；
+            # 2. 只有顶层根面板 (Root Panel) 在需要隐藏时挂载至 hidden_parent_id，激活时 delattr 清除 bl_parent_id；
+            # 3. 根面板隐藏时，Blender 引擎会自动递归隐藏挂载在其下的所有子孙面板。
+            if is_active_tab:
+                target_cat = (
+                    active_tabs.get(canon_tab) or
+                    active_tabs.get(orig_tab) or
+                    active_tabs_lower.get(canon_tab.lower()) or
+                    active_tabs_lower.get(orig_tab.lower())
+                )
                 desired_cat = target_cat
-                # 顶层根面板恢复原父级（None），子面板保持原父级
-                desired_parent = orig_parent
+                if is_root:
+                    desired_parent = None
+                    # 同步 HardOps / BoxCutter 插件内部偏好设置，防止内部回调弹出重置
+                    sync_special_addon_preferences(canon_tab, target_cat)
+                    sync_special_addon_preferences(orig_tab, target_cat)
+                else:
+                    clean_parent = orig_parent
+                    if not clean_parent or clean_parent.startswith("M8_PT_HiddenPanel"):
+                        from . import state
+                        _, src_parent = state.get_source_attributes(panel)
+                        clean_parent = src_parent
+                    desired_parent = clean_parent
 
-            elif canon_tab in hidden_tabs or orig_tab in hidden_tabs:
-                desired_cat = "M8_HIDDEN"
+            elif is_hidden_tab:
+                desired_cat = orig_cat or "M8_HIDDEN"
                 if is_root:
                     desired_parent = hidden_parent_id
                 else:
@@ -607,7 +920,7 @@ def apply_organization(context: bpy.types.Context, space_type: str = "VIEW_3D"):
             # C. 未分配的标签
             else:
                 if hide_unassigned:
-                    desired_cat = "M8_HIDDEN"
+                    desired_cat = orig_cat or "M8_HIDDEN"
                     if is_root:
                         desired_parent = hidden_parent_id
                     else:
@@ -619,18 +932,64 @@ def apply_organization(context: bpy.types.Context, space_type: str = "VIEW_3D"):
             curr_cat = getattr(panel, "bl_category", None)
             curr_parent = getattr(panel, "bl_parent_id", None)
 
+            desired_states[panel] = (desired_cat, desired_parent)
             if curr_cat != desired_cat or curr_parent != desired_parent:
                 panels_to_update.append(panel)
-                desired_states[panel] = (desired_cat, desired_parent)
 
         if not panels_to_update:
             return
 
-        # 4. 分代拓扑排序，保证安全注销与注册
-        sorted_panels = sort_panels_by_generation(panels_to_update)
+        # 核心级联闭包机制（对齐 n_panel_sub_tabs）：
+        # 在 Blender C++ UI 架构中，若父级面板注销并重新注册，其 C 结构体的 children 链表被完全重置；
+        # 若子面板不在父级重新注册后联动重新注册，Blender 将丢失挂载指针，导致子面板内容消失/空白；
+        # 因此，只要父级面板进入待更新队列，其所有子孙级面板（递归所有后代）必须联动加入更新队列！
+        # 且必须按分代正序（父级先注册，子级后注册）重新挂载。
+        all_by_id = {get_panel_idname(p): p for p in panels if get_panel_idname(p)}
+        all_by_name = {getattr(p, "__name__", ""): p for p in panels if getattr(p, "__name__", "")}
 
-        # 逆序注销（子面板先注销，父面板后注销）
-        for panel in reversed(sorted_panels):
+        child_map: Dict[Type[bpy.types.Panel], List[Type[bpy.types.Panel]]] = {}
+        parent_map: Dict[Type[bpy.types.Panel], Type[bpy.types.Panel]] = {}
+
+        for p in panels:
+            pid = getattr(p, "bl_parent_id", None)
+            if pid and not pid.startswith("M8_PT_HiddenPanel"):
+                p_parent = all_by_id.get(pid) or all_by_name.get(pid)
+                if p_parent:
+                    parent_map[p] = p_parent
+                    child_map.setdefault(p_parent, []).append(p)
+
+        update_set = set(panels_to_update)
+        queue = list(panels_to_update)
+        while queue:
+            curr = queue.pop(0)
+            # 向下级联扩散至所有子孙级
+            for child in child_map.get(curr, []):
+                if child not in update_set:
+                    update_set.add(child)
+                    queue.append(child)
+                    panels_to_update.append(child)
+                    # 确保子面板目标状态同步更新
+                    if child not in desired_states or desired_states[child][1] != getattr(child, "bl_parent_id", None):
+                        c_snap = PanelStateManager.record(child)
+                        c_clean_parent = c_snap.original_parent_id
+                        if not c_clean_parent or c_clean_parent.startswith("M8_PT_HiddenPanel"):
+                            from . import state
+                            _, src_p = state.get_source_attributes(child)
+                            c_clean_parent = src_p
+                        p_desired_cat = desired_states.get(curr, (None, None))[0]
+                        desired_states[child] = (p_desired_cat or getattr(child, "bl_category", None), c_clean_parent)
+            # 向上级联扩散至父级
+            if curr in parent_map:
+                p_parent = parent_map[curr]
+                if p_parent not in update_set:
+                    update_set.add(p_parent)
+                    queue.append(p_parent)
+                    panels_to_update.append(p_parent)
+
+        # 4. 分代拓扑排序，保证安全注销与注册
+        # 逆序注销（基于当前 bl_parent_id 逆序：子面板先注销，父面板后注销）
+        current_sorted = sort_panels_by_generation(panels_to_update)
+        for panel in reversed(current_sorted):
             idname = get_panel_idname(panel)
             if getattr(panel, "is_registered", False) or hasattr(bpy.types, idname) or hasattr(bpy.types, getattr(panel, "__name__", "")):
                 try:
@@ -638,8 +997,15 @@ def apply_organization(context: bpy.types.Context, space_type: str = "VIEW_3D"):
                 except Exception:
                     pass
 
-        # 顺序应用属性修改并注册（父面板先注册，子面板后注册）
-        for panel in sorted_panels:
+        # 规范化 bl_order 确保所有第三方面板在 M8 动态置顶标题栏下方（bl_order >= 1）
+        normalize_bl_order(panels_to_update)
+
+        # 顺序应用属性修改并注册（基于目标 desired_parent 正序：父面板先注册，子面板后注册）
+        target_parents = {p: desired_states[p][1] for p in panels_to_update}
+        target_sorted = sort_panels_by_generation(panels_to_update, target_parents=target_parents)
+
+        failed_panels = []
+        for panel in target_sorted:
             desired_cat, desired_parent = desired_states[panel]
             if desired_cat:
                 panel.bl_category = desired_cat
@@ -660,7 +1026,23 @@ def apply_organization(context: bpy.types.Context, space_type: str = "VIEW_3D"):
             try:
                 bpy.utils.register_class(panel)
             except Exception as e:
-                print(f"[M8 NPanel] Error re-registering {panel.__name__}: {e}")
+                failed_panels.append(panel)
+
+        # 多轮拓扑补救重试机制：持续重试直至全部成功或收敛
+        while failed_panels:
+            remaining_failed = []
+            registered_any = False
+            for panel in failed_panels:
+                try:
+                    bpy.utils.register_class(panel)
+                    registered_any = True
+                except Exception:
+                    remaining_failed.append(panel)
+            if not registered_any or len(remaining_failed) == len(failed_panels):
+                for p in remaining_failed:
+                    print(f"[M8 NPanel] Warning: Unable to re-register panel {p.__name__}")
+                break
+            failed_panels = remaining_failed
 
     finally:
         PanelStateManager.is_updating = False
